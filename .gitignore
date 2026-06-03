@@ -1,0 +1,15 @@
+*~
+~*
+bin
+lib
+data
+.vscode
+.vs
+.opensdf
+.sdf
+.user
+x64
+.zip
+.gz
+doc
+documentation
