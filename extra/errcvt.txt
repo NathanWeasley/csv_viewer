@@ -1,0 +1,288 @@
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <vector>
+#include <cctype>
+#include <algorithm>
+
+#ifdef _WIN32
+#include <direct.h>
+#define mkdir(path) _mkdir(path)
+#else
+#include <sys/stat.h>
+#include <sys/types.h>
+#endif
+
+// Trim leading and trailing whitespace
+static std::string trim(const std::string& s) {
+    size_t start = 0;
+    while (start < s.size() && std::isspace(static_cast<unsigned char>(s[start]))) {
+        ++start;
+    }
+    size_t end = s.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(s[end - 1]))) {
+        --end;
+    }
+    return s.substr(start, end - start);
+}
+
+// Extract the content between the first '(' and ')' found at or after 'pos'
+static std::string extract_paren_string(const std::string& line, size_t pos = 0) {
+    size_t open = line.find('(', pos);
+    if (open == std::string::npos) return "";
+    size_t close = line.find(')', open + 1);
+    if (close == std::string::npos) return "";
+    return trim(line.substr(open + 1, close - open - 1));
+}
+
+// Extract integer from the first parentheses after 'pos'
+static int extract_paren_int(const std::string& line, size_t pos = 0) {
+    std::string s = extract_paren_string(line, pos);
+    if (s.empty()) return -1;
+    try {
+        return std::stoi(s);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Extract the content of the nth "{...}" pair (1-indexed) from a string.
+// Returns empty string if the nth pair does not exist.
+static std::string nth_brace_content(const std::string& s, int n) {
+    size_t pos = 0;
+    for (int i = 0; i < n; ++i) {
+        pos = s.find('{', pos);
+        if (pos == std::string::npos) return "";
+        ++pos;
+    }
+    size_t close = s.find('}', pos);
+    if (close == std::string::npos) return "";
+    return trim(s.substr(pos, close - pos));
+}
+
+// Find the first hex number (0x... or 0X...) after position 'pos' in the line.
+// Returns the integer value, or -1 if not found.
+static int find_first_hex_after(const std::string& line, size_t pos) {
+    size_t hex_pos = line.find("0x", pos);
+    if (hex_pos == std::string::npos) {
+        hex_pos = line.find("0X", pos);
+    }
+    if (hex_pos == std::string::npos) {
+        return -1;
+    }
+    hex_pos += 2; // skip "0x"
+    if (hex_pos >= line.size()) return -1;
+    std::string hex_str;
+    while (hex_pos < line.size() && std::isxdigit(static_cast<unsigned char>(line[hex_pos]))) {
+        hex_str += line[hex_pos];
+        ++hex_pos;
+    }
+    if (hex_str.empty()) return -1;
+    try {
+        return std::stoi(hex_str, nullptr, 16);
+    } catch (...) {
+        return -1;
+    }
+}
+
+// Get the filename stem from a path (remove directory and extension)
+static std::string file_stem(const std::string& filepath) {
+    // Find the last path separator
+    size_t last_slash = filepath.find_last_of("/\\");
+    std::string filename = (last_slash == std::string::npos) ? filepath : filepath.substr(last_slash + 1);
+    // Remove extension
+    size_t dot = filename.rfind('.');
+    if (dot != std::string::npos) {
+        return filename.substr(0, dot);
+    }
+    return filename;
+}
+
+int main(int argc, char* argv[]) {
+    if (argc < 2) {
+        std::cerr << "Usage: errcvt <header_file>" << std::endl;
+        return 1;
+    }
+
+    std::string input_path = argv[1];
+    std::ifstream infile(input_path);
+    if (!infile.is_open()) {
+        std::cerr << "Error: cannot open file: " << input_path << std::endl;
+        return 1;
+    }
+
+    // Ensure ./output directory exists
+    mkdir("output");
+
+    // Derive output filename: same stem, .json extension
+    std::string stem = file_stem(input_path);
+    std::string output_path = "output/" + stem + ".json";
+
+    int state = 0;
+    int main_code = 0;
+    std::string code_name;
+
+    std::string line;
+    std::vector<std::string> json_objects;
+
+    auto report_error = [](const std::string& msg, int line_no) {
+        std::cerr << "Error at line " << line_no << ": " << msg << std::endl;
+    };
+
+    int line_no = 0;
+    while (std::getline(infile, line)) {
+        ++line_no;
+
+        if (state == 0) {
+            // Look for "MAIN_ERR" and extract the integer from following parentheses
+            size_t pos = line.find("MAIN_ERR");
+            if (pos != std::string::npos) {
+                int val = extract_paren_int(line, pos + 8);
+                if (val < 0) {
+                    report_error("MAIN_ERR found but no valid integer in parentheses", line_no);
+                    return 1;
+                }
+                main_code = val;
+                state = 1;
+            }
+        } else if (state == 1) {
+            // Look for "code_name" and extract the string from the adjacent parentheses
+            size_t pos = line.find("code_name");
+            if (pos != std::string::npos) {
+                std::string val = extract_paren_string(line, pos + 9);
+                if (val.empty()) {
+                    report_error("code_name found but no string in parentheses", line_no);
+                    return 1;
+                }
+                code_name = val;
+                state = 2;
+            }
+        } else if (state == 2) {
+            // Check for enum end: line whose first non-whitespace character is '}'
+            std::string trimmed = trim(line);
+            if (!trimmed.empty() && trimmed[0] == '}') {
+                break; // Enum ended
+            }
+
+            // Skip fully commented-out lines
+            if (trimmed.empty()) continue;
+            if (trimmed.compare(0, 2, "//") == 0) continue;
+            if (trimmed.compare(0, 2, "/*") == 0) continue;
+
+            // Only process lines containing "OUT_ERR"
+            if (line.find("OUT_ERR") == std::string::npos) continue;
+
+            // Extract macro_name: token(s) before '='
+            size_t eq_pos = line.find('=');
+            if (eq_pos == std::string::npos) {
+                report_error("OUT_ERR line has no '=' sign", line_no);
+                return 1;
+            }
+            std::string macro_name = trim(line.substr(0, eq_pos));
+
+            // Extract sub_code: first hex value after "OUT_ERR"
+            size_t out_pos = line.find("OUT_ERR");
+            int hex_val = find_first_hex_after(line, out_pos + 7);
+            if (hex_val < 0) {
+                report_error("OUT_ERR found but no hex value (0x...) on line", line_no);
+                return 1;
+            }
+            int sub_code = 0x8000 + hex_val;
+
+            // Extract comment part (after "//")
+            size_t comment_pos = line.find("//");
+            std::string comment;
+            if (comment_pos != std::string::npos) {
+                comment = line.substr(comment_pos + 2);
+            }
+
+            // alarm_info: everything after "//" and before the first '{'
+            std::string alarm_info;
+            size_t first_brace = comment.find('{');
+            if (first_brace != std::string::npos) {
+                alarm_info = trim(comment.substr(0, first_brace));
+            } else {
+                alarm_info = trim(comment);
+            }
+
+            // recover_info: content of the first "{}" pair
+            std::string recover_info = nth_brace_content(comment, 1);
+
+            // alarm_grade: content of the second "{}" pair (integer)
+            std::string alarm_grade_str = nth_brace_content(comment, 2);
+            int alarm_grade = 0;
+            if (!alarm_grade_str.empty()) {
+                try {
+                    alarm_grade = std::stoi(alarm_grade_str);
+                } catch (...) {
+                    report_error("Invalid alarm_grade (second {}) on line", line_no);
+                    return 1;
+                }
+            }
+
+            // show_grade: content of the third "{}" pair (integer)
+            std::string show_grade_str = nth_brace_content(comment, 3);
+            int show_grade = 0;
+            if (!show_grade_str.empty()) {
+                try {
+                    show_grade = std::stoi(show_grade_str);
+                } catch (...) {
+                    report_error("Invalid show_grade (third {}) on line", line_no);
+                    return 1;
+                }
+            }
+
+            // version: content of the fourth "{}" pair (string, optional)
+            std::string version = nth_brace_content(comment, 4);
+            if (version.empty()) {
+                version = "V?.?";
+            }
+
+            // Build the JSON object string
+            std::string json_obj;
+            json_obj += "{\n";
+            json_obj += "    \"main_code\": " + std::to_string(main_code) + ",\n";
+            json_obj += "    \"code_name\": \"" + code_name + "\",\n";
+            json_obj += "    \"sub_code\": " + std::to_string(sub_code) + ",\n";
+            json_obj += "    \"alarm_grade\": " + std::to_string(alarm_grade) + ",\n";
+            json_obj += "    \"show_grade\": " + std::to_string(show_grade) + ",\n";
+            json_obj += "    \"alarm_info\": \"" + alarm_info + "\",\n";
+            json_obj += "    \"recover_info\": \"" + recover_info + "\",\n";
+            json_obj += "    \"macro_name\": \"" + macro_name + "\",\n";
+            json_obj += "    \"version\": \"" + version + "\"\n";
+            json_obj += "}";
+
+            json_objects.push_back(json_obj);
+        }
+    }
+
+    infile.close();
+
+    // EOF in any state other than state 2 is an error
+    if (state != 2) {
+        std::cerr << "Error: unexpected end of file in state " << state
+                  << " (expected state 2)" << std::endl;
+        return 1;
+    }
+
+    // Write the JSON output
+    std::ofstream outfile(output_path);
+    if (!outfile.is_open()) {
+        std::cerr << "Error: cannot write output file: " << output_path << std::endl;
+        return 1;
+    }
+
+    outfile << "[";
+    for (size_t i = 0; i < json_objects.size(); ++i) {
+        if (i == 0) {
+            outfile << json_objects[i];
+        } else {
+            outfile << ",\n" << json_objects[i];
+        }
+    }
+    outfile << "\n]\n";
+    outfile.close();
+
+    std::cout << "Successfully generated: " << output_path << std::endl;
+    return 0;
+}
