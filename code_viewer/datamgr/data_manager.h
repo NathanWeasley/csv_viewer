@@ -1,10 +1,202 @@
 #pragma once
 
-#include "code_rcsv/rapidcsv.h"
+#include "code_viewer/datamgr/data_struct.hpp"
+#include <functional>
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <memory>
+#include <fstream>
+#include <algorithm>
+#include <cctype>
 
 namespace viewer
 {
 
+// ============================================================
+// 进度回调类型
+// ============================================================
+using ProgressCallback = std::function<void(
+    float progress,             // 0.0 ~ 1.0
+    const std::string& stage,   // 当前阶段描述
+    const std::string& detail   // 细节信息（如当前行号）
+)>;
 
+// ============================================================
+// 加载配置
+// ============================================================
+struct LoadConfig
+{
+    std::string filePath;           // CSV 文件路径
+    int         headerRow = 0;      // 表头所在行（0-based）
+    bool        hasHeader = true;   // 是否有表头
+    char        delimiter = ',';    // 分隔符
+    char        quoteChar = '"';    // 转义字符
+    ProgressCallback progressCb;    // 进度回调
+};
 
-}
+// 前向声明
+class CsvRowReader;
+
+// ============================================================
+// DataManager: CSV 数据管理器
+// ============================================================
+class DataManager
+{
+public:
+    DataManager() = default;
+    ~DataManager() = default;
+
+    // ---- 禁止拷贝，允许移动 ----
+    DataManager(const DataManager&) = delete;
+    DataManager& operator=(const DataManager&) = delete;
+    DataManager(DataManager&&) noexcept = default;
+    DataManager& operator=(DataManager&&) noexcept = default;
+
+    // ============================================================
+    // 核心加载接口
+    // ============================================================
+    bool LoadFromCSV(const LoadConfig& config);
+
+    // ============================================================
+    // 列访问接口
+    // ============================================================
+
+    // 通过列索引获取列
+    AbstractColumn* GetColumn(size_t idx);
+    const AbstractColumn* GetColumn(size_t idx) const;
+
+    // 通过列名获取列
+    AbstractColumn* GetColumn(const std::string& name);
+    const AbstractColumn* GetColumn(const std::string& name) const;
+
+    // 总列数
+    size_t GetColumnCount() const noexcept { return m_columns.size(); }
+
+    // 总行数（所有列应相同，取第 0 列的行数）
+    size_t GetRowCount() const noexcept;
+
+    // 列名列表（清洗后的）
+    const std::vector<std::string>& GetColumnNames() const noexcept { return m_columnNames; }
+
+    // 原始列名列表（清洗前，来自 CSV 表头）
+    const std::vector<std::string>& GetRawColumnNames() const noexcept { return m_rawColumnNames; }
+
+    // 按列名查找索引（未找到返回 npos）
+    size_t GetColumnIndex(const std::string& name) const;
+
+    // ============================================================
+    // 行访问接口
+    // ============================================================
+
+    // 获取指定行所有列的值（double 形式，int 列自动转换）
+    std::vector<double> GetRowAsDoubles(size_t rowIdx) const;
+
+    // 获取指定行指定列的值
+    double GetValueAsDouble(size_t colIdx, size_t rowIdx) const;
+    double GetValueAsDouble(const std::string& colName, size_t rowIdx) const;
+
+    // ============================================================
+    // 横轴检测
+    // ============================================================
+
+    // 自动检测最适合作为 X 轴的列（匹配时间戳/时间相关列名）
+    // 返回列索引，未找到返回 npos
+    size_t AutoDetectXAxis() const;
+
+    // 获取当前横轴列索引
+    size_t GetXAxisColumn() const noexcept { return m_xAxisColumn; }
+
+    // 设置横轴列
+    void SetXAxisColumn(size_t colIdx) { m_xAxisColumn = colIdx; }
+
+    // ============================================================
+    // 类型升级
+    // ============================================================
+
+    // 将 Int64 列升级为 Float64（当遇到浮点值时调用）
+    // 返回升级后的列索引，失败返回 npos
+    size_t UpgradeColumnToFloat64(size_t colIdx);
+
+    // ============================================================
+    // 工具
+    // ============================================================
+
+    // 清理所有数据
+    void Clear();
+
+    // 文件路径
+    const std::string& GetFilePath() const noexcept { return m_filePath; }
+
+private:
+    // ---- 列名处理 ----
+    void sanitizeColumnNames(const std::vector<std::string>& rawNames, 
+                             std::vector<std::string>& outSanitized,
+                             std::unordered_map<std::string, size_t>& outIndex);
+
+    // ---- 类型推断 ----
+    struct TypeCount {
+        uint64_t intCount = 0;
+        uint64_t floatCount = 0;
+        uint64_t stringCount = 0;
+    };
+
+    ColumnType resolveColumnType(const TypeCount& tc) const noexcept;
+
+    // ---- 内部数据 ----
+    std::vector<std::unique_ptr<AbstractColumn>> m_columns;
+
+    std::vector<std::string> m_columnNames;      // 清洗后的列名
+    std::vector<std::string> m_rawColumnNames;    // 原始列名
+    std::unordered_map<std::string, size_t> m_nameIndex;  // 列名->索引
+
+    std::string m_filePath;     // 已加载的文件路径
+    size_t      m_xAxisColumn = npos;  // 当前横轴列
+
+    static constexpr size_t npos = static_cast<size_t>(-1);
+
+    friend class CsvRowReader;
+};
+
+// ============================================================
+// CsvRowReader: 轻量级逐行 CSV 解析器
+// 仅读取一行数据到内存，不累积
+// ============================================================
+class CsvRowReader
+{
+public:
+    CsvRowReader(const std::string& filePath, char delimiter = ',', char quote = '"');
+
+    // 打开文件
+    bool open();
+
+    // 读取下一行，返回 true 表示成功读取一行
+    // fields 输出为当前行的各字段字符串
+    bool readRow(std::vector<std::string>& fields);
+
+    // 获取当前行号（0-based）
+    size_t lineNumber() const noexcept { return m_lineNum; }
+
+    // 获取总行数预估（用于进度条）
+    // 注意：仅通过第一次遍历计数获得
+    size_t totalLines() const noexcept { return m_totalLines; }
+
+    // 关闭
+    void close();
+
+    // 重置到文件开头
+    bool reset();
+
+private:
+    // 解析一个 CSV 行（处理引号转义）
+    bool parseLine(const std::string& line, std::vector<std::string>& fields);
+
+    std::string m_filePath;
+    char m_delimiter;
+    char m_quote;
+    std::ifstream m_stream;
+    size_t m_lineNum = 0;
+    size_t m_totalLines = 0;
+};
+
+} // namespace viewer
