@@ -52,6 +52,6 @@ echo.
 if %EXIT_CODE% equ 0 (
     echo Build and test completed SUCCESSFULLY.
 ) else (
-    echo Tests FAILED (exit code: %EXIT_CODE%).
+    echo Tests FAILED (exit code: %EXIT_CODE%)
 )
 exit /b %EXIT_CODE%
