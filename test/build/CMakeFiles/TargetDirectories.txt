@@ -1,4 +1,0 @@
-E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/ALL_BUILD.dir
-E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/ZERO_CHECK.dir
-E:/Projects/weekendbuild/_App/csv_viewer/test/build/base/CMakeFiles/test_base.dir
-E:/Projects/weekendbuild/_App/csv_viewer/test/build/datamgr/CMakeFiles/datamgr_test.dir

@@ -1,4 +1,0 @@
-﻿  Building Custom Rule E:/Projects/weekendbuild/_App/csv_viewer/test/base/CMakeLists.txt
-  test_runner.cpp
-E:\Projects\weekendbuild\_App\csv_viewer\test\base\test_registry.h(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
-  test_base.vcxproj -> E:\Projects\weekendbuild\_App\csv_viewer\test\build\base\Debug\test_base.lib
