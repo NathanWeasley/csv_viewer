@@ -1,0 +1,117 @@
+
+---
+events:
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeDetermineSystem.cmake:233 (message)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      The system is: Windows - 10.0.26200 - AMD64
+  -
+    kind: "message-v1"
+    backtrace:
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:17 (message)"
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeDetermineCompilerId.cmake:64 (__determine_compiler_id_test)"
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeDetermineCXXCompiler.cmake:126 (CMAKE_DETERMINE_COMPILER_ID)"
+      - "CMakeLists.txt:2 (project)"
+    message: |
+      Compiling the CXX compiler identification source file "CMakeCXXCompilerId.cpp" succeeded.
+      Compiler:  
+      Build flags: 
+      Id flags:  
+      
+      The output was:
+      0
+      MSBuild version 17.6.3+07e294721 for .NET Framework
+      生成启动时间为 2026/6/6 0:41:19。
+      
+      节点 1 上的项目“E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\3.28.1\\CompilerIdCXX\\CompilerIdCXX.vcxproj”(默认目标)。
+      PrepareForBuild:
+        正在创建目录“Debug\\”。
+        正在创建目录“Debug\\CompilerIdCXX.tlog\\”。
+      InitializeBuildStatus:
+        正在创建“Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild”，因为已指定“AlwaysCreate”。
+      ClCompile:
+        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.36.32532\\bin\\HostX64\\x64\\CL.exe /c /nologo /W0 /WX- /diagnostics:column /Od /D _MBCS /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /Fo"Debug\\\\" /Fd"Debug\\vc143.pdb" /external:W0 /Gd /TP /FC /errorReport:queue CMakeCXXCompilerId.cpp
+        CMakeCXXCompilerId.cpp
+      Link:
+        C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.36.32532\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:".\\CompilerIdCXX.exe" /INCREMENTAL:NO /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /PDB:".\\CompilerIdCXX.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:".\\CompilerIdCXX.lib" /MACHINE:X64 Debug\\CMakeCXXCompilerId.obj
+        CompilerIdCXX.vcxproj -> E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\3.28.1\\CompilerIdCXX\\CompilerIdCXX.exe
+      PostBuildEvent:
+        for %%i in (cl.exe) do @echo CMAKE_CXX_COMPILER=%%~$PATH:i
+        :VCEnd
+        CMAKE_CXX_COMPILER=C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.36.32532\\bin\\Hostx64\\x64\\cl.exe
+      FinalizeBuildStatus:
+        正在删除文件“Debug\\CompilerIdCXX.tlog\\unsuccessfulbuild”。
+        正在对“Debug\\CompilerIdCXX.tlog\\CompilerIdCXX.lastbuildstate”执行 Touch 任务。
+      已完成生成项目“E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\3.28.1\\CompilerIdCXX\\CompilerIdCXX.vcxproj”(默认目标)的操作。
+      
+      已成功生成。
+          0 个警告
+          0 个错误
+      
+      已用时间 00:00:00.48
+      
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.exe"
+      
+      Compilation of the CXX compiler identification source "CMakeCXXCompilerId.cpp" produced "CompilerIdCXX.vcxproj"
+      
+      The CXX compiler identification is MSVC, found in:
+        E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/3.28.1/CompilerIdCXX/CompilerIdCXX.exe
+      
+  -
+    kind: "try_compile-v1"
+    backtrace:
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeDetermineCompilerABI.cmake:57 (try_compile)"
+      - "C:/DevelopTools/CMake/share/cmake-3.28/Modules/CMakeTestCXXCompiler.cmake:26 (CMAKE_DETERMINE_COMPILER_ABI)"
+      - "CMakeLists.txt:2 (project)"
+    checks:
+      - "Detecting CXX compiler ABI info"
+    directories:
+      source: "E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/CMakeScratch/TryCompile-43cpj5"
+      binary: "E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/CMakeScratch/TryCompile-43cpj5"
+    cmakeVariables:
+      CMAKE_CXX_FLAGS: "/DWIN32 /D_WINDOWS /GR /EHsc"
+      CMAKE_CXX_FLAGS_DEBUG: "/Zi /Ob0 /Od /RTC1"
+      CMAKE_EXE_LINKER_FLAGS: "/machine:x64"
+    buildResult:
+      variable: "CMAKE_CXX_ABI_COMPILED"
+      cached: true
+      stdout: |
+        Change Dir: 'E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/CMakeScratch/TryCompile-43cpj5'
+        
+        Run Build Command(s): "C:/Program Files/Microsoft Visual Studio/2022/Enterprise/MSBuild/Current/Bin/amd64/MSBuild.exe" cmTC_bea9f.vcxproj /p:Configuration=Debug /p:Platform=x64 /p:VisualStudioVersion=17.0 /v:n
+        MSBuild version 17.6.3+07e294721 for .NET Framework
+        生成启动时间为 2026/6/6 0:41:20。
+        
+        节点 1 上的项目“E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\CMakeScratch\\TryCompile-43cpj5\\cmTC_bea9f.vcxproj”(默认目标)。
+        PrepareForBuild:
+          正在创建目录“cmTC_bea9f.dir\\Debug\\”。
+          正在创建目录“E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\CMakeScratch\\TryCompile-43cpj5\\Debug\\”。
+          正在创建目录“cmTC_bea9f.dir\\Debug\\cmTC_bea9f.tlog\\”。
+        InitializeBuildStatus:
+          正在创建“cmTC_bea9f.dir\\Debug\\cmTC_bea9f.tlog\\unsuccessfulbuild”，因为已指定“AlwaysCreate”。
+        ClCompile:
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.36.32532\\bin\\HostX64\\x64\\CL.exe /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_bea9f.dir\\Debug\\\\" /Fd"cmTC_bea9f.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\DevelopTools\\CMake\\share\\cmake-3.28\\Modules\\CMakeCXXCompilerABI.cpp"
+          Microsoft (R) C/C++ Optimizing Compiler Version 19.36.32532 for x64
+          CMakeCXXCompilerABI.cpp
+          Copyright (C) Microsoft Corporation.  All rights reserved.
+          cl /c /Zi /W1 /WX- /diagnostics:column /Od /Ob0 /D _MBCS /D WIN32 /D _WINDOWS /D "CMAKE_INTDIR=\\"Debug\\"" /Gm- /EHsc /RTC1 /MDd /GS /fp:precise /Zc:wchar_t /Zc:forScope /Zc:inline /GR /Fo"cmTC_bea9f.dir\\Debug\\\\" /Fd"cmTC_bea9f.dir\\Debug\\vc143.pdb" /external:W1 /Gd /TP /errorReport:queue "C:\\DevelopTools\\CMake\\share\\cmake-3.28\\Modules\\CMakeCXXCompilerABI.cpp"
+        Link:
+          C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise\\VC\\Tools\\MSVC\\14.36.32532\\bin\\HostX64\\x64\\link.exe /ERRORREPORT:QUEUE /OUT:"E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\CMakeScratch\\TryCompile-43cpj5\\Debug\\cmTC_bea9f.exe" /INCREMENTAL /ILK:"cmTC_bea9f.dir\\Debug\\cmTC_bea9f.ilk" /NOLOGO kernel32.lib user32.lib gdi32.lib winspool.lib shell32.lib ole32.lib oleaut32.lib uuid.lib comdlg32.lib advapi32.lib /MANIFEST /MANIFESTUAC:"level='asInvoker' uiAccess='false'" /manifest:embed /DEBUG /PDB:"E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/CMakeScratch/TryCompile-43cpj5/Debug/cmTC_bea9f.pdb" /SUBSYSTEM:CONSOLE /TLBID:1 /DYNAMICBASE /NXCOMPAT /IMPLIB:"E:/Projects/weekendbuild/_App/csv_viewer/test/build/CMakeFiles/CMakeScratch/TryCompile-43cpj5/Debug/cmTC_bea9f.lib" /MACHINE:X64  /machine:x64 cmTC_bea9f.dir\\Debug\\CMakeCXXCompilerABI.obj
+          cmTC_bea9f.vcxproj -> E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\CMakeScratch\\TryCompile-43cpj5\\Debug\\cmTC_bea9f.exe
+        FinalizeBuildStatus:
+          正在删除文件“cmTC_bea9f.dir\\Debug\\cmTC_bea9f.tlog\\unsuccessfulbuild”。
+          正在对“cmTC_bea9f.dir\\Debug\\cmTC_bea9f.tlog\\cmTC_bea9f.lastbuildstate”执行 Touch 任务。
+        已完成生成项目“E:\\Projects\\weekendbuild\\_App\\csv_viewer\\test\\build\\CMakeFiles\\CMakeScratch\\TryCompile-43cpj5\\cmTC_bea9f.vcxproj”(默认目标)的操作。
+        
+        已成功生成。
+            0 个警告
+            0 个错误
+        
+        已用时间 00:00:00.38
+        
+      exitCode: 0
+...

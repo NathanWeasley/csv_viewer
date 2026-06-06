@@ -1,0 +1,4 @@
+﻿  test_column_push.cpp
+E:\Projects\weekendbuild\_App\csv_viewer\test\datamgr\test_column_push.cpp(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+E:\Projects\weekendbuild\_App\csv_viewer\code_viewer/datamgr/data_struct.hpp(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss
+  datamgr_test.vcxproj -> E:\Projects\weekendbuild\_App\csv_viewer\test\build\datamgr\Debug\datamgr_test.exe

@@ -5,6 +5,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <cstring>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
@@ -77,7 +78,7 @@ struct AbstractColumn
     virtual std::unique_ptr<AbstractColumn> cloneEmpty() const = 0;
 
     // 将自身所有数据以 double 形式拷贝到目标列（用于类型升级）
-    virtual void copyToDoubleColumn(class Column<double>* dst) const = 0;
+    virtual void copyToDoubleColumn(Column<double>* dst) const = 0;
 };
 
 // ============================================================
@@ -107,7 +108,8 @@ inline CellType classifyCell(const std::string& s)
 // Column<T>: 分块存储列模板
 // ============================================================
 template <typename T>
-class Column : public AbstractColumn
+class Column
+    : public AbstractColumn
 {
     static_assert(std::is_same<T, double>::value || std::is_same<T, int64_t>::value,
                   "Column<T> only supports double or int64_t");
@@ -128,20 +130,22 @@ public:
         reference operator*()  const noexcept { return m_chunks->at(m_chunkIdx)._data[m_elemIdx]; }
         pointer   operator->() const noexcept { return &m_chunks->at(m_chunkIdx)._data[m_elemIdx]; }
 
-        const_iterator& operator++()    noexcept { ++m_globalIdx; advanceLocal(1); return *this; }
+        const_iterator& operator++()    noexcept { advanceLocal(1); return *this; }
         const_iterator  operator++(int) noexcept { auto tmp = *this; ++(*this); return tmp; }
-        const_iterator& operator--()    noexcept { --m_globalIdx; retreatLocal(1); return *this; }
+        const_iterator& operator--()    noexcept { retreatLocal(1); return *this; }
         const_iterator  operator--(int) noexcept { auto tmp = *this; --(*this); return tmp; }
 
-        const_iterator& operator+=(difference_type n) noexcept { m_globalIdx += n; advanceLocal(n); return *this; }
-        const_iterator& operator-=(difference_type n) noexcept { m_globalIdx -= n; retreatLocal(n); return *this; }
+        const_iterator& operator+=(difference_type n) noexcept { advanceLocal(n); return *this; }
+        const_iterator& operator-=(difference_type n) noexcept { retreatLocal(n); return *this; }
 
-        reference operator[](difference_type n) const noexcept {
+        reference operator[](difference_type n) const noexcept
+        {
             size_t idx = m_globalIdx + n;
             return m_chunks->at(idx / __chunk_size)._data[idx % __chunk_size];
         }
 
-        difference_type operator-(const const_iterator& other) const noexcept {
+        difference_type operator-(const const_iterator& other) const noexcept
+        {
             return static_cast<difference_type>(m_globalIdx) - static_cast<difference_type>(other.m_globalIdx);
         }
 
@@ -169,14 +173,20 @@ public:
             m_elemIdx  = globalIdx % __chunk_size;
         }
 
-        void advanceLocal(difference_type n) noexcept {
-            if (n == 0) return;
-            size_t newGlobal = static_cast<size_t>(static_cast<difference_type>(m_globalIdx) + n);
-            m_chunkIdx = newGlobal / __chunk_size;
-            m_elemIdx  = newGlobal % __chunk_size;
+        inline void advanceLocal(difference_type n) noexcept
+        {
+            if (n == 0)
+            {
+                return;
+            }
+
+            m_globalIdx += n;
+            m_chunkIdx = m_globalIdx / __chunk_size;
+            m_elemIdx  = m_globalIdx % __chunk_size;
         }
 
-        void retreatLocal(difference_type n) noexcept {
+        inline void retreatLocal(difference_type n) noexcept
+        {
             advanceLocal(-n);
         }
     };
@@ -196,20 +206,22 @@ public:
         reference operator*()  const noexcept { return m_chunks->at(m_chunkIdx)._data[m_elemIdx]; }
         pointer   operator->() const noexcept { return &m_chunks->at(m_chunkIdx)._data[m_elemIdx]; }
 
-        iterator& operator++()    noexcept { ++m_globalIdx; advanceLocal(1); return *this; }
+        iterator& operator++()    noexcept { advanceLocal(1); return *this; }
         iterator  operator++(int) noexcept { auto tmp = *this; ++(*this); return tmp; }
-        iterator& operator--()    noexcept { --m_globalIdx; retreatLocal(1); return *this; }
+        iterator& operator--()    noexcept { retreatLocal(1); return *this; }
         iterator  operator--(int) noexcept { auto tmp = *this; --(*this); return tmp; }
 
-        iterator& operator+=(difference_type n) noexcept { m_globalIdx += n; advanceLocal(n); return *this; }
-        iterator& operator-=(difference_type n) noexcept { m_globalIdx -= n; retreatLocal(n); return *this; }
+        iterator& operator+=(difference_type n) noexcept { advanceLocal(n); return *this; }
+        iterator& operator-=(difference_type n) noexcept { retreatLocal(n); return *this; }
 
-        reference operator[](difference_type n) const noexcept {
+        reference operator[](difference_type n) const noexcept
+        {
             size_t idx = m_globalIdx + n;
             return m_chunks->at(idx / __chunk_size)._data[idx % __chunk_size];
         }
 
-        difference_type operator-(const iterator& other) const noexcept {
+        difference_type operator-(const iterator& other) const noexcept
+        {
             return static_cast<difference_type>(m_globalIdx) - static_cast<difference_type>(other.m_globalIdx);
         }
 
@@ -221,7 +233,8 @@ public:
         bool operator>=(const iterator& other) const noexcept { return m_globalIdx >= other.m_globalIdx; }
 
         // 隐式转换为 const_iterator
-        operator const_iterator() const noexcept {
+        operator const_iterator() const noexcept
+        {
             const_iterator ci;
             ci.m_chunks = m_chunks;
             ci.m_globalIdx = m_globalIdx;
@@ -247,14 +260,20 @@ public:
             m_elemIdx  = globalIdx % __chunk_size;
         }
 
-        void advanceLocal(difference_type n) noexcept {
-            if (n == 0) return;
-            size_t newGlobal = static_cast<size_t>(static_cast<difference_type>(m_globalIdx) + n);
-            m_chunkIdx = newGlobal / __chunk_size;
-            m_elemIdx  = newGlobal % __chunk_size;
+        void advanceLocal(difference_type n) noexcept
+        {
+            if (n == 0)
+            {
+                return;
+            }
+
+            m_globalIdx += n;
+            m_chunkIdx = m_globalIdx / __chunk_size;
+            m_elemIdx  = m_globalIdx % __chunk_size;
         }
 
-        void retreatLocal(difference_type n) noexcept {
+        void retreatLocal(difference_type n) noexcept
+        {
             advanceLocal(-n);
         }
     };
@@ -274,46 +293,89 @@ public:
     bool       empty()         const noexcept override { return m_size == 0; }
     void       clear()               override { m_chunks.clear(); m_size = 0; }
 
-    std::string typeName() const override {
+    std::string typeName() const override
+    {
         return m_type == ColumnType::Int64 ? "int64" : "float64";
     }
 
-    std::unique_ptr<AbstractColumn> cloneEmpty() const override {
+    std::unique_ptr<AbstractColumn> cloneEmpty() const override
+    {
         return std::make_unique<Column<T>>(m_type);
     }
 
-    void copyToDoubleColumn(Column<double>* dst) const override {
-        for (size_t i = 0; i < m_size; ++i)
-            dst->push_back(getDouble(i));
+    void copyToDoubleColumn(Column<double>* dst) const override
+    {
+        if constexpr (std::is_same_v<T, double>)
+        {
+            // 同类型：逐 chunk memcpy（追加语义，处理 dst 尾部未满情况）
+            for (size_t i = 0; i < m_chunks.size(); ++i)
+            {
+                const auto& srcChunk = m_chunks[i];
+                size_t remaining = srcChunk._size;
+                size_t srcOffset = 0;
+
+                while (remaining > 0)
+                {
+                    if (dst->m_chunks.empty() || dst->m_chunks.back().full())
+                        dst->m_chunks.emplace_back();
+
+                    auto& dstChunk = dst->m_chunks.back();
+                    size_t copyCount = std::min(remaining,
+                        DataChunk<double>::CHUNK_CAPACITY - dstChunk._size);
+
+                    std::memcpy(dstChunk._data + dstChunk._size,
+                               srcChunk._data + srcOffset,
+                               copyCount * sizeof(double));
+
+                    dstChunk._size += copyCount;
+                    dst->m_size += copyCount;
+                    remaining -= copyCount;
+                    srcOffset += copyCount;
+                }
+            }
+        }
+        else
+        {
+            // Int64 → double：逐元素转换
+            for (size_t i = 0; i < m_size; ++i)
+                dst->push_back(static_cast<double>((*this)[i]));
+        }
     }
 
-    double getDouble(size_t idx) const override {
+    double getDouble(size_t idx) const override
+    {
         return static_cast<double>((*this)[idx]);
     }
 
-    int64_t getInt64(size_t idx) const override {
+    int64_t getInt64(size_t idx) const override
+    {
         if constexpr (std::is_same<T, int64_t>::value)
             return (*this)[idx];
         else
             return static_cast<int64_t>((*this)[idx]);
     }
 
-    void pushFromString(const std::string& s) override {
+    void pushFromString(const std::string& s) override
+    {
         T val = parseValue(s);
         push_back(val);
     }
 
     // -------- Column 特有接口 --------
-    T operator[](size_t idx) const noexcept {
+    T operator[](size_t idx) const noexcept
+    {
         return m_chunks[idx / __chunk_size]._data[idx % __chunk_size];
     }
 
-    T& operator[](size_t idx) noexcept {
+    T& operator[](size_t idx) noexcept
+    {
         return m_chunks[idx / __chunk_size]._data[idx % __chunk_size];
     }
 
-    void push_back(T val) {
-        if (m_chunks.empty() || m_chunks.back().full()) {
+    void push_back(T val)
+    {
+        if (m_chunks.empty() || m_chunks.back().full())
+        {
             m_chunks.emplace_back();
         }
         auto& back = m_chunks.back();
@@ -321,14 +383,19 @@ public:
         ++m_size;
     }
 
-    const T& back() const noexcept {
-        static T s_empty{};
-        if (m_chunks.empty()) return s_empty;
+    const T& back() const noexcept
+    {
+        static T s_empty = {};
+        if (m_chunks.empty())
+        {
+            return s_empty;
+        }
         const auto& lastChunk = m_chunks.back();
         return lastChunk._data[lastChunk._size - 1];
     }
 
-    T& back() noexcept {
+    T& back() noexcept
+    {
         auto& lastChunk = m_chunks.back();
         return lastChunk._data[lastChunk._size - 1];
     }
@@ -341,24 +408,32 @@ public:
 
     // 批量追加
     template <typename InputIt>
-    void append(InputIt first, InputIt last) {
+    void append(InputIt first, InputIt last)
+    {
         for (; first != last; ++first)
+        {
             push_back(static_cast<T>(*first));
+        }
     }
 
-    void append(const std::vector<T>& vec) {
+    void append(const std::vector<T>& vec)
+    {
         append(vec.begin(), vec.end());
     }
 
 private:
-    static T parseValue(const std::string& s) {
-        if constexpr (std::is_same<T, int64_t>::value) {
+    static T parseValue(const std::string& s)
+    {
+        if constexpr (std::is_same<T, int64_t>::value)
+        {
             char* end = nullptr;
             long long val = std::strtoll(s.c_str(), &end, 10);
             if (end != s.c_str() && *end == '\0')
                 return static_cast<int64_t>(val);
             return 0;
-        } else {
+        }
+        else
+        {
             char* end = nullptr;
             double val = std::strtod(s.c_str(), &end);
             if (end != s.c_str() && *end == '\0')
@@ -381,10 +456,15 @@ inline void Column<double>::pushFromString(const std::string& s)
 {
     char* end = nullptr;
     double val = std::strtod(s.c_str(), &end);
+
     if (end != s.c_str() && *end == '\0')
+    {
         push_back(val);
+    }
     else
+    {
         push_back(std::numeric_limits<double>::quiet_NaN());
+    }
 }
 
 // ============================================================
@@ -395,10 +475,15 @@ inline void Column<int64_t>::pushFromString(const std::string& s)
 {
     char* end = nullptr;
     long long val = std::strtoll(s.c_str(), &end, 10);
+
     if (end != s.c_str() && *end == '\0')
+    {
         push_back(static_cast<int64_t>(val));
+    }
     else
+    {
         push_back(0);  // 类型不匹配时由 DataManager 处理升级
+    }
 }
 
 } // namespace viewer
