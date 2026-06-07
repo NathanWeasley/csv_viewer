@@ -1,10 +1,12 @@
 #pragma once
 
 #include "code_viewer/datamgr/data_struct.hpp"
+#include "code_viewer/datamgr/custom_expr/custom_func.h"
 #include <functional>
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <fstream>
 #include <algorithm>
@@ -60,6 +62,11 @@ public:
     // 核心加载接口
     // ============================================================
     bool LoadFromCSV(const LoadConfig& config);
+
+    // ============================================================
+    // 表达式加载接口
+    // ============================================================
+    bool LoadFromExpr(const std::string& exprStr, const std::string& exprName);
 
     // ============================================================
     // 列访问接口
@@ -136,6 +143,16 @@ private:
     void sanitizeColumnNames(const std::vector<std::string>& rawNames, 
                              std::vector<std::string>& outSanitized,
                              std::unordered_map<std::string, size_t>& outIndex);
+
+    // ---- 表达式列名提取 ----
+    // extraKeywords: 额外的排除标识符（如自定义函数名），不在其中且存在于 m_nameIndex 中的才会被返回
+    std::vector<std::string> ParseColumnRefs(const std::string& exprStr,
+        const std::unordered_set<std::string>* extraKeywords = nullptr) const;
+
+    // ---- 自定义函数预处理 ----
+    // 扫描 exprStr 中的自定义跨行函数调用，预计算临时列并替换表达式文本
+    // 返回处理后的表达式字符串。若某函数调用参数列不存在则返回空字符串表示失败
+    std::string PreprocessCustomFuncs(const std::string& exprStr, size_t rowCount);
 
     // ---- 类型推断 ----
     struct TypeCount {
