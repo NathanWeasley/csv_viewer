@@ -161,7 +161,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         return false;
     }
 
-    const auto reportProgress = [&](float p, const std::string& stage, const std::string& detail) {
+    const auto reportProgress = [&](float p, const std::string& stage, const std::string& detail)
+    {
         if (config.progressCb)
             config.progressCb(p, stage, detail);
     };
@@ -244,20 +245,38 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     // 生成列名
     std::vector<std::string> rawNames;
-    if (config.hasHeader && !headerFields.empty())
+    if (!config.preSanitizedNames.empty())
     {
-        rawNames = headerFields;
+        // Use externally provided sanitized names (from ViewerProcess header detection)
+        m_columnNames = config.preSanitizedNames;
+        if (config.hasHeader && !headerFields.empty())
+            m_rawColumnNames = headerFields;
+        else
+        {
+            m_rawColumnNames.resize(colCount);
+            for (size_t c = 0; c < colCount; ++c)
+                m_rawColumnNames[c] = "col_" + std::to_string(c + 1);
+        }
+        for (size_t i = 0; i < m_columnNames.size(); ++i)
+            m_nameIndex[m_columnNames[i]] = i;
     }
     else
     {
-        // 无表头：生成 Col_0, Col_1, ...
-        rawNames.resize(colCount);
-        for (size_t c = 0; c < colCount; ++c)
-            rawNames[c] = "Col_" + std::to_string(c);
-    }
+        if (config.hasHeader && !headerFields.empty())
+        {
+            rawNames = headerFields;
+        }
+        else
+        {
+            // No header: generate Col_0, Col_1, ...
+            rawNames.resize(colCount);
+            for (size_t c = 0; c < colCount; ++c)
+                rawNames[c] = "Col_" + std::to_string(c);
+        }
 
-    m_rawColumnNames = rawNames;
-    sanitizeColumnNames(rawNames, m_columnNames, m_nameIndex);
+        m_rawColumnNames = rawNames;
+        sanitizeColumnNames(rawNames, m_columnNames, m_nameIndex);
+    }
 
     // ----- 阶段 1b: 扫描所有行的类型 -----
     reportProgress(0.05f, "Scanning data types...", "");
@@ -547,7 +566,8 @@ ColumnType DataManager::resolveColumnType(const TypeCount& tc) const noexcept
 size_t DataManager::AutoDetectXAxis() const
 {
     // 关键词（不区分大小写）
-    static const std::vector<std::string> keywords = {
+    static const std::vector<std::string> keywords =
+    {
         "time", "timestamp", "datetime", "date", "t",
         "time_ms", "time_s", "utc", "epoch",
         "x", "index", "id"

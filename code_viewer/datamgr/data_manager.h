@@ -33,6 +33,9 @@ struct LoadConfig
     char        delimiter = ',';    // 分隔符
     char        quoteChar = '"';    // 转义字符
     ProgressCallback progressCb;    // 进度回调
+
+    // Optional: pre-sanitized column names (if empty, auto-generated from header)
+    std::vector<std::string> preSanitizedNames;
 };
 
 // 前向声明

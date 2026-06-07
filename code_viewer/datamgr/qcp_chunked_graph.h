@@ -13,7 +13,9 @@ namespace viewer
 // 直接从 Column<VFLOAT> 读取数据，不创建任何中间缓冲区
 // 支持 QCustomPlot 的缩放、拖拽操作实时更新显示
 // ============================================================
-class QCPChunkedGraph : public QCPAbstractPlottable, public QCPPlottableInterface1D
+class QCPChunkedGraph
+    : public QCPAbstractPlottable
+    , public QCPPlottableInterface1D
 {
     Q_OBJECT
 

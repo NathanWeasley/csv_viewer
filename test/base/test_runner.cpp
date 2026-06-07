@@ -1,4 +1,4 @@
-#include "test_registry.h"
+#include "test_case.h"
 
 #include <iostream>
 #include <algorithm>
