@@ -35,30 +35,17 @@ struct CustomFuncEntry
 struct CustomFuncRegistry
 {
     static constexpr size_t MAX_FUNCS = 16;
+    static inline std::array<CustomFuncEntry, MAX_FUNCS> s_entries = {};
+    static inline uint8_t s_count = 0;
 
-    static std::array<CustomFuncEntry, MAX_FUNCS>& entries() noexcept
-    {
-        static std::array<CustomFuncEntry, MAX_FUNCS> s_entries = {};
-        return s_entries;
-    }
-
-    static uint8_t& countRef() noexcept
-    {
-        static uint8_t s_count = 0;
-        return s_count;
-    }
-
-    static uint8_t count() noexcept { return countRef(); }
+    static const std::array<CustomFuncEntry, MAX_FUNCS>& entries() noexcept { return s_entries; }
+    static uint8_t count() noexcept { return s_count; }
 
     static void add(CustomFuncEntry e) noexcept
     {
-        uint8_t& c = countRef();
-        if (c < MAX_FUNCS)
-            entries()[c++] = e;
+        if (s_count < MAX_FUNCS)
+            s_entries[s_count++] = e;
     }
-
-    // 确保所有注册在 main() 之前完成
-    static void ensureInit() noexcept { (void)count(); }
 };
 
 } // namespace viewer

@@ -63,4 +63,16 @@ struct BdiffFunc
     }
 };
 
+// 强制链接：inline 定义确保注册代码直接编译在当前 TU 中
+inline void EnsureDiffFuncsLinked()
+{
+    static bool registered = false;
+    if (!registered)
+    {
+        CustomFuncRegistry::add({FdiffFunc::name, FdiffFunc::argCount, &FdiffFunc::compute});
+        CustomFuncRegistry::add({BdiffFunc::name, BdiffFunc::argCount, &BdiffFunc::compute});
+        registered = true;
+    }
+}
+
 } // namespace viewer

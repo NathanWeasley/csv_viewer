@@ -1,7 +1,3 @@
 #include "code_viewer/datamgr/custom_expr/diff_func.h"
-
-namespace viewer
-{
-    REGISTER_CUSTOM_EXPR_FUNC(FdiffFunc);
-    REGISTER_CUSTOM_EXPR_FUNC(BdiffFunc);
-} // namespace viewer
+// EnsureDiffFuncsLinked() is now inline-defined in diff_func.h.
+// This file remains for CMake source tracking only.

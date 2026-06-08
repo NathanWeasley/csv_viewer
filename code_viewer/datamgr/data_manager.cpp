@@ -7,9 +7,6 @@
 
 namespace viewer
 {
-    // 强制注册自定义函数（与 diff_func.cpp 互斥，避免重复链接）
-    REGISTER_CUSTOM_EXPR_FUNC(FdiffFunc);
-    REGISTER_CUSTOM_EXPR_FUNC(BdiffFunc);
 
 // ============================================================
 // CsvRowReader 实现
@@ -659,6 +656,9 @@ std::vector<std::string> DataManager::ParseColumnRefs(const std::string& exprStr
 
 std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_t rowCount)
 {
+    // 确保内置跨行函数已注册
+    EnsureDiffFuncsLinked();
+
     std::string result = exprStr;
 
     for (uint8_t fi = 0; fi < CustomFuncRegistry::count(); ++fi)
@@ -762,14 +762,13 @@ std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_
                 continue;
             }
 
-            // 生成临时列名
-            std::string tempName = "_" + std::string(funcName) + "_";
+            // 生成临时列名（避免双下划线和前置下划线，与 exprtk 兼容）
+            std::string tempName = "tmp_" + std::string(funcName) + "_";
             for (size_t ai = 0; ai < argNames.size(); ++ai)
             {
                 if (ai > 0) tempName += "_";
                 tempName += argNames[ai];
             }
-            tempName += "_";
 
             // 确保唯一性
             int suffix = 0;

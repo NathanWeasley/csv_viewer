@@ -3,6 +3,7 @@ add_executable(datamgr_test)
 
 target_sources(datamgr_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/data_manager.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/custom_expr/diff_func.cpp
     test_enum.cpp
     test_data_chunk.cpp
     test_classify_cell.cpp
@@ -17,6 +18,10 @@ target_sources(datamgr_test PRIVATE
 
 target_include_directories(datamgr_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../base
+)
+
+target_compile_definitions(datamgr_test PRIVATE
+    TEST_PROJECT_ROOT="${CMAKE_CURRENT_SOURCE_DIR}/../.."
 )
 
 target_compile_options(datamgr_test PRIVATE /bigobj)

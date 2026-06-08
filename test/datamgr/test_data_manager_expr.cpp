@@ -5,12 +5,15 @@
 #include <memory>
 #include <string>
 
+//#define PATH_PREFIX     "test/data/"
+#define PATH_PREFIX     "../../data/"
+
 namespace {
 
 // Helper: get the file path relative to the test executable dir
 std::string testDataPath(const std::string& filename)
 {
-    return std::string("test/data/") + filename;
+    return std::string(TEST_PROJECT_ROOT) + "/test/data/" + filename;
 }
 
 } // anonymous namespace
