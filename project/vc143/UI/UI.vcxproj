@@ -69,12 +69,24 @@
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
       <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\extra\qads\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <PostBuildEvent>
+      <Command>xcopy /Y /D "E:\Projects\weekendbuild\_App\csv_viewer\extra\qads\*.dll" "$(TargetDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
       <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <ClCompile>
+      <AdditionalIncludeDirectories>..\..\..\extra\qads\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <PostBuildEvent>
+      <Command>xcopy /Y /D "E:\Projects\weekendbuild\_App\csv_viewer\extra\qads\*.dll" "$(TargetDir)"</Command>
+    </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
@@ -101,11 +113,17 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <QtRcc Include="UI.qrc" />
-    <QtUic Include="UI.ui" />
-    <QtMoc Include="UI.h" />
-    <ClCompile Include="UI.cpp" />
-    <ClCompile Include="main.cpp" />
+    <QtUic Include="..\..\..\code_ui\UI.ui" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtRcc Include="..\..\..\code_ui\UI.qrc" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\code_ui\main.cpp" />
+    <ClCompile Include="..\..\..\code_ui\UI.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="..\..\..\code_ui\UI.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
