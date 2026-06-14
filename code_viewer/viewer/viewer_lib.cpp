@@ -7,14 +7,12 @@
 namespace viewer
 {
 
-ViewerProcess* ViewerProcess::__inst = new ViewerProcess();
-
-ViewerProcess::ViewerProcess() = default;
+Viewer::Viewer() = default;
 
 // ============================================================
 // detectHeader — heuristic to decide if row 0 is a header
 // ============================================================
-bool ViewerProcess::detectHeader(const std::vector<std::string>& firstRow)
+bool Viewer::detectHeader(const std::vector<std::string>& firstRow)
 {
     if (firstRow.empty())
         return false;
@@ -87,7 +85,7 @@ static std::string sanitizeSingleName(std::string raw)
     return result;
 }
 
-std::vector<std::string> ViewerProcess::sanitizeColumnNames(const std::vector<std::string>& rawNames)
+std::vector<std::string> Viewer::sanitizeColumnNames(const std::vector<std::string>& rawNames)
 {
     std::vector<std::string> result;
     std::unordered_set<std::string> used;
@@ -118,12 +116,12 @@ std::vector<std::string> ViewerProcess::sanitizeColumnNames(const std::vector<st
 // ============================================================
 // LoadCSV — main entry point
 // ============================================================
-bool ViewerProcess::LoadCSV(const std::string& path)
+bool Viewer::LoadCSV(const std::string& path)
 {
     return LoadCSV(path, ',', '"');
 }
 
-bool ViewerProcess::LoadCSV(const std::string& path, char delimiter, char quote)
+bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
 {
     m_lastError.clear();
 

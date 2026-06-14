@@ -2,18 +2,20 @@
 
 #include "code_viewer/datamgr/data_manager.h"
 
+#if defined(VIEWER_LIB)
+#define VIEWER_API __declspec(dllexport)
+#else
+#define VIEWER_API __declspec(dllimport)
+#endif
+
 namespace viewer
 {
 
-class ViewerProcess
+class VIEWER_API Viewer
 {
-    ViewerProcess();
-    ~ViewerProcess() = default;
-
-    static ViewerProcess* __inst;
-
 public:
-    static ViewerProcess* instance() noexcept { return __inst; }
+    Viewer();
+    ~Viewer() = default;
 
     // Load a CSV file into the data manager
     // Returns true on success, false on failure

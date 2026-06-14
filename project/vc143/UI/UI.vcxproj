@@ -32,12 +32,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets;3dcore;3danimation;3dextras;3dinput;3dlogic;3drender;concurrent;openglwidgets;printsupport;serialport</QtModules>
+    <QtModules>core;gui;widgets;3dcore;3danimation;3dextras;3dinput;3dlogic;3drender;concurrent;openglwidgets;printsupport;serialport;svg</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets;3dcore;3danimation;3dextras;3dinput;3dlogic;3drender;concurrent;openglwidgets;printsupport;serialport</QtModules>
+    <QtModules>core;gui;widgets;3dcore;3danimation;3dextras;3dinput;3dlogic;3drender;concurrent;openglwidgets;printsupport;serialport;svg</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -67,10 +67,11 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\..\extra\qads\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <PostBuildEvent>
       <Command>xcopy /Y /D "E:\Projects\weekendbuild\_App\csv_viewer\extra\qads\*.dll" "$(TargetDir)"</Command>
@@ -79,10 +80,12 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\..\extra\qads\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <PostBuildEvent>
       <Command>xcopy /Y /D "E:\Projects\weekendbuild\_App\csv_viewer\extra\qads\*.dll" "$(TargetDir)"</Command>
@@ -124,6 +127,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\code_ui\icons_base64.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

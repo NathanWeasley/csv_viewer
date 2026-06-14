@@ -3,7 +3,6 @@ add_executable(datamgr_test)
 
 target_sources(datamgr_test PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/data_manager.cpp
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/custom_expr/diff_func.cpp
     test_enum.cpp
     test_data_chunk.cpp
     test_classify_cell.cpp

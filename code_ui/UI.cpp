@@ -2,6 +2,22 @@
 
 #include <qtreewidget.h>
 #include <qlabel.h>
+#include <qsettings.h>
+#include <qcoreapplication.h>
+#include <qguiapplication.h>
+#include <qsvgrenderer.h>
+#include <qpainter.h>
+#include <qstylehints.h>
+#include <qregularexpression.h>
+
+#include "icons_base64.h"
+
+static bool isSystemInDark()
+{
+    Qt::ColorScheme scheme = QGuiApplication::styleHints()->colorScheme();
+
+    return (scheme == Qt::ColorScheme::Dark);
+}
 
 UI::UI(QWidget *parent)
     : QMainWindow(parent)
@@ -11,30 +27,153 @@ UI::UI(QWidget *parent)
     m_dockManager = new ads::CDockManager(ui.centralWidget);
 
     init();
+
+    /** Restore window settings */
+
+    QSettings settings;
+
+    if (settings.contains("geometry"))
+    {
+        restoreGeometry(settings.value("geometry").toByteArray());
+    }
+
+    if (settings.contains("dockingState"))
+    {
+        m_dockManager->restoreState(settings.value("dockingState").toByteArray());
+    }
 }
 
 UI::~UI()
-{}
+{
+    saveState();
+}
 
 void UI::init()
 {
     setCentralWidget(m_dockManager);
 
+    
+
+    createMenu();
+    createMain();
+    createToolbar();
+    createStatusbar();
+}
+
+void UI::createMenu()
+{
     /** Generating MainWindow part */
 
-    ;
+    auto* fileMenu = menuBar()->addMenu("&File");
+    auto* openCSV = fileMenu->addAction("Open CSV file");
+    auto* openFolder = fileMenu->addAction("Open CSV files in folders");
+    fileMenu->addSeparator();
+    auto* clearAll = fileMenu->addAction("Clear loaded data");
 
-    /** Generating QADS part */
+    /** Connecting */
 
+    //connect(openCSV, &QAction::triggered, this, &UI::)
+}
+
+void UI::createToolbar()
+{
+    ///< Load icons and create buttons
+    QIcon loadcsv = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADCSV)]);
+    auto* action_loadcsv = new QAction(loadcsv, "Load CSVs", this);
+
+    QIcon loadfolder = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADFOLDER)]);
+    auto* action_loadfolder = new QAction(loadfolder, "Load Folders", this);
+
+    QIcon clearall = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::CLEAR)]);
+    auto* action_clearall = new QAction(clearall, "Clear All", this);
+
+    ///< Add buttons to toolbar
+    ui.mainToolBar->addAction(action_loadcsv);
+    ui.mainToolBar->addAction(action_loadfolder);
+    ui.mainToolBar->addAction(action_clearall);
+    ui.mainToolBar->addSeparator();
+
+    ///< Connect buttons to slots
+}
+
+void UI::createMain()
+{
     ///< Center plot area
     QLabel* label = new QLabel("Plot Area");
     auto* plotDock = new ads::CDockWidget("Plot");
     plotDock->setWidget(label);
+    plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::CenterDockWidgetArea, plotDock);
 
     ///< Left DateTree
     QTreeWidget* tree = new QTreeWidget();
     auto* dataDock = new ads::CDockWidget("Data");
     dataDock->setWidget(tree);
+    dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::LeftDockWidgetArea, dataDock, plotDock->dockAreaWidget());
 }
+
+void UI::createStatusbar()
+{
+}
+
+void UI::closeEvent(QCloseEvent* event)
+{
+    QSettings settings; // Automatically opens: <exe_dir>/MyCompany/MyApp.ini
+
+    settings.setValue("geometry", saveGeometry());
+    if (m_dockManager)
+    {
+        settings.setValue("dockingState", m_dockManager->saveState());
+    }
+
+    QMainWindow::closeEvent(event);
+}
+
+QIcon UI::createDpiAwareIcon(const QString& fullstr, int logicalsize)
+{
+    // 1. Strip prefix and decode text
+    QString base64Data = fullstr.section(',', 1);
+    QByteArray svgBytes = QByteArray::fromBase64(base64Data.toUtf8());
+    QString svgText = QString::fromUtf8(svgBytes);
+
+    if (isSystemInDark())
+    {
+        //svgText.replace("#323544", "#7F7F7F", Qt::CaseInsensitive);
+        forceStrokeColor(svgText, "#AFAFAF");
+    }
+    else
+    {
+        forceStrokeColor(svgText, "#222222");
+    }
+    svgBytes = svgText.toUtf8();
+
+    // 2. Query the primary screen's current device pixel ratio (e.g., 1.5, 2.0)
+    qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
+
+    // 3. Compute actual physical pixel size needed for this display scale
+    int physicalSize = qRound(logicalsize * dpr);
+
+    // 4. Render the vector graphic onto a physical-sized canvas
+    QPixmap pixmap(physicalSize, physicalSize);
+    pixmap.fill(Qt::transparent);
+
+    QSvgRenderer renderer(svgBytes);
+    QPainter painter(&pixmap);
+    renderer.render(&painter);
+    painter.end();
+
+    // 5. CRITICAL: Inform Qt of the scale factor so it shrinks it down crisply
+    pixmap.setDevicePixelRatio(dpr);
+
+    return QIcon(pixmap);
+}
+
+void UI::forceStrokeColor(QString& str, const QString& color)
+{
+    QRegularExpression strokeAttrRegex("stroke=\"[^\"]*\"");
+    QString newStrokeAttr = QString("stroke=\"%1\"").arg(color);
+    str.replace(strokeAttrRegex, newStrokeAttr);
+}
+
+

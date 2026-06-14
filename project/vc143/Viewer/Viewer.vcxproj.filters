@@ -1,17 +1,67 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <Filter Include="Source Files">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="data_manager">
+    <Filter Include="datamgr">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+      <Extensions>h;hh;hpp;hxx;hm;inl;inc;xsd</Extensions>
     </Filter>
-    <Filter Include="math_proc">
+    <Filter Include="plotmgr">
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
-      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+      <Extensions>qrc;rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="base">
+      <UniqueIdentifier>{99349809-55BA-4b9d-BF79-8FDBB0286EB3}</UniqueIdentifier>
+      <Extensions>ui</Extensions>
+    </Filter>
+    <Filter Include="viewer_qt">
+      <UniqueIdentifier>{639EADAA-A684-42e4-A9AD-28FC9BCB8F7C}</UniqueIdentifier>
+      <Extensions>ts</Extensions>
+    </Filter>
+    <Filter Include="datamgr\cexpr">
+      <UniqueIdentifier>{3a0876e1-3c79-48dd-8f78-fa595ca5fa7a}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\code_viewer\viewer\viewer_cb.cpp">
+      <Filter>viewer_qt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\viewer\viewer_lib.cpp">
+      <Filter>viewer_qt</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp">
+      <Filter>datamgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.cpp">
+      <Filter>datamgr</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\code_viewer\viewer\viewer_lib.h">
+      <Filter>viewer_qt</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h">
+      <Filter>datamgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp">
+      <Filter>datamgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\custom_func.h">
+      <Filter>datamgr\cexpr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h">
+      <Filter>datamgr\cexpr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\base\base_def.h">
+      <Filter>base</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.h">
+      <Filter>datamgr</Filter>
+    </QtMoc>
   </ItemGroup>
 </Project>

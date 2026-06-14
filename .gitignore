@@ -2,7 +2,6 @@
 ~*
 bin
 lib
-data
 .vscode
 .vs
 .opensdf
@@ -15,3 +14,4 @@ doc
 documentation
 test_output.txt
 build
+builds

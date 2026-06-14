@@ -9,6 +9,9 @@
       <UniqueIdentifier>{99349809-55BA-4b9d-BF79-8FDBB0286EB3}</UniqueIdentifier>
       <Extensions>ui</Extensions>
     </Filter>
+    <Filter Include="Source Files\icons">
+      <UniqueIdentifier>{316aae99-ce90-44f6-a94c-5755ab9b7d62}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <QtUic Include="..\..\..\code_ui\UI.ui">
@@ -32,5 +35,10 @@
     <QtMoc Include="..\..\..\code_ui\UI.h">
       <Filter>Source Files</Filter>
     </QtMoc>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\code_ui\icons_base64.h">
+      <Filter>Source Files\icons</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
