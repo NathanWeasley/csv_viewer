@@ -12,7 +12,7 @@ namespace viewer
 // CsvRowReader 实现
 // ============================================================
 
-CsvRowReader::CsvRowReader(const std::string& filePath, char delimiter, char quote)
+CsvRowReader::CsvRowReader(const std::filesystem::path& filePath, char delimiter, char quote)
     : m_filePath(filePath)
     , m_delimiter(delimiter)
     , m_quote(quote)
@@ -194,7 +194,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     if (!counter.open())
         return false;
 
-    reportProgress(0.0f, "Counting lines...", config.filePath);
+    reportProgress(0.0f, "Counting lines...", config.filePath.string());
 
     uint64_t totalDataRows = 0;
     {
@@ -268,7 +268,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         }
 
         // ---- 后续 CSV: 直接追加数据 ----
-        reportProgress(0.05f, "Appending data...", config.filePath);
+        reportProgress(0.05f, "Appending data...", config.filePath.string());
 
         scanner.reset();
         // 跳过表头
@@ -331,7 +331,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     // 首个 CSV 加载: 两遍扫描
     // ================================================================
 
-    m_filePath = config.filePath;
+    m_filePath = config.filePath.string();
     m_columnNames = newSanitizedNames;
     m_nameIndex = newNameIndex;
 

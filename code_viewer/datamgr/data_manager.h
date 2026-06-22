@@ -2,6 +2,7 @@
 
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_viewer/datamgr/custom_expr/custom_func.h"
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <vector>
@@ -29,7 +30,7 @@ using ProgressCallback = std::function<void(
 // ============================================================
 struct LoadConfig
 {
-    std::string filePath;           // CSV 文件路径
+    std::filesystem::path filePath; // CSV 文件路径 (UTF-8/Unicode safe)
     int         headerRow = 0;      // 表头所在行（0-based）
     bool        hasHeader = true;   // 是否有表头
     char        delimiter = ',';    // 分隔符
@@ -185,7 +186,7 @@ private:
 class CsvRowReader
 {
 public:
-    CsvRowReader(const std::string& filePath, char delimiter = ',', char quote = '"');
+    CsvRowReader(const std::filesystem::path& filePath, char delimiter = ',', char quote = '"');
 
     // 打开文件
     bool open();
@@ -211,7 +212,7 @@ private:
     // 解析一个 CSV 行（处理引号转义）
     bool parseLine(const std::string& line, std::vector<std::string>& fields);
 
-    std::string m_filePath;
+    std::filesystem::path m_filePath;
     char m_delimiter;
     char m_quote;
     std::ifstream m_stream;

@@ -7,7 +7,10 @@
 namespace viewer
 {
 
-Viewer::Viewer() = default;
+Viewer::Viewer(QObject* parent)
+    : QObject(parent)
+{
+}
 
 // ============================================================
 // detectHeader — heuristic to decide if row 0 is a header
@@ -126,7 +129,7 @@ bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
     m_lastError.clear();
 
     // Step 1: Read the first row to detect header
-    CsvRowReader scanner(path, delimiter, quote);
+    CsvRowReader scanner(std::filesystem::path(path), delimiter, quote);
     if (!scanner.open())
     {
         m_lastError = "Failed to open file: " + path;
@@ -170,6 +173,95 @@ bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
     config.preSanitizedNames = cleanNames;  // Pass pre-sanitized names
 
     return m_data.LoadFromCSV(config);
+}
+
+// ============================================================
+// Clear — clear all loaded data
+// ============================================================
+void Viewer::Clear()
+{
+    m_data.Clear();
+    m_lastError.clear();
+}
+
+// ============================================================
+// OnLoadCSV — slot: load multiple CSV files with two-level progress
+// ============================================================
+void Viewer::OnLoadCSV(const QStringList& files)
+{
+    if (files.isEmpty())
+    {
+        emit LoadFinished();
+        return;
+    }
+
+    // Clear existing data before loading new files
+    if (GetDataManager().GetColumnCount() > 0)
+        Clear();
+
+    const int total = files.size();
+    emit LoadStarted(total);
+
+    for (int i = 0; i < total; ++i)
+    {
+        const std::filesystem::path path(files[i].toStdWString());
+        const float fileBase = static_cast<float>(i) / static_cast<float>(total);
+        const float fileWeight = 1.0f / static_cast<float>(total);
+
+        // Build LoadConfig with a ProgressCallback that reports global progress
+        LoadConfig config;
+        config.filePath  = path;
+        config.headerRow = 0;
+        config.hasHeader = true;  // Will be overridden by detectHeader logic below
+        config.delimiter = ',';
+        config.quoteChar = '"';
+        config.progressCb = [this, fileBase, fileWeight](float p, const std::string& /*stage*/, const std::string& /*detail*/)
+        {
+            float global = fileBase + p * fileWeight;
+            emit BusyProgressChanged(global);
+        };
+
+        // Replicate the header-detection logic inline to properly set hasHeader
+        // and preSanitizedNames before passing config to DataManager
+        {
+            CsvRowReader scanner(path, ',', '"');
+            if (!scanner.open())
+            {
+                m_lastError = "Failed to open file: " + path.string();
+                continue;
+            }
+
+            std::vector<std::string> firstRow;
+            if (!scanner.readRow(firstRow) || firstRow.empty())
+            {
+                m_lastError = "File is empty or unreadable: " + path.string();
+                scanner.close();
+                continue;
+            }
+            scanner.close();
+
+            bool hasHeader = detectHeader(firstRow);
+            std::vector<std::string> rawColumnNames;
+
+            if (hasHeader)
+            {
+                rawColumnNames = firstRow;
+            }
+            else
+            {
+                rawColumnNames.resize(firstRow.size());
+                for (size_t j = 0; j < firstRow.size(); ++j)
+                    rawColumnNames[j] = "col_" + std::to_string(j + 1);
+            }
+
+            config.hasHeader         = hasHeader;
+            config.preSanitizedNames = sanitizeColumnNames(rawColumnNames);
+        }
+
+        m_data.LoadFromCSV(config);
+    }
+
+    emit LoadFinished();
 }
 
 } // namespace viewer

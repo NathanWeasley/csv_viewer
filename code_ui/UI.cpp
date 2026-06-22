@@ -9,6 +9,7 @@
 #include <qpainter.h>
 #include <qstylehints.h>
 #include <qregularexpression.h>
+#include <qfiledialog.h>
 
 #include "icons_base64.h"
 
@@ -87,13 +88,23 @@ void UI::createToolbar()
     QIcon clearall = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::CLEAR)]);
     auto* action_clearall = new QAction(clearall, "Clear All", this);
 
+    QIcon dofft = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::FFT)]);
+    auto* action_dofft = new QAction(dofft, "FFT", this);
+
+    QIcon addfx = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::EXPR)]);
+    auto* action_addfx = new QAction(addfx, "Expression", this);
+
     ///< Add buttons to toolbar
     ui.mainToolBar->addAction(action_loadcsv);
     ui.mainToolBar->addAction(action_loadfolder);
     ui.mainToolBar->addAction(action_clearall);
     ui.mainToolBar->addSeparator();
+    ui.mainToolBar->addAction(action_dofft);
+    ui.mainToolBar->addAction(action_addfx);
 
     ///< Connect buttons to slots
+    connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
+    connect(action_clearall, &QAction::triggered, &m_viewer, &viewer::Viewer::Clear);
 }
 
 void UI::createMain()
@@ -115,6 +126,30 @@ void UI::createMain()
 
 void UI::createStatusbar()
 {
+    m_progressBar = new QProgressBar();
+    m_progressBar->setRange(0, 1000);
+    m_progressBar->setValue(0);
+    m_progressBar->setMaximumWidth(300);
+    m_progressBar->hide();
+    statusBar()->addPermanentWidget(m_progressBar);
+
+    // Connect Viewer signals to progress bar
+    connect(&m_viewer, &viewer::Viewer::LoadStarted, this, [this](int /*totalFiles*/)
+    {
+        m_progressBar->setValue(0);
+        m_progressBar->show();
+    });
+
+    connect(&m_viewer, &viewer::Viewer::BusyProgressChanged, this, [this](float globalProgress)
+    {
+        m_progressBar->setValue(static_cast<int>(globalProgress * 1000.0f));
+    });
+
+    connect(&m_viewer, &viewer::Viewer::LoadFinished, this, [this]()
+    {
+        m_progressBar->setValue(1000);
+        m_progressBar->hide();
+    });
 }
 
 void UI::closeEvent(QCloseEvent* event)
@@ -174,6 +209,21 @@ void UI::forceStrokeColor(QString& str, const QString& color)
     QRegularExpression strokeAttrRegex("stroke=\"[^\"]*\"");
     QString newStrokeAttr = QString("stroke=\"%1\"").arg(color);
     str.replace(strokeAttrRegex, newStrokeAttr);
+}
+
+void UI::onLoadCSVClicked()
+{
+    QStringList files = QFileDialog::getOpenFileNames(
+        this,
+        "Select CSV files",
+        QString(),
+        "CSV Files (*.csv);;All Files (*.*)");
+
+    if (files.isEmpty())
+        return;
+
+    // Forward the file list to the Viewer's slot for loading
+    m_viewer.OnLoadCSV(files);
 }
 
 

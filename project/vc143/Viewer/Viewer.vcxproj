@@ -23,7 +23,7 @@
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp" />
     <QtMoc Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.h" />
-    <ClInclude Include="..\..\..\code_viewer\viewer\viewer_lib.h" />
+    <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{825F9F45-2996-4437-A88E-B89CE709E9D6}</ProjectGuid>

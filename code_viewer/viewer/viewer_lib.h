@@ -1,5 +1,8 @@
 #pragma once
 
+#include <QObject>
+#include <QStringList>
+
 #include "code_viewer/datamgr/data_manager.h"
 
 #if defined(VIEWER_LIB)
@@ -12,10 +15,13 @@ namespace viewer
 {
 
 class VIEWER_API Viewer
+    : public QObject
 {
+    Q_OBJECT
+
 public:
-    Viewer();
-    ~Viewer() = default;
+    explicit Viewer(QObject* parent = nullptr);
+    ~Viewer() override = default;
 
     // Load a CSV file into the data manager
     // Returns true on success, false on failure
@@ -26,6 +32,23 @@ public:
     const DataManager& GetDataManager() const noexcept { return m_data; }
 
     const std::string& GetLastError() const noexcept { return m_lastError; }
+
+Q_SIGNALS:
+    /// Emitted when loading starts. totalFiles = number of CSVs to load.
+    void LoadStarted(int totalFiles);
+
+    /// Emitted per-file internal progress. globalProgress is 0.0 ~ 1.0 over all files.
+    void BusyProgressChanged(float globalProgress);
+
+    /// Emitted when all files are loaded (or no files selected).
+    void LoadFinished();
+
+public Q_SLOTS:
+    /// Clear all loaded data.
+    void Clear();
+
+    /// Slot: receive a list of CSV file paths and load each one
+    void OnLoadCSV(const QStringList& files);
 
 private:
     // Auto-detect whether row 0 is a header

@@ -40,9 +40,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\..\code_viewer\viewer\viewer_lib.h">
-      <Filter>viewer_qt</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h">
       <Filter>datamgr</Filter>
     </ClInclude>
@@ -62,6 +59,9 @@
   <ItemGroup>
     <QtMoc Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.h">
       <Filter>datamgr</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h">
+      <Filter>viewer_qt</Filter>
     </QtMoc>
   </ItemGroup>
 </Project>
