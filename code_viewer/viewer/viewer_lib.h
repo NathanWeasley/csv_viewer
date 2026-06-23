@@ -43,6 +43,9 @@ Q_SIGNALS:
     /// Emitted when all files are loaded (or no files selected).
     void LoadFinished();
 
+    /// Emitted when column validation fails across files. UI should show error and clear.
+    void LoadError(const QString& message);
+
 public Q_SLOTS:
     /// Clear all loaded data.
     void Clear();

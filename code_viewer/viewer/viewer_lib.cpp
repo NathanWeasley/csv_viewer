@@ -202,27 +202,20 @@ void Viewer::OnLoadCSV(const QStringList& files)
     const int total = files.size();
     emit LoadStarted(total);
 
+    // Stored after the first file is loaded, for cross-file validation
+    size_t expectedColCount = 0;
+    const std::vector<std::string>* expectedColNames = nullptr;
+
     for (int i = 0; i < total; ++i)
     {
         const std::filesystem::path path(files[i].toStdWString());
+        const QString filename = files[i];
         const float fileBase = static_cast<float>(i) / static_cast<float>(total);
         const float fileWeight = 1.0f / static_cast<float>(total);
 
-        // Build LoadConfig with a ProgressCallback that reports global progress
-        LoadConfig config;
-        config.filePath  = path;
-        config.headerRow = 0;
-        config.hasHeader = true;  // Will be overridden by detectHeader logic below
-        config.delimiter = ',';
-        config.quoteChar = '"';
-        config.progressCb = [this, fileBase, fileWeight](float p, const std::string& /*stage*/, const std::string& /*detail*/)
-        {
-            float global = fileBase + p * fileWeight;
-            emit BusyProgressChanged(global);
-        };
+        std::vector<std::string> sanitizedNames;
 
-        // Replicate the header-detection logic inline to properly set hasHeader
-        // and preSanitizedNames before passing config to DataManager
+        // Detect header and sanitize column names
         {
             CsvRowReader scanner(path, ',', '"');
             if (!scanner.open())
@@ -244,9 +237,7 @@ void Viewer::OnLoadCSV(const QStringList& files)
             std::vector<std::string> rawColumnNames;
 
             if (hasHeader)
-            {
                 rawColumnNames = firstRow;
-            }
             else
             {
                 rawColumnNames.resize(firstRow.size());
@@ -254,11 +245,69 @@ void Viewer::OnLoadCSV(const QStringList& files)
                     rawColumnNames[j] = "col_" + std::to_string(j + 1);
             }
 
-            config.hasHeader         = hasHeader;
-            config.preSanitizedNames = sanitizeColumnNames(rawColumnNames);
+            sanitizedNames = sanitizeColumnNames(rawColumnNames);
         }
 
+        // ============================================================
+        // Cross-file column validation (skip for the first file)
+        // ============================================================
+        if (i > 0 && expectedColNames)
+        {
+            const size_t thisColCount = sanitizedNames.size();
+
+            if (thisColCount != expectedColCount)
+            {
+                QString msg = QString("Column count mismatch in \"%1\":\n"
+                                      "Expected %2 columns but got %3.")
+                    .arg(filename)
+                    .arg(expectedColCount)
+                    .arg(thisColCount);
+                Clear();
+                emit LoadError(msg);
+                emit LoadFinished();
+                return;
+            }
+
+            for (size_t c = 0; c < expectedColCount; ++c)
+            {
+                if (sanitizedNames[c] != (*expectedColNames)[c])
+                {
+                    QString msg = QString("Column name mismatch in \"%1\" at position %2:\n"
+                                          "Expected \"%3\" but got \"%4\".")
+                        .arg(filename)
+                        .arg(c + 1)
+                        .arg(QString::fromStdString((*expectedColNames)[c]))
+                        .arg(QString::fromStdString(sanitizedNames[c]));
+                    Clear();
+                    emit LoadError(msg);
+                    emit LoadFinished();
+                    return;
+                }
+            }
+        }
+
+        // Build LoadConfig with a ProgressCallback that reports global progress
+        LoadConfig config;
+        config.filePath  = path;
+        config.headerRow = 0;
+        config.hasHeader = true;  // hasHeader was detected above
+        config.delimiter = ',';
+        config.quoteChar = '"';
+        config.preSanitizedNames = sanitizedNames;
+        config.progressCb = [this, fileBase, fileWeight](float p, const std::string& /*stage*/, const std::string& /*detail*/)
+        {
+            float global = fileBase + p * fileWeight;
+            emit BusyProgressChanged(global);
+        };
+
         m_data.LoadFromCSV(config);
+
+        // After first file: capture the expected schema
+        if (i == 0)
+        {
+            expectedColCount = m_data.GetColumnCount();
+            expectedColNames = &m_data.GetColumnNames();
+        }
     }
 
     emit LoadFinished();

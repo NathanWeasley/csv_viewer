@@ -2,6 +2,7 @@
 
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QProgressBar>
+#include <QtWidgets/QTreeWidget>
 #include "ui_UI.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
@@ -38,6 +39,12 @@ private:
     ads::CDockManager* m_dockManager;
 
     QProgressBar* m_progressBar = nullptr;
+
+    QTreeWidget* m_dataTree = nullptr;
+    ads::CDockWidget* m_plotDock = nullptr;
+    ads::CDockWidget* m_dataDock = nullptr;
+
+    QLabel* m_xAxisLabel = nullptr;
 
     viewer::Viewer m_viewer;
 };

@@ -10,6 +10,9 @@
 #include <qstylehints.h>
 #include <qregularexpression.h>
 #include <qfiledialog.h>
+#include <qmessagebox.h>
+#include <qclipboard.h>
+#include <qmenu.h>
 
 #include "icons_base64.h"
 
@@ -104,28 +107,54 @@ void UI::createToolbar()
 
     ///< Connect buttons to slots
     connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
-    connect(action_clearall, &QAction::triggered, &m_viewer, &viewer::Viewer::Clear);
+    connect(action_clearall, &QAction::triggered, this, [this]()
+    {
+        m_viewer.Clear();
+        m_dataTree->clear();
+        m_xAxisLabel->setText("X: (none)");
+    });
 }
 
 void UI::createMain()
 {
     ///< Center plot area
-    QLabel* label = new QLabel("Plot Area");
-    auto* plotDock = new ads::CDockWidget("Plot");
-    plotDock->setWidget(label);
-    plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
-    m_dockManager->addDockWidget(ads::CenterDockWidgetArea, plotDock);
+    m_plotDock = new ads::CDockWidget("Plot");
+    m_plotDock->setWidget(new QLabel("Plot Area"));
+    m_plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_dockManager->addDockWidget(ads::CenterDockWidgetArea, m_plotDock);
 
     ///< Left DateTree
-    QTreeWidget* tree = new QTreeWidget();
-    auto* dataDock = new ads::CDockWidget("Data");
-    dataDock->setWidget(tree);
-    dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
-    m_dockManager->addDockWidget(ads::LeftDockWidgetArea, dataDock, plotDock->dockAreaWidget());
+    m_dataTree = new QTreeWidget();
+    m_dataTree->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(m_dataTree, &QTreeWidget::customContextMenuRequested, this,
+        [this](const QPoint& /*pos*/)
+        {
+            QTreeWidgetItem* item = m_dataTree->currentItem();
+            if (!item)
+                return;
+
+            QMenu menu;
+            QAction* copyAction = menu.addAction("Copy Data Name");
+            connect(copyAction, &QAction::triggered, this, [item]()
+            {
+                QApplication::clipboard()->setText(item->text(0));
+            });
+            menu.exec(QCursor::pos());
+        });
+
+    m_dataDock = new ads::CDockWidget("Data");
+    m_dataDock->setWidget(m_dataTree);
+    m_dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_dockManager->addDockWidget(ads::LeftDockWidgetArea, m_dataDock, m_plotDock->dockAreaWidget());
 }
 
 void UI::createStatusbar()
 {
+    // X-axis label (left side)
+    m_xAxisLabel = new QLabel("X: (none)");
+    statusBar()->addWidget(m_xAxisLabel);
+
+    // Progress bar (right side)
     m_progressBar = new QProgressBar();
     m_progressBar->setRange(0, 1000);
     m_progressBar->setValue(0);
@@ -149,6 +178,33 @@ void UI::createStatusbar()
     {
         m_progressBar->setValue(1000);
         m_progressBar->hide();
+
+        // Populate the Data tree with column names
+        m_dataTree->clear();
+        const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
+        for (const auto& name : colNames)
+        {
+            auto* item = new QTreeWidgetItem(m_dataTree);
+            item->setText(0, QString::fromStdString(name));
+        }
+
+        // Update X-axis label
+        if (m_viewer.GetDataManager().GetColumnCount() > 0)
+        {
+            size_t xIdx = m_viewer.GetDataManager().GetXAxisColumn();
+            if (xIdx < colNames.size())
+                m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[xIdx])));
+        }
+    });
+
+    // Handle cross-file column validation errors
+    connect(&m_viewer, &viewer::Viewer::LoadError, this, [this](const QString& message)
+    {
+        m_progressBar->setValue(0);
+        m_progressBar->hide();
+        m_dataTree->clear();
+        m_xAxisLabel->setText("X: (none)");
+        QMessageBox::critical(this, "CSV Load Error", message);
     });
 }
 
