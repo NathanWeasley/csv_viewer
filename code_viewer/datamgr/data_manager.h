@@ -97,11 +97,18 @@ public:
     // 按列名查找索引（未找到返回 npos）
     size_t GetColumnIndex(const std::string& name) const;
 
+    // 获取字符串列名集合
+    const std::unordered_set<std::string>& GetStringColumnNames() const noexcept { return m_stringColumnNames; }
+
+    // 判断某列是否为字符串列
+    bool IsStringColumn(size_t colIdx) const;
+    bool IsStringColumn(const std::string& name) const;
+
     // ============================================================
     // 行访问接口
     // ============================================================
 
-    // 获取指定行所有列的值（double 形式，int 列自动转换）
+    // 获取指定行所有列的值（double 形式）
     std::vector<double> GetRowAsDoubles(size_t rowIdx) const;
 
     // 获取指定行指定列的值
@@ -121,14 +128,6 @@ public:
 
     // 设置横轴列
     void SetXAxisColumn(size_t colIdx) { m_xAxisColumn = colIdx; }
-
-    // ============================================================
-    // 类型升级
-    // ============================================================
-
-    // 将 Int64 列升级为 Float64（当遇到浮点值时调用）
-    // 返回升级后的列索引，失败返回 npos
-    size_t UpgradeColumnToFloat64(size_t colIdx);
 
     // ============================================================
     // 工具
@@ -158,19 +157,21 @@ private:
 
     // ---- 类型推断 ----
     struct TypeCount {
-        uint64_t intCount = 0;
         uint64_t floatCount = 0;
         uint64_t stringCount = 0;
     };
 
-    ColumnType resolveColumnType(const TypeCount& tc) const noexcept;
+    bool isStringColumn(const TypeCount& tc) const noexcept;
 
     // ---- 内部数据 ----
     std::vector<std::unique_ptr<AbstractColumn>> m_columns;
 
-    std::vector<std::string> m_columnNames;      // 清洗后的列名
+    std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名
     std::unordered_map<std::string, size_t> m_nameIndex;  // 列名->索引
+
+    // 字符串列名集合（这些列的数据为全 NaN，仅展示不绘制）
+    std::unordered_set<std::string> m_stringColumnNames;
 
     std::string m_filePath;     // 已加载的文件路径
     size_t      m_xAxisColumn = npos;  // 当前横轴列

@@ -90,19 +90,14 @@ protected:
     // 可见数据范围（由当前坐标轴范围决定）
     QPair<int, int> getVisibleDataRange() const;
 
-    // 从 chunked 列构建 QCPGraphData 块（用于绘图函数）
-    // 返回一个局部 vector，仅用于 getLines 等绘图辅助函数
+    // 从 Column 构建 QCPGraphData 块（用于绘图函数）
     QVector<QCPGraphData> fetchDataRange(int begin, int end) const;
 
-    // ---- 方案2: 消除中间拷贝 ----
     // 直接从 Column 读取数据并转换为像素坐标（跳过 QCPGraphData 中间层）
     void getLinesDirect(QVector<QPointF>* lines, int begin, int end) const;
     void getLinesDirectStyled(QVector<QPointF>* lines, int begin, int end) const;
 
-    // ---- 方案1: 降采样 ----
-    // Chunk元数据降采样（桶数≤可见chunk数时，O(numChunks)）
-    void getLinesChunkDownsampled(QVector<QPointF>* lines, int begin, int end, int numBuckets) const;
-    // 元素级降采样（桶数>可见chunk数时用，O(N)但保证精度）
+    // 元素级降采样（O(N)）
     void getLinesDownsampled(QVector<QPointF>* lines, int begin, int end, int numBuckets) const;
 
     // 获取屏幕像素宽度对应的可见范围（用于降采样判断）

@@ -370,18 +370,9 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
     bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
 
     // 桶数 = pixelsW × min(ratio, 2.0)，使降采样粒度与数据密度成正比
-    // ratio≈2   → buckets≈pixelsW×2  (高频细节)
-    // ratio≈10  → buckets≈pixelsW×2  (封顶，每桶5个数据点)
-    // ratio≈100 → buckets≈pixelsW×2  (封顶，每桶50个数据点)
     int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 2.0)));
     if (buckets > visibleCount / 2)
         buckets = std::max(1, visibleCount / 2);
-
-    // 决定用chunk级还是元素级降采样
-    const size_t chunkMask = __chunk_size - 1;
-    const size_t firstChunk = static_cast<size_t>(begin) / __chunk_size;
-    const size_t lastChunk  = (static_cast<size_t>(end) + chunkMask) / __chunk_size;
-    size_t totalVisibleChunks = lastChunk - firstChunk;
 
     QVector<QPointF> lines;
     QVector<QPointF> scatters;
@@ -391,10 +382,7 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
     {
         if (useDownsample)
         {
-            if (static_cast<size_t>(buckets) > totalVisibleChunks)
-                getLinesDownsampled(&lines, begin, end, buckets);     // 元素级 (保证精度)
-            else
-                getLinesChunkDownsampled(&lines, begin, end, buckets); // chunk级 (O(numChunks))
+            getLinesDownsampled(&lines, begin, end, buckets);
         }
         else
         {
@@ -408,10 +396,7 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
         QCPDataRange dataRange(begin, end);
         if (useDownsample)
         {
-            if (static_cast<size_t>(buckets) > totalVisibleChunks)
-                getLinesDownsampled(&scatters, begin, end, buckets);
-            else
-                getLinesChunkDownsampled(&scatters, begin, end, buckets);
+            getLinesDownsampled(&scatters, begin, end, buckets);
         }
         else
         {
@@ -577,8 +562,6 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
         return;
 
     // 逐段绘制：对大/小数据集均稳定快速
-    // drawLine 比构造巨型 QPolygonF 再 drawPolyline 的开销更低，
-    // 因为避免了大量 QPointF 的向量拷贝和 Qt 内部路径分配
     int i = 0;
     bool lastIsNan = false;
     const int lineDataSize = lines.size();
@@ -746,7 +729,7 @@ void QCPChunkedGraph::invalidateRangeCache()
 }
 
 // ============================================================
-// 方案2: Column → QPointF 直出（消除 QCPGraphData 中间拷贝）
+// Column → QPointF 直出（消除 QCPGraphData 中间拷贝）
 // ============================================================
 
 void QCPChunkedGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end) const
@@ -785,92 +768,12 @@ void QCPChunkedGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, i
     }
 
     // 其他线型：仍需 QCPGraphData 中间层以保留线型逻辑
-    // （阶梯/脉冲线型涉及相邻点间插值，降采样阈值已确保仅在点数少时进入此路径）
     QCPDataRange dr(begin, end);
     getLines(lines, dr);
 }
 
 // ============================================================
-// 方案1: Chunk 元数据降采样
-// ============================================================
-
-void QCPChunkedGraph::getLinesChunkDownsampled(QVector<QPointF>* lines,
-                                                int begin, int end, int numBuckets) const
-{
-    if (!m_keyCol || !m_valueCol || numBuckets <= 0)
-        return;
-
-    // 计算可见数据覆盖的 chunk 范围
-    const size_t chunkMask = __chunk_size - 1;
-    const size_t firstChunk = static_cast<size_t>(begin) / __chunk_size;
-    const size_t lastChunk  = (static_cast<size_t>(end) + chunkMask) / __chunk_size;
-
-    size_t totalVisibleChunks = lastChunk - firstChunk;
-    if (totalVisibleChunks == 0)
-        return;
-
-    // 限制桶数不超过可见 chunk 数
-    if (static_cast<size_t>(numBuckets) > totalVisibleChunks)
-        numBuckets = static_cast<int>(totalVisibleChunks);
-    if (numBuckets < 1)
-        numBuckets = 1;
-
-    lines->reserve(numBuckets * 2);
-
-    // 将 chunks 映射到 numBuckets 个桶
-    for (int b = 0; b < numBuckets; ++b)
-    {
-        size_t bucketChunkBegin = firstChunk + (totalVisibleChunks * b) / static_cast<size_t>(numBuckets);
-        size_t bucketChunkEnd   = firstChunk + (totalVisibleChunks * (b + 1)) / static_cast<size_t>(numBuckets);
-        if (bucketChunkEnd <= bucketChunkBegin)
-            bucketChunkEnd = bucketChunkBegin + 1;
-
-        double yMin = std::numeric_limits<double>::max();
-        double yMax = -std::numeric_limits<double>::max();
-        double xFirst = 0.0;
-        double xLast  = 0.0;
-        bool hasFirst = false;
-
-        for (size_t c = bucketChunkBegin; c < bucketChunkEnd; ++c)
-        {
-            if (c >= m_keyCol->chunkCount())
-                break;
-
-            auto [kMin, kMax] = m_keyCol->chunkMinMax(c);
-            auto [vMinChunk, vMaxChunk] = m_valueCol->chunkMinMax(c);
-
-            // 跳过无有效数据的 empty chunk
-            if (std::isnan(vMinChunk) && std::isnan(vMaxChunk))
-                continue;
-
-            if (vMinChunk < yMin) yMin = vMinChunk;
-            if (vMaxChunk > yMax) yMax = vMaxChunk;
-
-            if (!hasFirst)
-            {
-                xFirst = m_keyCol->chunkFirstElement(c);
-                hasFirst = true;
-            }
-            xLast = m_keyCol->chunkLastElement(c);
-        }
-
-        if (!hasFirst || yMin > yMax)
-        {
-            // 桶内无有效数据，插入 NaN 断开连线
-            lines->append(QPointF(NAN, NAN));
-            lines->append(QPointF(NAN, NAN));
-            continue;
-        }
-
-        double centerX = (xFirst + xLast) * 0.5;
-
-        lines->append(coordsToPixels(centerX, yMin));
-        lines->append(coordsToPixels(centerX, yMax));
-    }
-}
-
-// ============================================================
-// 元素级降采样（桶数 > 可见chunk数时使用）
+// 元素级降采样
 // ============================================================
 
 void QCPChunkedGraph::getLinesDownsampled(QVector<QPointF>* lines,

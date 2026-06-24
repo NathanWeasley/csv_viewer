@@ -370,7 +370,6 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
             CellType ct = classifyCell(rowFields[c]);
             switch (ct)
             {
-            case CellType::Int:    ++typeCounters[c].intCount; break;
             case CellType::Float:  ++typeCounters[c].floatCount; break;
             case CellType::String: ++typeCounters[c].stringCount; break;
             }
@@ -385,23 +384,33 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         }
     }
 
-    // 推断每列类型
-    std::vector<ColumnType> colTypes(colCount, ColumnType::Float64);
+    // 检测字符串列，并追加 _string 后缀
+    m_stringColumnNames.clear();
     for (size_t c = 0; c < colCount; ++c)
     {
-        colTypes[c] = resolveColumnType(typeCounters[c]);
+        if (isStringColumn(typeCounters[c]))
+        {
+            std::string& colName = m_columnNames[c];
+            m_stringColumnNames.insert(colName + "_string");
+
+            // 更新列名为带 _string 后缀
+            std::string oldName = colName;
+            colName = oldName + "_string";
+
+            // 更新 name index
+            m_nameIndex.erase(oldName);
+            m_nameIndex[colName] = c;
+        }
     }
 
     // ---- 阶段 2b: 第二遍读取 - 数据写入 ----
     reportProgress(0.52f, "Loading data (pass 2/2)...", "");
 
+    // 所有列统一使用 Column<double>
     m_columns.resize(colCount);
     for (size_t c = 0; c < colCount; ++c)
     {
-        if (colTypes[c] == ColumnType::Int64)
-            m_columns[c] = std::make_unique<Column<int64_t>>(ColumnType::Int64);
-        else
-            m_columns[c] = std::make_unique<Column<double>>(ColumnType::Float64);
+        m_columns[c] = std::make_unique<Column<double>>(ColumnType::Float64);
     }
 
     CsvRowReader writer(config.filePath, config.delimiter, config.quoteChar);
@@ -430,10 +439,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
         for (size_t c = n; c < colCount; ++c)
         {
-            if (colTypes[c] == ColumnType::Int64)
-                m_columns[c]->pushFromString("0");
-            else
-                m_columns[c]->pushFromString("");
+            m_columns[c]->pushFromString("");
         }
 
         ++writtenRows;
@@ -446,10 +452,6 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     }
 
     m_xAxisColumn = AutoDetectXAxis();
-
-    // 重建所有列的 chunk 元数据（降采样加速用）
-    for (auto& col : m_columns)
-        col->rebuildAllChunkMeta();
 
     reportProgress(1.0f, "Done.", "Loaded " + std::to_string(colCount) + " columns, " +
                   std::to_string(GetRowCount()) + " rows.");
@@ -481,7 +483,6 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
     if (processedExpr.empty() && CustomFuncRegistry::count() > 0)
     {
         // 预处理失败（参数列不存在等）
-        // 注意：如果没有任何自定义函数注册，processedExpr 可能为空是正常的
     }
     if (!processedExpr.empty())
     {
@@ -493,7 +494,6 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
     }
 
     // ---- 构建扩展关键字集合（自定义函数名 + 临时列名前缀过滤） ----
-    // 将自定义函数名加入排除列表，防止被 ParseColumnRefs 当作列名
     std::unordered_set<std::string> extraKeywords;
     for (uint8_t i = 0; i < CustomFuncRegistry::count(); ++i)
     {
@@ -630,8 +630,6 @@ std::vector<std::string> DataManager::ParseColumnRefs(const std::string& exprStr
 
         std::string token(start, p - start);
 
-        // 跳过数字开头的（如 1e5 中的 e5 部分已被 e 单独拦截，
-        // 但纯数字开头的不是合法标识符，已在上面被 isalpha 跳过）
         if (token.empty())
             continue;
 
@@ -809,6 +807,7 @@ void DataManager::Clear()
     m_columnNames.clear();
     m_rawColumnNames.clear();
     m_nameIndex.clear();
+    m_stringColumnNames.clear();
     m_filePath.clear();
     m_xAxisColumn = npos;
 }
@@ -855,6 +854,20 @@ size_t DataManager::GetRowCount() const noexcept
 {
     if (m_columns.empty()) return 0;
     return m_columns[0]->size();
+}
+
+// ---- 字符串列判断 ----
+
+bool DataManager::IsStringColumn(size_t colIdx) const
+{
+    if (colIdx >= m_columnNames.size())
+        return false;
+    return m_stringColumnNames.count(m_columnNames[colIdx]) > 0;
+}
+
+bool DataManager::IsStringColumn(const std::string& name) const
+{
+    return m_stringColumnNames.count(name) > 0;
 }
 
 // ---- 行访问 ----
@@ -918,13 +931,11 @@ void DataManager::sanitizeColumnNames(
             }
             else if (c == ' ' || c == '\t')
             {
-                // 空格跳过（保留，但如果一直空格导致 cleaned 为空则用下划线）
                 if (!cleaned.empty())
                     cleaned += '_';
             }
             else
             {
-                // 其他字符跳过
                 continue;
             }
         }
@@ -956,18 +967,10 @@ void DataManager::sanitizeColumnNames(
 
 // ---- 类型推断 ----
 
-ColumnType DataManager::resolveColumnType(const TypeCount& tc) const noexcept
+bool DataManager::isStringColumn(const TypeCount& tc) const noexcept
 {
-    if (tc.stringCount > 0)
-        return ColumnType::Float64;  // 含不可解析字符串 → Float64（存 NaN）
-
-    if (tc.floatCount > 0)
-        return ColumnType::Float64;  // 有浮点数 → Float64
-
-    if (tc.intCount > 0)
-        return ColumnType::Int64;    // 全为整数 → Int64
-
-    return ColumnType::Float64;      // 空列默认 Float64
+    // 只要有不可解析的字符串就标记为字符串列
+    return tc.stringCount > 0;
 }
 
 // ---- 横轴检测 ----
@@ -995,6 +998,11 @@ size_t DataManager::AutoDetectXAxis() const
     for (size_t i = 0; i < m_columnNames.size(); ++i)
     {
         const std::string& name = m_columnNames[i];
+
+        // 跳过字符串列
+        if (m_stringColumnNames.count(name) > 0)
+            continue;
+
         std::string lowerName;
         lowerName.reserve(name.size());
         for (char c : name)
@@ -1028,29 +1036,6 @@ size_t DataManager::AutoDetectXAxis() const
     }
 
     return bestIdx;
-}
-
-// ---- 类型升级 ----
-
-size_t DataManager::UpgradeColumnToFloat64(size_t colIdx)
-{
-    if (colIdx >= m_columns.size())
-        return npos;
-
-    AbstractColumn* col = m_columns[colIdx].get();
-    if (col->type() != ColumnType::Int64)
-        return colIdx;  // 已经 Float64，无需升级
-
-    // 创建 Float64 列
-    auto floatCol = std::make_unique<Column<double>>(ColumnType::Float64);
-
-    // 拷贝数据
-    col->copyToDoubleColumn(floatCol.get());
-
-    // 替换
-    m_columns[colIdx] = std::move(floatCol);
-
-    return colIdx;
 }
 
 } // namespace viewer
