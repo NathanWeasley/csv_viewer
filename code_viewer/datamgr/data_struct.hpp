@@ -47,12 +47,32 @@ struct DataChunk
     size_t  _size;
     T       _data[CHUNK_CAPACITY];
 
+    // Chunk 元数据：本块内数据的 min/max（降采样加速用）
+    T _min = std::numeric_limits<T>::max();
+    T _max = -std::numeric_limits<T>::max();
+
     DataChunk()
         : _size(0)
     {}
 
     bool full() const noexcept { return _size >= CHUNK_CAPACITY; }
     size_t capacity() const noexcept { return CHUNK_CAPACITY; }
+
+    // 更新元数据（遍历块内有效元素）
+    void rebuildMeta()
+    {
+        _min = std::numeric_limits<T>::max();
+        _max = -std::numeric_limits<T>::max();
+        for (size_t i = 0; i < _size; ++i)
+        {
+            if constexpr (std::is_same<T, double>::value || std::is_same<T, float>::value)
+            {
+                if (std::isnan(_data[i])) continue;
+            }
+            if (_data[i] < _min) _min = _data[i];
+            if (_data[i] > _max) _max = _data[i];
+        }
+    }
 };
 
 // 前向声明
@@ -79,6 +99,14 @@ struct AbstractColumn
 
     // 将自身所有数据以 double 形式拷贝到目标列（用于类型升级）
     virtual void copyToDoubleColumn(Column<double>* dst) const = 0;
+
+    // Chunk 元数据访问（降采样加速用）
+    virtual size_t              chunkCount() const = 0;
+    virtual std::pair<double, double> chunkMinMax(size_t chunkIdx) const = 0;
+    virtual void                rebuildAllChunkMeta() = 0;
+    virtual size_t              chunkElementCount(size_t chunkIdx) const = 0;
+    virtual double              chunkFirstElement(size_t chunkIdx) const = 0;
+    virtual double              chunkLastElement(size_t chunkIdx) const = 0;
 };
 
 // ============================================================
@@ -359,6 +387,36 @@ public:
     {
         T val = parseValue(s);
         push_back(val);
+    }
+
+    // ----- Chunk 元数据访问 -----
+    size_t chunkCount() const override { return m_chunks.size(); }
+
+    std::pair<double, double> chunkMinMax(size_t chunkIdx) const override
+    {
+        const auto& c = m_chunks[chunkIdx];
+        return { static_cast<double>(c._min), static_cast<double>(c._max) };
+    }
+
+    void rebuildAllChunkMeta() override
+    {
+        for (auto& c : m_chunks)
+            c.rebuildMeta();
+    }
+
+    size_t chunkElementCount(size_t chunkIdx) const override
+    {
+        return m_chunks[chunkIdx]._size;
+    }
+
+    double chunkFirstElement(size_t chunkIdx) const override
+    {
+        return static_cast<double>(m_chunks[chunkIdx]._data[0]);
+    }
+
+    double chunkLastElement(size_t chunkIdx) const override
+    {
+        return static_cast<double>(m_chunks[chunkIdx]._data[m_chunks[chunkIdx]._size - 1]);
     }
 
     // -------- Column 特有接口 --------

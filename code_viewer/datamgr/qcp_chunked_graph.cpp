@@ -27,6 +27,7 @@ void QCPChunkedGraph::setDataColumns(const AbstractColumn* keyCol, const Abstrac
 {
     m_keyCol = keyCol;
     m_valueCol = valueCol;
+    recalculateRanges();
 }
 
 void QCPChunkedGraph::setLineStyle(LineStyle style)
@@ -239,8 +240,23 @@ QCPRange QCPChunkedGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDo
     if (!m_keyCol || m_keyCol->empty())
         return range;
 
-    const size_t n = m_keyCol->size();
+    // 无 signDomain 筛选且未限定 keyRange 时直接使用缓存
+    if (inSignDomain == QCP::sdBoth)
+    {
+        if (!mRangeCacheValid)
+            const_cast<QCPChunkedGraph*>(this)->recalculateRanges();
 
+        if (mRangeCacheValid)
+        {
+            range.lower = mCachedKeyMin;
+            range.upper = mCachedKeyMax;
+            foundRange = true;
+            return range;
+        }
+    }
+
+    // 有 signDomain 筛选时仍需要全量扫描（极少触发）
+    const size_t n = m_keyCol->size();
     double minVal = std::numeric_limits<double>::max();
     double maxVal = -std::numeric_limits<double>::max();
     bool hasValid = false;
@@ -250,7 +266,6 @@ QCPRange QCPChunkedGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDo
         double v = m_keyCol->getDouble(i);
         if (std::isnan(v)) continue;
 
-        // 根据 signDomain 筛选
         if (inSignDomain == QCP::sdNegative && v > 0) continue;
         if (inSignDomain == QCP::sdPositive && v < 0) continue;
 
@@ -278,9 +293,25 @@ QCPRange QCPChunkedGraph::getValueRange(bool& foundRange, QCP::SignDomain inSign
     if (!m_valueCol || m_valueCol->empty())
         return range;
 
-    const size_t n = m_valueCol->size();
     const bool restrictKeyRange = inKeyRange != QCPRange();
 
+    // 无 signDomain 筛选且未限定 keyRange 时直接使用缓存
+    if (inSignDomain == QCP::sdBoth && !restrictKeyRange)
+    {
+        if (!mRangeCacheValid)
+            const_cast<QCPChunkedGraph*>(this)->recalculateRanges();
+
+        if (mRangeCacheValid)
+        {
+            range.lower = mCachedValueMin;
+            range.upper = mCachedValueMax;
+            foundRange = true;
+            return range;
+        }
+    }
+
+    // 需要按 keyRange 限制或 signDomain 筛选时全量扫描
+    const size_t n = m_valueCol->size();
     double minVal = std::numeric_limits<double>::max();
     double maxVal = -std::numeric_limits<double>::max();
     bool hasValid = false;
@@ -326,20 +357,67 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
 
     // 获取可见数据范围
     QPair<int, int> visibleRange = getVisibleDataRange();
-    if (visibleRange.first >= visibleRange.second)
+    int begin = visibleRange.first;
+    int end   = visibleRange.second;
+    if (begin >= end)
         return;
 
-    QCPDataRange dataRange(visibleRange.first, visibleRange.second);
+    int visibleCount = end - begin;
 
-    // 计算线条和散点
+    // 自适应降采样：桶数随数据密度(ratio)渐变，避免固定的最大降采样
+    int pixelsW = screenPixelWidth();
+    double ratio = static_cast<double>(visibleCount) / static_cast<double>(std::max(pixelsW, 1));
+    bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
+
+    // 桶数 = pixelsW × min(ratio, 2.0)，使降采样粒度与数据密度成正比
+    // ratio≈2   → buckets≈pixelsW×2  (高频细节)
+    // ratio≈10  → buckets≈pixelsW×2  (封顶，每桶5个数据点)
+    // ratio≈100 → buckets≈pixelsW×2  (封顶，每桶50个数据点)
+    int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 2.0)));
+    if (buckets > visibleCount / 2)
+        buckets = std::max(1, visibleCount / 2);
+
+    // 决定用chunk级还是元素级降采样
+    const size_t chunkMask = __chunk_size - 1;
+    const size_t firstChunk = static_cast<size_t>(begin) / __chunk_size;
+    const size_t lastChunk  = (static_cast<size_t>(end) + chunkMask) / __chunk_size;
+    size_t totalVisibleChunks = lastChunk - firstChunk;
+
     QVector<QPointF> lines;
     QVector<QPointF> scatters;
 
+    // ---- 线 ----
     if (mLineStyle != lsNone)
-        getLines(&lines, dataRange);
+    {
+        if (useDownsample)
+        {
+            if (static_cast<size_t>(buckets) > totalVisibleChunks)
+                getLinesDownsampled(&lines, begin, end, buckets);     // 元素级 (保证精度)
+            else
+                getLinesChunkDownsampled(&lines, begin, end, buckets); // chunk级 (O(numChunks))
+        }
+        else
+        {
+            getLinesDirectStyled(&lines, begin, end);
+        }
+    }
 
+    // ---- 散点 ----
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
-        getScatters(&scatters, dataRange);
+    {
+        QCPDataRange dataRange(begin, end);
+        if (useDownsample)
+        {
+            if (static_cast<size_t>(buckets) > totalVisibleChunks)
+                getLinesDownsampled(&scatters, begin, end, buckets);
+            else
+                getLinesChunkDownsampled(&scatters, begin, end, buckets);
+        }
+        else
+        {
+            getScatters(&scatters, dataRange);
+        }
+    }
 
     // 绘制填充
     if (mBrush.style() != Qt::NoBrush)
@@ -350,7 +428,6 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
 
         if (!lines.isEmpty())
         {
-            // 构建填充多边形（到 y=0 基线）
             QPolygonF fillPolygon;
             fillPolygon.reserve(lines.size() + 2);
 
@@ -358,7 +435,6 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
             for (const auto& pt : lines)
                 fillPolygon << pt;
 
-            // 回到基线
             QPointF lastPoint = lines.last();
             if (mValueAxis)
                 fillPolygon << QPointF(lastPoint.x(), mValueAxis->coordToPixel(0));
@@ -369,7 +445,7 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
         }
     }
 
-    // 绘制线
+    // 绘制线（使用 drawPolyline 批量绘制，比逐段 drawLine 快）
     if (mLineStyle != lsNone)
     {
         applyDefaultAntialiasingHint(painter);
@@ -500,7 +576,9 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
     if (lines.size() < 2)
         return;
 
-    // 使用 QCPAbstractPlottable1D 的 drawPolyline 逻辑
+    // 逐段绘制：对大/小数据集均稳定快速
+    // drawLine 比构造巨型 QPolygonF 再 drawPolyline 的开销更低，
+    // 因为避免了大量 QPointF 的向量拷贝和 Qt 内部路径分配
     int i = 0;
     bool lastIsNan = false;
     const int lineDataSize = lines.size();
@@ -608,6 +686,260 @@ QVector<QPointF> QCPChunkedGraph::dataToImpulseLines(const QVector<QCPGraphData>
         result.append(tip);
     }
     return result;
+}
+
+// ============================================================
+// 范围缓存
+// ============================================================
+
+void QCPChunkedGraph::recalculateRanges()
+{
+    mRangeCacheValid = false;
+
+    if (!m_keyCol || m_keyCol->empty() || !m_valueCol || m_valueCol->empty())
+        return;
+
+    const size_t ksz = m_keyCol->size();
+    const size_t vsz = m_valueCol->size();
+
+    // --- key range ---
+    double kMin = std::numeric_limits<double>::max();
+    double kMax = -std::numeric_limits<double>::max();
+    bool kValid = false;
+
+    for (size_t i = 0; i < ksz; ++i)
+    {
+        double v = m_keyCol->getDouble(i);
+        if (std::isnan(v)) continue;
+        if (v < kMin) kMin = v;
+        if (v > kMax) kMax = v;
+        kValid = true;
+    }
+
+    // --- value range ---
+    double vMin = std::numeric_limits<double>::max();
+    double vMax = -std::numeric_limits<double>::max();
+    bool vValid = false;
+
+    for (size_t i = 0; i < vsz; ++i)
+    {
+        double v = m_valueCol->getDouble(i);
+        if (std::isnan(v)) continue;
+        if (v < vMin) vMin = v;
+        if (v > vMax) vMax = v;
+        vValid = true;
+    }
+
+    if (kValid && vValid)
+    {
+        mCachedKeyMin   = kMin;
+        mCachedKeyMax   = kMax;
+        mCachedValueMin = vMin;
+        mCachedValueMax = vMax;
+        mRangeCacheValid = true;
+    }
+}
+
+void QCPChunkedGraph::invalidateRangeCache()
+{
+    mRangeCacheValid = false;
+}
+
+// ============================================================
+// 方案2: Column → QPointF 直出（消除 QCPGraphData 中间拷贝）
+// ============================================================
+
+void QCPChunkedGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end) const
+{
+    if (!m_keyCol || !m_valueCol)
+        return;
+
+    int count = end - begin;
+    if (count <= 0)
+        return;
+
+    lines->reserve(count);
+    for (int i = begin; i < end; ++i)
+    {
+        size_t idx = static_cast<size_t>(i);
+        double k = m_keyCol->getDouble(idx);
+        double v = m_valueCol->getDouble(idx);
+
+        if (std::isnan(k) || std::isnan(v))
+            continue;
+
+        lines->append(coordsToPixels(k, v));
+    }
+}
+
+void QCPChunkedGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, int end) const
+{
+    if (!m_keyCol || !m_valueCol)
+        return;
+
+    // 对于 lsLine：直出，Column → QPointF 单次遍历
+    if (mLineStyle == lsLine)
+    {
+        getLinesDirect(lines, begin, end);
+        return;
+    }
+
+    // 其他线型：仍需 QCPGraphData 中间层以保留线型逻辑
+    // （阶梯/脉冲线型涉及相邻点间插值，降采样阈值已确保仅在点数少时进入此路径）
+    QCPDataRange dr(begin, end);
+    getLines(lines, dr);
+}
+
+// ============================================================
+// 方案1: Chunk 元数据降采样
+// ============================================================
+
+void QCPChunkedGraph::getLinesChunkDownsampled(QVector<QPointF>* lines,
+                                                int begin, int end, int numBuckets) const
+{
+    if (!m_keyCol || !m_valueCol || numBuckets <= 0)
+        return;
+
+    // 计算可见数据覆盖的 chunk 范围
+    const size_t chunkMask = __chunk_size - 1;
+    const size_t firstChunk = static_cast<size_t>(begin) / __chunk_size;
+    const size_t lastChunk  = (static_cast<size_t>(end) + chunkMask) / __chunk_size;
+
+    size_t totalVisibleChunks = lastChunk - firstChunk;
+    if (totalVisibleChunks == 0)
+        return;
+
+    // 限制桶数不超过可见 chunk 数
+    if (static_cast<size_t>(numBuckets) > totalVisibleChunks)
+        numBuckets = static_cast<int>(totalVisibleChunks);
+    if (numBuckets < 1)
+        numBuckets = 1;
+
+    lines->reserve(numBuckets * 2);
+
+    // 将 chunks 映射到 numBuckets 个桶
+    for (int b = 0; b < numBuckets; ++b)
+    {
+        size_t bucketChunkBegin = firstChunk + (totalVisibleChunks * b) / static_cast<size_t>(numBuckets);
+        size_t bucketChunkEnd   = firstChunk + (totalVisibleChunks * (b + 1)) / static_cast<size_t>(numBuckets);
+        if (bucketChunkEnd <= bucketChunkBegin)
+            bucketChunkEnd = bucketChunkBegin + 1;
+
+        double yMin = std::numeric_limits<double>::max();
+        double yMax = -std::numeric_limits<double>::max();
+        double xFirst = 0.0;
+        double xLast  = 0.0;
+        bool hasFirst = false;
+
+        for (size_t c = bucketChunkBegin; c < bucketChunkEnd; ++c)
+        {
+            if (c >= m_keyCol->chunkCount())
+                break;
+
+            auto [kMin, kMax] = m_keyCol->chunkMinMax(c);
+            auto [vMinChunk, vMaxChunk] = m_valueCol->chunkMinMax(c);
+
+            // 跳过无有效数据的 empty chunk
+            if (std::isnan(vMinChunk) && std::isnan(vMaxChunk))
+                continue;
+
+            if (vMinChunk < yMin) yMin = vMinChunk;
+            if (vMaxChunk > yMax) yMax = vMaxChunk;
+
+            if (!hasFirst)
+            {
+                xFirst = m_keyCol->chunkFirstElement(c);
+                hasFirst = true;
+            }
+            xLast = m_keyCol->chunkLastElement(c);
+        }
+
+        if (!hasFirst || yMin > yMax)
+        {
+            // 桶内无有效数据，插入 NaN 断开连线
+            lines->append(QPointF(NAN, NAN));
+            lines->append(QPointF(NAN, NAN));
+            continue;
+        }
+
+        double centerX = (xFirst + xLast) * 0.5;
+
+        lines->append(coordsToPixels(centerX, yMin));
+        lines->append(coordsToPixels(centerX, yMax));
+    }
+}
+
+// ============================================================
+// 元素级降采样（桶数 > 可见chunk数时使用）
+// ============================================================
+
+void QCPChunkedGraph::getLinesDownsampled(QVector<QPointF>* lines,
+                                           int begin, int end, int numBuckets) const
+{
+    if (!m_keyCol || !m_valueCol || numBuckets <= 0)
+        return;
+
+    int totalCount = end - begin;
+    if (totalCount <= 0)
+        return;
+
+    if (numBuckets > totalCount)
+        numBuckets = totalCount;
+
+    lines->reserve(numBuckets * 2);
+
+    const size_t stotal = static_cast<size_t>(totalCount);
+    const size_t snum  = static_cast<size_t>(numBuckets);
+
+    for (size_t b = 0; b < snum; ++b)
+    {
+        int bucketBegin = begin + static_cast<int>((stotal * b) / snum);
+        int bucketEnd   = begin + static_cast<int>((stotal * (b + 1)) / snum);
+        if (bucketEnd <= bucketBegin)
+            bucketEnd = bucketBegin + 1;
+
+        double yMin = std::numeric_limits<double>::max();
+        double yMax = -std::numeric_limits<double>::max();
+        double xSum = 0.0;
+        int validCount = 0;
+
+        for (int i = bucketBegin; i < bucketEnd; ++i)
+        {
+            size_t idx = static_cast<size_t>(i);
+            double k = m_keyCol->getDouble(idx);
+            double v = m_valueCol->getDouble(idx);
+
+            if (std::isnan(k) || std::isnan(v))
+                continue;
+
+            if (v < yMin) yMin = v;
+            if (v > yMax) yMax = v;
+            xSum += k;
+            ++validCount;
+        }
+
+        if (validCount == 0)
+        {
+            lines->append(QPointF(NAN, NAN));
+            lines->append(QPointF(NAN, NAN));
+            continue;
+        }
+
+        double centerX = xSum / static_cast<double>(validCount);
+        lines->append(coordsToPixels(centerX, yMin));
+        lines->append(coordsToPixels(centerX, yMax));
+    }
+}
+
+// ============================================================
+// 工具
+// ============================================================
+
+int QCPChunkedGraph::screenPixelWidth() const
+{
+    if (mKeyAxis && mKeyAxis->axisRect())
+        return mKeyAxis->axisRect()->width();
+    return 800;  // 兜底：假设 800px 宽
 }
 
 } // namespace viewer

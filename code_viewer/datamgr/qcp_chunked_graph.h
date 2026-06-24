@@ -1,5 +1,6 @@
 #pragma once
 
+#include "code_viewer/base/base_def.h"
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_qcp/qcustomplot.h"
 #include <cmath>
@@ -13,7 +14,7 @@ namespace viewer
 // 直接从 Column<VFLOAT> 读取数据，不创建任何中间缓冲区
 // 支持 QCustomPlot 的缩放、拖拽操作实时更新显示
 // ============================================================
-class QCPChunkedGraph
+class VIEWER_API QCPChunkedGraph
     : public QCPAbstractPlottable
     , public QCPPlottableInterface1D
 {
@@ -93,6 +94,24 @@ protected:
     // 返回一个局部 vector，仅用于 getLines 等绘图辅助函数
     QVector<QCPGraphData> fetchDataRange(int begin, int end) const;
 
+    // ---- 方案2: 消除中间拷贝 ----
+    // 直接从 Column 读取数据并转换为像素坐标（跳过 QCPGraphData 中间层）
+    void getLinesDirect(QVector<QPointF>* lines, int begin, int end) const;
+    void getLinesDirectStyled(QVector<QPointF>* lines, int begin, int end) const;
+
+    // ---- 方案1: 降采样 ----
+    // Chunk元数据降采样（桶数≤可见chunk数时，O(numChunks)）
+    void getLinesChunkDownsampled(QVector<QPointF>* lines, int begin, int end, int numBuckets) const;
+    // 元素级降采样（桶数>可见chunk数时用，O(N)但保证精度）
+    void getLinesDownsampled(QVector<QPointF>* lines, int begin, int end, int numBuckets) const;
+
+    // 获取屏幕像素宽度对应的可见范围（用于降采样判断）
+    int screenPixelWidth() const;
+
+    // 重新计算 key/value 全量范围并更新缓存
+    void recalculateRanges();
+    void invalidateRangeCache();
+
 private:
     const AbstractColumn* m_keyCol = nullptr;    // X 轴数据列指针（不拥有）
     const AbstractColumn* m_valueCol = nullptr;  // Y 轴数据列指针（不拥有）
@@ -102,6 +121,11 @@ private:
     LineStyle mLineStyle = lsLine;
     QCPScatterStyle mScatterStyle;
     bool mAdaptiveSampling = false;
+
+    // 范围缓存（方案3：避免每次缩放/拖拽时 O(N) 全量扫描）
+    mutable bool mRangeCacheValid = false;
+    mutable double mCachedKeyMin = 0, mCachedKeyMax = 0;
+    mutable double mCachedValueMin = 0, mCachedValueMax = 0;
 };
 
 } // namespace viewer

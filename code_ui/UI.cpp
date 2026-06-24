@@ -13,8 +13,10 @@
 #include <qmessagebox.h>
 #include <qclipboard.h>
 #include <qmenu.h>
+#include <qtabbar.h>
 
 #include "icons_base64.h"
+#include "code_viewer/datamgr/qcp_chunked_graph.h"
 
 static bool isSystemInDark()
 {
@@ -117,9 +119,23 @@ void UI::createToolbar()
 
 void UI::createMain()
 {
-    ///< Center plot area
+    ///< Center plot area — QTabWidget for multiple plot pages
+    m_plotTabs = new QTabWidget();
+    m_plotTabs->setTabsClosable(true);
+    m_plotTabs->setMovable(true);
+    connect(m_plotTabs, &QTabWidget::currentChanged, this,
+        [this](int index)
+        {
+            m_viewer.GetPlotManager().setActivePage(index);
+        });
+    connect(m_plotTabs, &QTabWidget::tabCloseRequested, this,
+        [this](int index)
+        {
+            m_viewer.GetPlotManager().removePage(index);
+        });
+
     m_plotDock = new ads::CDockWidget("Plot");
-    m_plotDock->setWidget(new QLabel("Plot Area"));
+    m_plotDock->setWidget(m_plotTabs);
     m_plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::CenterDockWidgetArea, m_plotDock);
 
@@ -141,11 +157,15 @@ void UI::createMain()
             });
             menu.exec(QCursor::pos());
         });
+    connect(m_dataTree, &QTreeWidget::itemDoubleClicked, this, &UI::onDataItemDoubleClicked);
 
     m_dataDock = new ads::CDockWidget("Data");
     m_dataDock->setWidget(m_dataTree);
     m_dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::LeftDockWidgetArea, m_dataDock, m_plotDock->dockAreaWidget());
+
+    ///< Bind PlotManager callbacks
+    bindPlotManagerCallbacks();
 }
 
 void UI::createStatusbar()
@@ -280,6 +300,169 @@ void UI::onLoadCSVClicked()
 
     // Forward the file list to the Viewer's slot for loading
     m_viewer.OnLoadCSV(files);
+}
+
+// ============================================================
+// PlotManager → Qt 控件绑定
+// ============================================================
+
+void UI::bindPlotManagerCallbacks()
+{
+    auto& pm = m_viewer.GetPlotManager();
+
+    // 页面添加 → 创建新 QCustomPlot 页
+    pm.onPageAdded = [this](int index)
+    {
+        auto* plot = new QCustomPlot();
+        plot->setInteraction(QCP::iRangeDrag, true);
+        plot->setInteraction(QCP::iRangeZoom, true);
+        plot->xAxis->setLabel("X");
+        plot->yAxis->setLabel("Y");
+
+        QString title = QString::fromStdString(
+            m_viewer.GetPlotManager().pageInfo(index).title);
+        m_plotTabs->insertTab(index, plot, title);
+        m_plotTabs->setCurrentIndex(index);
+    };
+
+    // 页面即将移除
+    pm.onPageAboutToRemove = [this](int index)
+    {
+        if (index >= 0 && index < m_plotTabs->count())
+        {
+            QWidget* w = m_plotTabs->widget(index);
+            m_plotTabs->removeTab(index);
+            delete w;
+        }
+    };
+
+    // 页面移除后
+    pm.onPageRemoved = [this](int activeIdx, int /*remainingCount*/)
+    {
+        if (activeIdx >= 0 && activeIdx < m_plotTabs->count())
+            m_plotTabs->setCurrentIndex(activeIdx);
+    };
+
+    // 激活页面变更
+    pm.onActivePageChanged = [this](int index)
+    {
+        if (index >= 0 && index < m_plotTabs->count()
+            && m_plotTabs->currentIndex() != index)
+        {
+            m_plotTabs->setCurrentIndex(index);
+        }
+    };
+
+    // 数据项添加 → 创建 QCPChunkedGraph 并绑定到对应 QCustomPlot
+    pm.onDataItemAdded = [this](int pageIndex, const std::string& yColName)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        auto& dm = m_viewer.GetDataManager();
+        size_t xIdx = dm.GetXAxisColumn();
+        const viewer::AbstractColumn* xCol = dm.GetColumn(xIdx);
+        const viewer::AbstractColumn* yCol = dm.GetColumn(yColName);
+        if (!xCol || !yCol)
+            return;
+
+        // 创建 QCPChunkedGraph
+        auto* graph = new viewer::QCPChunkedGraph(plot->xAxis, plot->yAxis);
+        graph->setDataColumns(xCol, yCol);
+
+        // 设置默认外观
+        QPen pen(graph->pen());
+        static const QColor palette[] = {
+            QColor(31, 119, 180),   // blue
+            QColor(255, 127, 14),   // orange
+            QColor(44, 160, 44),    // green
+            QColor(148, 103, 189),  // purple
+            QColor(140, 86, 75),    // brown
+            QColor(227, 119, 194),  // pink
+            QColor(127, 127, 127),  // gray
+            QColor(188, 189, 34),   // olive
+        };
+        size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
+        if (plotCount > 0)
+        {
+            pen.setColor(palette[(plotCount - 1) % 8]);
+        }
+        graph->setPen(pen);
+
+        // 名称设置为 Y 列名
+        graph->setName(QString::fromStdString(yColName));
+
+        // 缩放轴以包含数据（第一个图完全匹配，后续图仅扩大）
+        graph->rescaleAxes(plotCount > 1);
+        plot->replot();
+    };
+
+    // 数据项移除
+    pm.onDataItemRemoved = [this](int pageIndex, const std::string& yColName)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        // 查找并移除对应名称的 QCPChunkedGraph
+        for (int i = 0; i < plot->plottableCount(); ++i)
+        {
+            auto* plottable = plot->plottable(i);
+            if (plottable && plottable->name().toStdString() == yColName)
+            {
+                plot->removePlottable(plottable);
+                break;
+            }
+        }
+
+        plot->replot();
+    };
+
+    // 清空全部图窗 → 清理 QTabWidget
+    pm.onCleared = [this]()
+    {
+        while (m_plotTabs->count() > 0)
+        {
+            QWidget* w = m_plotTabs->widget(0);
+            m_plotTabs->removeTab(0);
+            delete w;
+        }
+    };
+}
+
+// ============================================================
+// 双击数据树项 → 添加到激活图窗
+// ============================================================
+
+void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
+{
+    if (!item)
+        return;
+
+    std::string yColName = item->text(0).toStdString();
+
+    auto& dm = m_viewer.GetDataManager();
+    auto& pm = m_viewer.GetPlotManager();
+
+    // 验证列存在
+    size_t yIdx = dm.GetColumnIndex(yColName);
+    if (yIdx == static_cast<size_t>(-1))
+        return;
+
+    // 向 PlotManager 注册（自动处理去重和自动创建图窗）
+    bool added = pm.addDataToActivePage(yColName);
+
+    // 如果去重返回 false(数据项已存在) 或手动创建了新页面，需要触发图表创建
+    // addDataToActivePage 内部会触发 onDataItemAdded 回调自动创建 QCPChunkedGraph
+    // 仅当添加成功时才需要处理；如果已存在，UI 层无需额外操作
+    (void)added;
 }
 
 

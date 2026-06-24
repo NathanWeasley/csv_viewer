@@ -3,13 +3,9 @@
 #include <QObject>
 #include <QStringList>
 
+#include "code_viewer/base/base_def.h"
 #include "code_viewer/datamgr/data_manager.h"
-
-#if defined(VIEWER_LIB)
-#define VIEWER_API __declspec(dllexport)
-#else
-#define VIEWER_API __declspec(dllimport)
-#endif
+#include "code_viewer/plotmgr/plot_manager.h"
 
 namespace viewer
 {
@@ -30,6 +26,9 @@ public:
 
     DataManager&       GetDataManager()       noexcept { return m_data; }
     const DataManager& GetDataManager() const noexcept { return m_data; }
+
+    PlotManager&       GetPlotManager()       noexcept { return m_plots; }
+    const PlotManager& GetPlotManager() const noexcept { return m_plots; }
 
     const std::string& GetLastError() const noexcept { return m_lastError; }
 
@@ -61,6 +60,7 @@ private:
     std::vector<std::string> sanitizeColumnNames(const std::vector<std::string>& rawNames);
 
     DataManager m_data;
+    PlotManager m_plots;
     std::string m_lastError;
 };
 

@@ -447,6 +447,10 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     m_xAxisColumn = AutoDetectXAxis();
 
+    // 重建所有列的 chunk 元数据（降采样加速用）
+    for (auto& col : m_columns)
+        col->rebuildAllChunkMeta();
+
     reportProgress(1.0f, "Done.", "Loaded " + std::to_string(colCount) + " columns, " +
                   std::to_string(GetRowCount()) + " rows.");
 

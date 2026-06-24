@@ -38,6 +38,9 @@
     <ClCompile Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.cpp">
       <Filter>datamgr</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\plot_manager.cpp">
+      <Filter>plotmgr</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h">
@@ -54,6 +57,9 @@
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h">
       <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\plotmgr\plot_manager.h">
+      <Filter>plotmgr</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

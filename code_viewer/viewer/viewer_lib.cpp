@@ -181,6 +181,7 @@ bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
 void Viewer::Clear()
 {
     m_data.Clear();
+    m_plots.clearAll();
     m_lastError.clear();
 }
 

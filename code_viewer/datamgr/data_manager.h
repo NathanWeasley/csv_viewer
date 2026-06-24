@@ -1,5 +1,6 @@
 #pragma once
 
+#include "code_viewer/base/base_def.h"
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_viewer/datamgr/custom_expr/custom_func.h"
 #include <filesystem>
@@ -47,7 +48,7 @@ class CsvRowReader;
 // ============================================================
 // DataManager: CSV 数据管理器
 // ============================================================
-class DataManager
+class VIEWER_API DataManager
 {
 public:
     DataManager() = default;
