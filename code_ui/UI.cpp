@@ -367,7 +367,6 @@ void UI::bindPlotManagerCallbacks()
         plot->setOpenGl(true);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
-        plot->setInteraction(QCP::iSelectPlottables, true);
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
 
@@ -411,16 +410,17 @@ void UI::bindPlotManagerCallbacks()
                     m_viewer.GetPlotManager().setLegendVisible(index, checked);
                 });
 
-                menu.addAction("更改样式");
                 menu.addSeparator();
-                menu.addAction("编辑数据项");
-                menu.addAction("添加表达式");
+
+                menu.addAction("添加局部表达式");
+                menu.addAction("添加全局表达式");
                 menu.addAction("高亮规则");
+
                 menu.addSeparator();
+
                 menu.addAction("导出图片");
                 menu.addAction("加入收藏夹");
-                menu.addSeparator();
-                menu.addAction("关闭图表");
+
                 menu.exec(plot->mapToGlobal(pos));
             });
 
@@ -431,12 +431,12 @@ void UI::bindPlotManagerCallbacks()
         hbox->setContentsMargins(2, 2, 2, 2);
         hbox->setSpacing(4);
 
-        // 1. 文本框：选中数据项名
-        auto* edtItem = new QLineEdit();
-        edtItem->setReadOnly(true);
-        edtItem->setPlaceholderText("No selection");
-        edtItem->setMaximumWidth(120);
-        hbox->addWidget(edtItem);
+        // 1. 下拉列表：当前图窗全部数据项
+        auto* cmbDataItem = new QComboBox();
+        cmbDataItem->setMinimumWidth(100);
+        cmbDataItem->setMaximumWidth(160);
+        cmbDataItem->setSizeAdjustPolicy(QComboBox::AdjustToContents);
+        hbox->addWidget(cmbDataItem);
 
         // 2. 线形下拉
         auto* cmbLineStyle = new QComboBox();
@@ -484,6 +484,13 @@ void UI::bindPlotManagerCallbacks()
 
         hbox->addStretch();
 
+        // 8. 删除按钮（最右侧）
+        auto* btnDelete = new QPushButton("✕");
+        btnDelete->setFixedSize(24, 24);
+        btnDelete->setEnabled(false);
+        btnDelete->setToolTip("删除当前选中的数据曲线");
+        hbox->addWidget(btnDelete);
+
         // ---- 容器 ----
         auto* container = new QWidget();
         auto* vbox = new QVBoxLayout(container);
@@ -492,29 +499,30 @@ void UI::bindPlotManagerCallbacks()
         vbox->addWidget(toolbar);
         vbox->addWidget(plot, 1); // plot 占剩余空间
 
-        // ---- 数据项选中 → PlotManager ----
-        connect(plot, &QCustomPlot::selectionChangedByUser, this,
-            [this, plot, index]()
+        // ---- ComboList 选择变化 → 加载样式 + 更新选中状态 ----
+        connect(cmbDataItem, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, [this, plot, index, cmbDataItem](int /*idx*/)
             {
+                std::string yColName = cmbDataItem->currentText().toStdString();
                 auto& pm = m_viewer.GetPlotManager();
-                std::string selected;
-                for (int i = 0; i < plot->plottableCount(); ++i)
-                {
-                    auto* p = plot->plottable(i);
-                    if (p && p->selected())
-                    {
-                        selected = p->name().toStdString();
-                        break;
-                    }
-                }
-                pm.setSelectedDataItem(index, selected);
+                pm.setSelectedDataItem(index, yColName);
+            });
+
+        // ---- 删除按钮 → 从图窗移除数据曲线 ----
+        connect(btnDelete, &QPushButton::clicked, this,
+            [this, index, cmbDataItem]()
+            {
+                std::string selName = cmbDataItem->currentText().toStdString();
+                if (selName.empty())
+                    return;
+                auto& pm = m_viewer.GetPlotManager();
+                pm.removeDataItem(index, selName);
             });
 
         // ---- 工具栏控件→graph 回写辅助 ----
-        auto applyToGraph = [this, plot, index]()
+        auto applyToGraph = [this, plot, cmbDataItem]()
         {
-            auto& pm = m_viewer.GetPlotManager();
-            const auto& selName = pm.selectedDataItem(index);
+            std::string selName = cmbDataItem->currentText().toStdString();
             if (selName.empty())
                 return;
 
@@ -580,17 +588,17 @@ void UI::bindPlotManagerCallbacks()
 
         // 连接工具栏控件的变更信号 → applyToGraph
         connect(cmbLineStyle, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
         connect(spnLineWidth, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
         connect(cmbLineColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
         connect(cmbScatter, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
         connect(spnScatterSize, QOverload<int>::of(&QSpinBox::valueChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
         connect(cmbScatterColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, applyToGraph);
+            this, [applyToGraph](int){ applyToGraph(); });
 
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
@@ -663,6 +671,41 @@ void UI::bindPlotManagerCallbacks()
         // 缩放轴以包含数据（第一个图完全匹配，后续图仅扩大）
         graph->rescaleAxes(plotCount > 1);
         plot->replot();
+
+        // 向工具栏 ComboList 添加数据项名称
+        auto* vbox = container->findChild<QVBoxLayout*>();
+        if (!vbox || vbox->count() < 1)
+            return;
+        auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+        if (!toolbar)
+            return;
+        auto* hb = toolbar->findChild<QHBoxLayout*>();
+        if (!hb || hb->count() < 9)
+            return;
+        auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
+        if (!cmbDataItem)
+            return;
+
+        cmbDataItem->blockSignals(true);
+        cmbDataItem->addItem(QString::fromStdString(yColName));
+        // 如果是第一个数据项，自动设为选中
+        if (cmbDataItem->count() == 1)
+        {
+            cmbDataItem->setCurrentIndex(0);
+        }
+        cmbDataItem->blockSignals(false);
+
+        // 启用删除按钮
+        auto* btnDeleteAdd = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+        if (btnDeleteAdd)
+            btnDeleteAdd->setEnabled(true);
+
+        // 触发初始样式加载
+        if (cmbDataItem->count() == 1)
+        {
+            auto& pm = m_viewer.GetPlotManager();
+            pm.setSelectedDataItem(pageIndex, yColName);
+        }
     };
 
     // 数据项移除
@@ -688,6 +731,60 @@ void UI::bindPlotManagerCallbacks()
         }
 
         plot->replot();
+
+        // 从工具栏 ComboList 移除对应数据项名称
+        auto* vbox = container->findChild<QVBoxLayout*>();
+        if (!vbox || vbox->count() < 1)
+            return;
+        auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+        if (!toolbar)
+            return;
+        auto* hb = toolbar->findChild<QHBoxLayout*>();
+        if (!hb || hb->count() < 9)
+            return;
+        auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
+        if (!cmbDataItem)
+            return;
+
+        QString qName = QString::fromStdString(yColName);
+        int rmIdx = cmbDataItem->findText(qName);
+        if (rmIdx >= 0)
+        {
+            cmbDataItem->blockSignals(true);
+
+            // 如果移除的恰好是当前选中项，先切换到剩余项的第一项
+            if (cmbDataItem->currentIndex() == rmIdx)
+            {
+                if (cmbDataItem->count() > 1)
+                {
+                    int newIdx = (rmIdx > 0) ? (rmIdx - 1) : 0;
+                    cmbDataItem->setCurrentIndex(newIdx);
+                }
+            }
+
+            cmbDataItem->removeItem(rmIdx);
+            cmbDataItem->blockSignals(false);
+
+            // 没有剩余项时禁用删除按钮
+            if (cmbDataItem->count() == 0)
+            {
+                auto* btnDeleteRm = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+                if (btnDeleteRm)
+                    btnDeleteRm->setEnabled(false);
+            }
+
+            // 触发切换后的样式加载
+            if (cmbDataItem->count() > 0)
+            {
+                auto& pm = m_viewer.GetPlotManager();
+                pm.setSelectedDataItem(pageIndex, cmbDataItem->currentText().toStdString());
+            }
+            else
+            {
+                auto& pm = m_viewer.GetPlotManager();
+                pm.setSelectedDataItem(pageIndex, std::string());
+            }
+        }
     };
 
     // 图例可见性变更
@@ -782,22 +879,42 @@ void UI::bindPlotManagerCallbacks()
         if (!toolbar)
             return;
 
-        auto* hb = toolbar->findChild<QHBoxLayout*>();
-        if (!hb || hb->count() < 7)
+    auto* hb = toolbar->findChild<QHBoxLayout*>();
+        if (!hb || hb->count() < 9)
             return;
 
-        auto* edtItem   = qobject_cast<QLineEdit*>(hb->itemAt(0)->widget());
-        auto* cmbLS     = qobject_cast<QComboBox*>(hb->itemAt(1)->widget());
-        auto* spnLW     = qobject_cast<QSpinBox*>(hb->itemAt(2)->widget());
-        auto* cmbLC     = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
-        auto* cmbSC     = qobject_cast<QComboBox*>(hb->itemAt(4)->widget());
-        auto* spnSS     = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
-        auto* cmbSCo    = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
+        auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
+        auto* cmbLS       = qobject_cast<QComboBox*>(hb->itemAt(1)->widget());
+        auto* spnLW       = qobject_cast<QSpinBox*>(hb->itemAt(2)->widget());
+        auto* cmbLC       = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
+        auto* cmbSC       = qobject_cast<QComboBox*>(hb->itemAt(4)->widget());
+        auto* spnSS       = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
+        auto* cmbSCo      = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
+        auto* btnDelete   = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+
+        // 根据选中状态启用/禁用删除按钮
+        if (btnDelete)
+            btnDelete->setEnabled(!yColName.empty());
+
+        // 同步 ComboList 当前选中项
+        if (cmbDataItem)
+        {
+            cmbDataItem->blockSignals(true);
+            if (yColName.empty())
+            {
+                cmbDataItem->setCurrentIndex(-1);
+            }
+            else
+            {
+                int idx = cmbDataItem->findText(QString::fromStdString(yColName));
+                if (idx >= 0)
+                    cmbDataItem->setCurrentIndex(idx);
+            }
+            cmbDataItem->blockSignals(false);
+        }
 
         if (yColName.empty())
         {
-            // 取消选中
-            if (edtItem) edtItem->clear();
             return;
         }
 
@@ -814,7 +931,6 @@ void UI::bindPlotManagerCallbacks()
         }
         if (!graph)
         {
-            if (edtItem) edtItem->clear();
             return;
         }
 
@@ -825,8 +941,6 @@ void UI::bindPlotManagerCallbacks()
             fn();
             w->blockSignals(false);
         };
-
-        guard(edtItem, [&]{ edtItem->setText(QString::fromStdString(yColName)); });
 
         QPen pen = graph->pen();
         // 线型映射：Qt::SolidLine=0, Qt::DotLine=1, Qt::DashLine=2, Qt::DashDotLine=3
