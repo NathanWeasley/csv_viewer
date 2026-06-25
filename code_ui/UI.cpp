@@ -314,10 +314,34 @@ void UI::bindPlotManagerCallbacks()
     pm.onPageAdded = [this](int index)
     {
         auto* plot = new QCustomPlot();
+        plot->setOpenGl(true);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
+
+        // 事件过滤器：拦截滚轮事件实现 Ctrl/Shift 单轴缩放
+        plot->installEventFilter(this);
+
+        // 右键上下文菜单
+        plot->setContextMenuPolicy(Qt::CustomContextMenu);
+        connect(plot, &QCustomPlot::customContextMenuRequested, this,
+            [this, plot](const QPoint& pos)
+            {
+                QMenu menu;
+                menu.addAction("还原缩放");
+                menu.addSeparator();
+                menu.addAction("更改样式");
+                menu.addSeparator();
+                menu.addAction("编辑数据项");
+                menu.addAction("添加表达式");
+                menu.addAction("高亮规则");
+                menu.addSeparator();
+                menu.addAction("导出图片");
+                menu.addSeparator();
+                menu.addAction("关闭图表");
+                menu.exec(plot->mapToGlobal(pos));
+            });
 
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
@@ -463,6 +487,45 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
     // addDataToActivePage 内部会触发 onDataItemAdded 回调自动创建 QCPChunkedGraph
     // 仅当添加成功时才需要处理；如果已存在，UI 层无需额外操作
     (void)added;
+}
+
+// ============================================================
+// 事件过滤器：Ctrl/Shift + 滚轮 单轴缩放
+// ============================================================
+
+bool UI::eventFilter(QObject* obj, QEvent* event)
+{
+    if (event->type() == QEvent::Wheel)
+    {
+        QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
+        if (plot)
+        {
+            QWheelEvent* we = static_cast<QWheelEvent*>(event);
+            Qt::KeyboardModifiers mods = we->modifiers();
+
+            if (mods & Qt::ControlModifier)
+            {
+                // Ctrl+滚轮：仅缩放 X 轴
+                plot->axisRect()->setRangeZoom(Qt::Horizontal);
+                plot->removeEventFilter(this);
+                QCoreApplication::sendEvent(plot, event);
+                plot->installEventFilter(this);
+                plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+                return true;
+            }
+            else if (mods & Qt::ShiftModifier)
+            {
+                // Shift+滚轮：仅缩放 Y 轴
+                plot->axisRect()->setRangeZoom(Qt::Vertical);
+                plot->removeEventFilter(this);
+                QCoreApplication::sendEvent(plot, event);
+                plot->installEventFilter(this);
+                plot->axisRect()->setRangeZoom(Qt::Horizontal | Qt::Vertical);
+                return true;
+            }
+        }
+    }
+    return QMainWindow::eventFilter(obj, event);
 }
 
 

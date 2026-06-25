@@ -4,6 +4,8 @@
 #include <QtWidgets/QProgressBar>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QTabWidget>
+#include <QEvent>
+#include <QWheelEvent>
 #include "ui_UI.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
@@ -17,6 +19,9 @@ class UI
 public:
     UI(QWidget *parent = nullptr);
     ~UI();
+
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
 
 private:
     void init();

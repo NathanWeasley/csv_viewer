@@ -378,6 +378,10 @@ public:
 
     size_t capacity() const noexcept { return m_capacity; }
 
+    // 裸指针访问（零开销内联遍历，用于绘图热路径）
+    const T* data() const noexcept { return m_data; }
+    T* data() noexcept { return m_data; }
+
 private:
     T*      m_data     = nullptr;
     size_t  m_size     = 0;

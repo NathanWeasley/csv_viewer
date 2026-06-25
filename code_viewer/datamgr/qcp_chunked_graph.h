@@ -108,10 +108,11 @@ protected:
     void invalidateRangeCache();
 
 private:
-    const AbstractColumn* m_keyCol = nullptr;    // X 轴数据列指针（不拥有）
-    const AbstractColumn* m_valueCol = nullptr;  // Y 轴数据列指针（不拥有）
-    const AbstractColumn* m_valueLowCol = nullptr;  // 错误棒下限（可选）
-    const AbstractColumn* m_valueHighCol = nullptr; // 错误棒上限（可选）
+    // 具体类型指针：消除虚函数开销，所有热路径直接调用 Column<double> 内联方法
+    const Column<double>* m_keyCol = nullptr;
+    const Column<double>* m_valueCol = nullptr;
+    const Column<double>* m_valueLowCol = nullptr;
+    const Column<double>* m_valueHighCol = nullptr;
 
     LineStyle mLineStyle = lsLine;
     QCPScatterStyle mScatterStyle;
@@ -121,6 +122,7 @@ private:
     mutable bool mRangeCacheValid = false;
     mutable double mCachedKeyMin = 0, mCachedKeyMax = 0;
     mutable double mCachedValueMin = 0, mCachedValueMax = 0;
+
 };
 
 } // namespace viewer

@@ -25,8 +25,8 @@ QCPChunkedGraph::~QCPChunkedGraph()
 // ============================================================
 void QCPChunkedGraph::setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol)
 {
-    m_keyCol = keyCol;
-    m_valueCol = valueCol;
+    m_keyCol = static_cast<const Column<double>*>(keyCol);
+    m_valueCol = static_cast<const Column<double>*>(valueCol);
     recalculateRanges();
 }
 
@@ -355,7 +355,6 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
     if (!m_keyCol || !m_valueCol || m_keyCol->empty())
         return;
 
-    // 获取可见数据范围
     QPair<int, int> visibleRange = getVisibleDataRange();
     int begin = visibleRange.first;
     int end   = visibleRange.second;
@@ -364,12 +363,10 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
 
     int visibleCount = end - begin;
 
-    // 自适应降采样：桶数随数据密度(ratio)渐变，避免固定的最大降采样
     int pixelsW = screenPixelWidth();
     double ratio = static_cast<double>(visibleCount) / static_cast<double>(std::max(pixelsW, 1));
     bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
 
-    // 桶数 = pixelsW × min(ratio, 2.0)，使降采样粒度与数据密度成正比
     int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 2.0)));
     if (buckets > visibleCount / 2)
         buckets = std::max(1, visibleCount / 2);
@@ -377,60 +374,41 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
     QVector<QPointF> lines;
     QVector<QPointF> scatters;
 
-    // ---- 线 ----
     if (mLineStyle != lsNone)
     {
         if (useDownsample)
-        {
             getLinesDownsampled(&lines, begin, end, buckets);
-        }
         else
-        {
             getLinesDirectStyled(&lines, begin, end);
-        }
     }
 
-    // ---- 散点 ----
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
         QCPDataRange dataRange(begin, end);
         if (useDownsample)
-        {
             getLinesDownsampled(&scatters, begin, end, buckets);
-        }
         else
-        {
             getScatters(&scatters, dataRange);
-        }
     }
 
-    // 绘制填充
-    if (mBrush.style() != Qt::NoBrush)
+    if (mBrush.style() != Qt::NoBrush && !lines.isEmpty())
     {
         applyFillAntialiasingHint(painter);
         painter->setBrush(mBrush);
         painter->setPen(Qt::NoPen);
 
-        if (!lines.isEmpty())
-        {
-            QPolygonF fillPolygon;
-            fillPolygon.reserve(lines.size() + 2);
-
-            fillPolygon << lines.first();
-            for (const auto& pt : lines)
-                fillPolygon << pt;
-
-            QPointF lastPoint = lines.last();
-            if (mValueAxis)
-                fillPolygon << QPointF(lastPoint.x(), mValueAxis->coordToPixel(0));
-            QPointF firstPoint = lines.first();
-            fillPolygon << QPointF(firstPoint.x(), mValueAxis->coordToPixel(0));
-
-            painter->drawPolygon(fillPolygon);
-        }
+        QPolygonF fillPolygon;
+        fillPolygon.reserve(lines.size() + 2);
+        fillPolygon << lines.first();
+        for (const auto& pt : lines)
+            fillPolygon << pt;
+        QPointF lastPoint = lines.last();
+        if (mValueAxis)
+            fillPolygon << QPointF(lastPoint.x(), mValueAxis->coordToPixel(0));
+        fillPolygon << QPointF(lines.first().x(), mValueAxis->coordToPixel(0));
+        painter->drawPolygon(fillPolygon);
     }
 
-    // 绘制线（使用 drawPolyline 批量绘制，比逐段 drawLine 快）
     if (mLineStyle != lsNone)
     {
         applyDefaultAntialiasingHint(painter);
@@ -439,7 +417,6 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
         drawLinePlot(painter, lines);
     }
 
-    // 绘制散点
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
         applyScattersAntialiasingHint(painter);
@@ -561,28 +538,23 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
     if (lines.size() < 2)
         return;
 
-    // 逐段绘制：对大/小数据集均稳定快速
-    int i = 0;
-    bool lastIsNan = false;
-    const int lineDataSize = lines.size();
-    while (i < lineDataSize && (std::isnan(lines.at(i).y()) || std::isnan(lines.at(i).x())))
-        ++i;
-    ++i;
-    while (i < lineDataSize)
+    // 使用 QPainter::drawLines() 批量绘制相邻有效线段
+    QVector<QLineF> segments;
+    segments.reserve(lines.size());
+
+    for (int i = 1; i < lines.size(); ++i)
     {
-        if (!std::isnan(lines.at(i).y()) && !std::isnan(lines.at(i).x()))
+        const auto& p0 = lines.at(i - 1);
+        const auto& p1 = lines.at(i);
+        if (!std::isnan(p0.y()) && !std::isnan(p1.y()) &&
+            !std::isnan(p0.x()) && !std::isnan(p1.x()))
         {
-            if (!lastIsNan)
-                painter->drawLine(lines.at(i - 1), lines.at(i));
-            else
-                lastIsNan = false;
+            segments.append(QLineF(p0, p1));
         }
-        else
-        {
-            lastIsNan = true;
-        }
-        ++i;
     }
+
+    if (!segments.isEmpty())
+        painter->drawLines(segments);
 }
 
 void QCPChunkedGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
@@ -742,16 +714,16 @@ void QCPChunkedGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end
         return;
 
     lines->reserve(count);
-    for (int i = begin; i < end; ++i)
+
+    const double* kPtr = m_keyCol->data() + begin;
+    const double* vPtr = m_valueCol->data() + begin;
+
+    for (int i = 0; i < count; ++i)
     {
-        size_t idx = static_cast<size_t>(i);
-        double k = m_keyCol->getDouble(idx);
-        double v = m_valueCol->getDouble(idx);
-
-        if (std::isnan(k) || std::isnan(v))
-            continue;
-
-        lines->append(coordsToPixels(k, v));
+        double k = kPtr[i];
+        double v = vPtr[i];
+        if (!std::isnan(k) && !std::isnan(v))
+            lines->append(coordsToPixels(k, v));
     }
 }
 
@@ -760,14 +732,12 @@ void QCPChunkedGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, i
     if (!m_keyCol || !m_valueCol)
         return;
 
-    // 对于 lsLine：直出，Column → QPointF 单次遍历
     if (mLineStyle == lsLine)
     {
         getLinesDirect(lines, begin, end);
         return;
     }
 
-    // 其他线型：仍需 QCPGraphData 中间层以保留线型逻辑
     QCPDataRange dr(begin, end);
     getLines(lines, dr);
 }
@@ -806,12 +776,14 @@ void QCPChunkedGraph::getLinesDownsampled(QVector<QPointF>* lines,
         double xSum = 0.0;
         int validCount = 0;
 
-        for (int i = bucketBegin; i < bucketEnd; ++i)
-        {
-            size_t idx = static_cast<size_t>(i);
-            double k = m_keyCol->getDouble(idx);
-            double v = m_valueCol->getDouble(idx);
+        const double* kPtr = m_keyCol->data() + bucketBegin;
+        const double* vPtr = m_valueCol->data() + bucketBegin;
+        int bucketSize = bucketEnd - bucketBegin;
 
+        for (int i = 0; i < bucketSize; ++i)
+        {
+            double k = kPtr[i];
+            double v = vPtr[i];
             if (std::isnan(k) || std::isnan(v))
                 continue;
 
@@ -842,7 +814,7 @@ int QCPChunkedGraph::screenPixelWidth() const
 {
     if (mKeyAxis && mKeyAxis->axisRect())
         return mKeyAxis->axisRect()->width();
-    return 800;  // 兜底：假设 800px 宽
+    return 800;
 }
 
 } // namespace viewer
