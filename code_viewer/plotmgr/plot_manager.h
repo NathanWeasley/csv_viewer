@@ -19,6 +19,7 @@ struct PlotPageInfo
     std::unordered_set<std::string> dataItems;  // 已绘制的 Y 列名集合（去重用）
     bool legendVisible = false;                  // 图例是否可见
     bool rectZoomActive = false;                 // 是否处于框选缩放模式
+    std::string selectedDataItem;                // 当前选中的数据项名称（空=无选中）
 };
 
 // ============================================================
@@ -158,6 +159,19 @@ public:
 
     // 还原缩放请求后触发
     std::function<void(int pageIndex)> onRescaleRequested;
+
+    // ============================================================
+    // 选中数据项管理
+    // ============================================================
+
+    // 设置指定页面的选中数据项
+    void setSelectedDataItem(int pageIndex, const std::string& yColName);
+
+    // 获取指定页面的选中数据项名称
+    const std::string& selectedDataItem(int pageIndex) const;
+
+    // 选中数据项变更后触发，参数为 (页面索引, 列名，空串表示取消选中)
+    std::function<void(int pageIndex, const std::string& yColName)> onSelectedDataItemChanged;
 
 private:
     std::string generatePageTitle() const;

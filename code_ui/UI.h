@@ -4,8 +4,14 @@
 #include <QtWidgets/QProgressBar>
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QTabWidget>
+#include <QtWidgets/QComboBox>
+#include <QtWidgets/QSpinBox>
+#include <QtWidgets/QLineEdit>
+#include <QtWidgets/QHBoxLayout>
+#include <QtWidgets/QVBoxLayout>
 #include <QEvent>
 #include <QWheelEvent>
+#include <map>
 #include "ui_UI.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"

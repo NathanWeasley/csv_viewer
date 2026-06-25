@@ -217,6 +217,31 @@ bool PlotManager::isLegendVisible(int pageIndex) const
 }
 
 // ============================================================
+// 选中数据项管理
+// ============================================================
+
+void PlotManager::setSelectedDataItem(int pageIndex, const std::string& yColName)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return;
+    if (m_pages[pageIndex].selectedDataItem == yColName)
+        return;
+
+    m_pages[pageIndex].selectedDataItem = yColName;
+
+    if (onSelectedDataItemChanged)
+        onSelectedDataItemChanged(pageIndex, yColName);
+}
+
+const std::string& PlotManager::selectedDataItem(int pageIndex) const
+{
+    static const std::string empty;
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return empty;
+    return m_pages[pageIndex].selectedDataItem;
+}
+
+// ============================================================
 // 私有
 // ============================================================
 

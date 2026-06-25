@@ -14,6 +14,9 @@
 #include <qclipboard.h>
 #include <qmenu.h>
 #include <qtabbar.h>
+#include <qcombobox.h>
+#include <qspinbox.h>
+#include <qlineedit.h>
 
 #include "icons_base64.h"
 #include "code_viewer/datamgr/qcp_chunked_graph.h"
@@ -310,20 +313,68 @@ void UI::bindPlotManagerCallbacks()
 {
     auto& pm = m_viewer.GetPlotManager();
 
-    // 页面添加 → 创建新 QCustomPlot 页
+    // 35 色预设（参考 MATLAB, 最后为黑和两种灰）
+    static const QColor colorPresets[] = {
+        // Row 1: MATLAB 7 色
+        QColor(0, 114, 189),     // 0:  MATLAB Blue
+        QColor(217, 83, 25),     // 1:  MATLAB Orange
+        QColor(237, 177, 32),    // 2:  MATLAB Yellow
+        QColor(126, 47, 142),    // 3:  MATLAB Purple
+        QColor(119, 172, 48),    // 4:  MATLAB Green
+        QColor(77, 190, 238),    // 5:  MATLAB Cyan
+        QColor(162, 20, 47),     // 6:  MATLAB Red
+        // Row 2: Deep saturated
+        QColor(0, 147, 147),     // 7:  Teal
+        QColor(255, 61, 127),    // 8:  Pink
+        QColor(100, 149, 237),   // 9:  Cornflower
+        QColor(205, 92, 92),     // 10: Indian Red
+        QColor(85, 107, 47),     // 11: Olive Drab
+        QColor(186, 85, 211),    // 12: Medium Orchid
+        // Row 3: Bright accents
+        QColor(0, 191, 255),     // 13: Deep Sky Blue
+        QColor(255, 215, 0),     // 14: Gold
+        QColor(50, 205, 50),     // 15: Lime Green
+        QColor(255, 99, 71),     // 16: Tomato
+        QColor(64, 224, 208),    // 17: Turquoise
+        QColor(255, 140, 0),     // 18: Dark Orange
+        // Row 4: Rich tones
+        QColor(138, 43, 226),    // 19: Blue Violet
+        QColor(0, 206, 209),     // 20: Dark Turquoise
+        QColor(255, 20, 147),    // 21: Deep Pink
+        QColor(154, 205, 50),    // 22: Yellow Green
+        QColor(70, 130, 180),    // 23: Steel Blue
+        QColor(240, 128, 128),   // 24: Light Coral
+        // Row 5: More
+        QColor(147, 112, 219),   // 25: Medium Purple
+        QColor(60, 179, 113),    // 26: Medium Sea Green
+        QColor(255, 160, 122),   // 27: Light Salmon
+        QColor(0, 191, 143),     // 28: Mint
+        QColor(255, 69, 0),      // 29: Orange Red
+        QColor(65, 105, 225),    // 30: Royal Blue
+        QColor(218, 165, 32),    // 31: Goldenrod
+        // End markers
+        QColor(Qt::black),       // 32: Black
+        QColor(128, 128, 128),   // 33: Gray
+        QColor(192, 192, 192)    // 34: Silver
+    };
+    static const int kColorCount = sizeof(colorPresets) / sizeof(colorPresets[0]);
+
+    // 页面添加 → 创建新 QCustomPlot 页（含工具栏）
     pm.onPageAdded = [this](int index)
     {
+        // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
         plot->setOpenGl(true);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
+        plot->setInteraction(QCP::iSelectPlottables, true);
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
 
-        // 事件过滤器：拦截滚轮事件实现 Ctrl/Shift 单轴缩放
+        // 事件过滤器
         plot->installEventFilter(this);
 
-        // 开启图例可选交互（拖动）
+        // 图例交互
         plot->setInteraction(QCP::iSelectLegend, true);
 
         // 右键上下文菜单
@@ -373,9 +424,177 @@ void UI::bindPlotManagerCallbacks()
                 menu.exec(plot->mapToGlobal(pos));
             });
 
+        // ---- 工具栏 ----
+        auto* toolbar = new QWidget();
+        toolbar->setFixedHeight(32);
+        auto* hbox = new QHBoxLayout(toolbar);
+        hbox->setContentsMargins(2, 2, 2, 2);
+        hbox->setSpacing(4);
+
+        // 1. 文本框：选中数据项名
+        auto* edtItem = new QLineEdit();
+        edtItem->setReadOnly(true);
+        edtItem->setPlaceholderText("No selection");
+        edtItem->setMaximumWidth(120);
+        hbox->addWidget(edtItem);
+
+        // 2. 线形下拉
+        auto* cmbLineStyle = new QComboBox();
+        cmbLineStyle->addItems({"实线", "点线", "虚线", "点划线"});
+        hbox->addWidget(cmbLineStyle);
+
+        // 3. 线宽数字框
+        auto* spnLineWidth = new QSpinBox();
+        spnLineWidth->setRange(1, 20);
+        spnLineWidth->setValue(1);
+        hbox->addWidget(spnLineWidth);
+
+        // 4. 线色下拉（色块+图标）
+        auto* cmbLineColor = new QComboBox();
+        for (int i = 0; i < kColorCount; ++i)
+        {
+            QPixmap swatch(20, 14);
+            swatch.fill(colorPresets[i]);
+            cmbLineColor->addItem(QIcon(swatch), QString(), QVariant::fromValue(colorPresets[i]));
+        }
+        cmbLineColor->setCurrentIndex(8); // "Red"
+        hbox->addWidget(cmbLineColor);
+
+        // 5. 数据点类型下拉
+        auto* cmbScatter = new QComboBox();
+        cmbScatter->addItems({"无", "空心圆", "实心圆", "方形", "菱形", "星号"});
+        hbox->addWidget(cmbScatter);
+
+        // 6. 数据点大小
+        auto* spnScatterSize = new QSpinBox();
+        spnScatterSize->setRange(0, 50);
+        spnScatterSize->setValue(0);
+        hbox->addWidget(spnScatterSize);
+
+        // 7. 数据点颜色（色块+图标）
+        auto* cmbScatterColor = new QComboBox();
+        for (int i = 0; i < kColorCount; ++i)
+        {
+            QPixmap swatch(20, 14);
+            swatch.fill(colorPresets[i]);
+            cmbScatterColor->addItem(QIcon(swatch), QString(), QVariant::fromValue(colorPresets[i]));
+        }
+        cmbScatterColor->setCurrentIndex(8); // "Red"
+        hbox->addWidget(cmbScatterColor);
+
+        hbox->addStretch();
+
+        // ---- 容器 ----
+        auto* container = new QWidget();
+        auto* vbox = new QVBoxLayout(container);
+        vbox->setContentsMargins(0, 0, 0, 0);
+        vbox->setSpacing(0);
+        vbox->addWidget(toolbar);
+        vbox->addWidget(plot, 1); // plot 占剩余空间
+
+        // ---- 数据项选中 → PlotManager ----
+        connect(plot, &QCustomPlot::selectionChangedByUser, this,
+            [this, plot, index]()
+            {
+                auto& pm = m_viewer.GetPlotManager();
+                std::string selected;
+                for (int i = 0; i < plot->plottableCount(); ++i)
+                {
+                    auto* p = plot->plottable(i);
+                    if (p && p->selected())
+                    {
+                        selected = p->name().toStdString();
+                        break;
+                    }
+                }
+                pm.setSelectedDataItem(index, selected);
+            });
+
+        // ---- 工具栏控件→graph 回写辅助 ----
+        auto applyToGraph = [this, plot, index]()
+        {
+            auto& pm = m_viewer.GetPlotManager();
+            const auto& selName = pm.selectedDataItem(index);
+            if (selName.empty())
+                return;
+
+            viewer::QCPChunkedGraph* graph = nullptr;
+            for (int i = 0; i < plot->plottableCount(); ++i)
+            {
+                auto* p = plot->plottable(i);
+                if (p && p->name().toStdString() == selName)
+                {
+                    graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                    break;
+                }
+            }
+            if (!graph)
+                return;
+
+            // 从小部件取新值并应用
+            auto* container = qobject_cast<QWidget*>(plot->parent());
+            if (!container) return;
+            auto* toolbar = container->findChild<QWidget*>();
+            if (!toolbar) return;
+            auto* hb = toolbar->findChild<QHBoxLayout*>();
+            if (!hb) return;
+
+            auto* cmbLS = qobject_cast<QComboBox*>(hb->itemAt(1)->widget());
+            auto* spnLW = qobject_cast<QSpinBox*>(hb->itemAt(2)->widget());
+            auto* cmbLC = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
+            auto* cmbSC = qobject_cast<QComboBox*>(hb->itemAt(4)->widget());
+            auto* spnSS = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
+            auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
+
+            QPen pen = graph->pen();
+            // 线型
+            static const Qt::PenStyle penStyles[] = {Qt::SolidLine, Qt::DotLine, Qt::DashLine, Qt::DashDotLine};
+            pen.setStyle(penStyles[cmbLS->currentIndex()]);
+            // 线宽
+            pen.setWidth(spnLW->value());
+            // 线色（从 UserRole 取 QColor）
+            QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
+            if (lineColor.isValid())
+                pen.setColor(lineColor);
+            graph->setPen(pen);
+
+            // 散点
+            QCPScatterStyle ss = graph->scatterStyle();
+            int scIdx = cmbSC->currentIndex();
+            static const QCPScatterStyle::ScatterShape shapes[] = {
+                QCPScatterStyle::ssNone, QCPScatterStyle::ssCircle, QCPScatterStyle::ssDisc,
+                QCPScatterStyle::ssSquare, QCPScatterStyle::ssDiamond, QCPScatterStyle::ssStar
+            };
+            ss.setShape(shapes[scIdx]);
+            ss.setSize(spnSS->value());
+            QColor scatterColor = cmbSCo->currentData(Qt::UserRole).value<QColor>();
+            if (scatterColor.isValid())
+            {
+                QPen spen(scatterColor);
+                ss.setPen(spen);
+            }
+            graph->setScatterStyle(ss);
+
+            plot->replot(); // pen 变化需要手动 replot
+        };
+
+        // 连接工具栏控件的变更信号 → applyToGraph
+        connect(cmbLineStyle, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, applyToGraph);
+        connect(spnLineWidth, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, applyToGraph);
+        connect(cmbLineColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, applyToGraph);
+        connect(cmbScatter, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, applyToGraph);
+        connect(spnScatterSize, QOverload<int>::of(&QSpinBox::valueChanged),
+            this, applyToGraph);
+        connect(cmbScatterColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, applyToGraph);
+
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
-        m_plotTabs->insertTab(index, plot, title);
+        m_plotTabs->insertTab(index, container, title);
         m_plotTabs->setCurrentIndex(index);
     };
 
@@ -413,7 +632,8 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
@@ -428,22 +648,12 @@ void UI::bindPlotManagerCallbacks()
         auto* graph = new viewer::QCPChunkedGraph(plot->xAxis, plot->yAxis);
         graph->setDataColumns(xCol, yCol);
 
-        // 设置默认外观
+        // 设置默认外观（使用 colorPresets 确保颜色在工具栏中可匹配）
         QPen pen(graph->pen());
-        static const QColor palette[] = {
-            QColor(31, 119, 180),   // blue
-            QColor(255, 127, 14),   // orange
-            QColor(44, 160, 44),    // green
-            QColor(148, 103, 189),  // purple
-            QColor(140, 86, 75),    // brown
-            QColor(227, 119, 194),  // pink
-            QColor(127, 127, 127),  // gray
-            QColor(188, 189, 34),   // olive
-        };
         size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
         if (plotCount > 0)
         {
-            pen.setColor(palette[(plotCount - 1) % 8]);
+            pen.setColor(colorPresets[(plotCount - 1) % kColorCount]);
         }
         graph->setPen(pen);
 
@@ -461,7 +671,8 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
@@ -485,11 +696,13 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
         plot->legend->setVisible(visible);
+        plot->legend->setSelectableParts(QCPLegend::spItems);
         plot->replot();
     };
 
@@ -499,7 +712,8 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
@@ -512,7 +726,8 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
@@ -534,12 +749,119 @@ void UI::bindPlotManagerCallbacks()
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
             return;
 
-        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
 
         plot->rescaleAxes();
         plot->replot();
+    };
+
+    // 选中数据项变更 → 刷新工具栏控件
+    pm.onSelectedDataItemChanged = [this](int pageIndex, const std::string& yColName)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* container = m_plotTabs->widget(pageIndex);
+        if (!container)
+            return;
+
+        // 在 container 的子控件中找到 QCustomPlot
+        auto* plot = container->findChild<QCustomPlot*>();
+        if (!plot)
+            return;
+
+        // 工具栏是 container 布局中的第一个子 widget
+        auto* vbox = container->findChild<QVBoxLayout*>();
+        if (!vbox || vbox->count() < 1)
+            return;
+
+        auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+        if (!toolbar)
+            return;
+
+        auto* hb = toolbar->findChild<QHBoxLayout*>();
+        if (!hb || hb->count() < 7)
+            return;
+
+        auto* edtItem   = qobject_cast<QLineEdit*>(hb->itemAt(0)->widget());
+        auto* cmbLS     = qobject_cast<QComboBox*>(hb->itemAt(1)->widget());
+        auto* spnLW     = qobject_cast<QSpinBox*>(hb->itemAt(2)->widget());
+        auto* cmbLC     = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
+        auto* cmbSC     = qobject_cast<QComboBox*>(hb->itemAt(4)->widget());
+        auto* spnSS     = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
+        auto* cmbSCo    = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
+
+        if (yColName.empty())
+        {
+            // 取消选中
+            if (edtItem) edtItem->clear();
+            return;
+        }
+
+        // 查找 graph
+        viewer::QCPChunkedGraph* graph = nullptr;
+        for (int i = 0; i < plot->plottableCount(); ++i)
+        {
+            auto* p = plot->plottable(i);
+            if (p && p->name().toStdString() == yColName)
+            {
+                graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                break;
+            }
+        }
+        if (!graph)
+        {
+            if (edtItem) edtItem->clear();
+            return;
+        }
+
+        // 更新控件值（阻断信号避免递归触发）
+        auto guard = [](auto* w, auto fn) {
+            if (!w) return;
+            w->blockSignals(true);
+            fn();
+            w->blockSignals(false);
+        };
+
+        guard(edtItem, [&]{ edtItem->setText(QString::fromStdString(yColName)); });
+
+        QPen pen = graph->pen();
+        // 线型映射：Qt::SolidLine=0, Qt::DotLine=1, Qt::DashLine=2, Qt::DashDotLine=3
+        static const std::map<Qt::PenStyle, int> styleMap = {
+            {Qt::SolidLine, 0}, {Qt::DotLine, 1}, {Qt::DashLine, 2}, {Qt::DashDotLine, 3}
+        };
+        guard(cmbLS, [&]{ cmbLS->setCurrentIndex(styleMap.count(pen.style()) ? styleMap.at(pen.style()) : 0); });
+        guard(spnLW, [&]{ spnLW->setValue(pen.width()); });
+
+        guard(cmbLC, [&]{
+            int ci = -1;
+            for (int i = 0; i < cmbLC->count(); ++i) {
+                QColor c = cmbLC->itemData(i, Qt::UserRole).value<QColor>();
+                if (c == pen.color()) { ci = i; break; }
+            }
+            if (ci >= 0) cmbLC->setCurrentIndex(ci);
+        });
+
+        QCPScatterStyle ss = graph->scatterStyle();
+        // 散点形状映射
+        static const std::map<QCPScatterStyle::ScatterShape, int> shapeMap = {
+            {QCPScatterStyle::ssNone, 0}, {QCPScatterStyle::ssCircle, 1}, {QCPScatterStyle::ssDisc, 2},
+            {QCPScatterStyle::ssSquare, 3}, {QCPScatterStyle::ssDiamond, 4}, {QCPScatterStyle::ssStar, 5}
+        };
+        guard(cmbSC, [&]{ cmbSC->setCurrentIndex(shapeMap.count(ss.shape()) ? shapeMap.at(ss.shape()) : 0); });
+        guard(spnSS, [&]{ spnSS->setValue(static_cast<int>(ss.size())); });
+
+        guard(cmbSCo, [&]{
+            int ci = -1;
+            for (int i = 0; i < cmbSCo->count(); ++i) {
+                QColor c = cmbSCo->itemData(i, Qt::UserRole).value<QColor>();
+                if (c == ss.pen().color()) { ci = i; break; }
+            }
+            if (ci >= 0) cmbSCo->setCurrentIndex(ci);
+        });
     };
 
     // 清空全部图窗 → 清理 QTabWidget

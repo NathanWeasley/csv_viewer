@@ -211,17 +211,69 @@ double QCPChunkedGraph::selectTest(const QPointF& pos, bool onlySelectable, QVar
     QCPRange valueRange(mValueAxis->range());
     const size_t n = static_cast<size_t>(end);
 
+    // 辅助函数：计算线段 (a, b) 到点 p 的平方距离
+    auto segmentDistSqr = [](const QPointF& a, const QPointF& b, const QPointF& p) -> double
+    {
+        QPointF ab = b - a;
+        double lenSqr = ab.x() * ab.x() + ab.y() * ab.y();
+        if (lenSqr < 1e-12)
+            return (p - a).x() * (p - a).x() + (p - a).y() * (p - a).y();  // 退化为两点
+        double t = ((p - a).x() * ab.x() + (p - a).y() * ab.y()) / lenSqr;
+        t = std::max(0.0, std::min(1.0, t));
+        QPointF proj = a + t * ab;
+        return (p - proj).x() * (p - proj).x() + (p - proj).y() * (p - proj).y();
+    };
+
+    const double tolPx = static_cast<double>(mParentPlot->selectionTolerance());
+
     for (int i = begin; i < end; ++i)
     {
         double k = m_keyCol->getDouble(static_cast<size_t>(i));
         double v = m_valueCol->getDouble(static_cast<size_t>(i));
         if (keyRange.contains(k) && valueRange.contains(v))
         {
-            double currentDistSqr = QCPVector2D(coordsToPixels(k, v) - pos).lengthSquared();
-            if (currentDistSqr < minDistSqr)
+            QPointF pt = coordsToPixels(k, v);
+
+            // 点到当前数据点的距离
+            double distSqr = QCPVector2D(pt - pos).lengthSquared();
+            if (distSqr < minDistSqr)
             {
-                minDistSqr = currentDistSqr;
+                minDistSqr = distSqr;
                 minDistIndex = i;
+            }
+
+            // 点到前一段连线的距离（i-1 -> i）
+            if (i > begin && mLineStyle != lsNone)
+            {
+                double pk = m_keyCol->getDouble(static_cast<size_t>(i - 1));
+                double pv = m_valueCol->getDouble(static_cast<size_t>(i - 1));
+                if (keyRange.contains(pk) && valueRange.contains(pv))
+                {
+                    QPointF prevPt = coordsToPixels(pk, pv);
+                    double segDist = segmentDistSqr(prevPt, pt, pos);
+                    if (segDist < minDistSqr && QCPVector2D(prevPt - pt).length() < tolPx * 2 + QCPVector2D(coordsToPixels(k - m_keyCol->getDouble(static_cast<size_t>(i - 1)), 0)).length())
+                    {
+                        minDistSqr = segDist;
+                        minDistIndex = i;
+                    }
+                }
+            }
+
+            // 点到后一段连线的距离（i -> i+1）
+            if (i + 1 < end && mLineStyle != lsNone)
+            {
+                double nk = m_keyCol->getDouble(static_cast<size_t>(i + 1));
+                double nv = m_valueCol->getDouble(static_cast<size_t>(i + 1));
+                if (keyRange.contains(nk) && valueRange.contains(nv))
+                {
+                    QPointF nextPt = coordsToPixels(nk, nv);
+                    double segDist = segmentDistSqr(pt, nextPt, pos);
+                    if (segDist < minDistSqr)
+                    {
+                        minDistSqr = segDist;
+                        minDistIndex = i;
+                    }
+                }
             }
         }
     }
@@ -430,16 +482,35 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
 
 void QCPChunkedGraph::drawLegendIcon(QCPPainter* painter, const QRectF& rect) const
 {
+    // 构建自定义 dash pattern
+    QPen iconPen = mPen;
+    switch (mPen.style())
+    {
+    case Qt::DotLine:
+        iconPen.setStyle(Qt::CustomDashLine);
+        iconPen.setDashPattern({1.0, 4.0});
+        break;
+    case Qt::DashLine:
+        iconPen.setStyle(Qt::CustomDashLine);
+        iconPen.setDashPattern({6.0, 4.0});
+        break;
+    case Qt::DashDotLine:
+        iconPen.setStyle(Qt::CustomDashLine);
+        iconPen.setDashPattern({6.0, 4.0, 1.0, 4.0});
+        break;
+    default:
+        break;
+    }
+
     // 画一段短的线+散点作为图例图标
     if (mLineStyle != lsNone)
     {
-        painter->setPen(mPen);
+        painter->setPen(iconPen);
         painter->drawLine(QPointF(rect.left(), rect.center().y()),
                           QPointF(rect.right(), rect.center().y()));
     }
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
-        painter->setPen(mPen);
         painter->setBrush(Qt::NoBrush);
         mScatterStyle.drawShape(painter, rect.center());
     }
@@ -542,6 +613,27 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
     if (lines.size() < 2)
         return;
 
+    // 构建自定义 dash pattern（使虚线/点线的间隔随线宽自适应）
+    QPen drawPen = mPen;
+    const double w = static_cast<double>(mPen.widthF());
+    switch (mPen.style())
+    {
+    case Qt::DotLine:
+        drawPen.setStyle(Qt::CustomDashLine);
+        drawPen.setDashPattern({1.0, 4.0});  // 点: 1×w 实 + 4×w 空
+        break;
+    case Qt::DashLine:
+        drawPen.setStyle(Qt::CustomDashLine);
+        drawPen.setDashPattern({6.0, 4.0});  // 虚线: 6×w 实 + 4×w 空
+        break;
+    case Qt::DashDotLine:
+        drawPen.setStyle(Qt::CustomDashLine);
+        drawPen.setDashPattern({6.0, 4.0, 1.0, 4.0});  // 点划线: 6+1 实 / 4+4 空
+        break;
+    default:
+        break;
+    }
+
     // 使用 QPainter::drawLines() 批量绘制相邻有效线段
     QVector<QLineF> segments;
     segments.reserve(lines.size());
@@ -558,7 +650,11 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
     }
 
     if (!segments.isEmpty())
+    {
+        painter->setPen(drawPen);
         painter->drawLines(segments);
+        painter->setPen(mPen);  // 恢复原 pen
+    }
 }
 
 void QCPChunkedGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
