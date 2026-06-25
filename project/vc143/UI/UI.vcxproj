@@ -87,6 +87,7 @@
       <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <PreprocessorDefinitions>QCUSTOMPLOT_USE_LIBRARY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PostBuildEvent>
       <Command>xcopy /Y /D "$(TargetDir)..\extra\qads\*.dll" "$(TargetDir)"</Command>
