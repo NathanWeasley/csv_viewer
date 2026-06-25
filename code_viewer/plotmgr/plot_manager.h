@@ -17,6 +17,8 @@ struct PlotPageInfo
 {
     std::string title;
     std::unordered_set<std::string> dataItems;  // 已绘制的 Y 列名集合（去重用）
+    bool legendVisible = false;                  // 图例是否可见
+    bool rectZoomActive = false;                 // 是否处于框选缩放模式
 };
 
 // ============================================================
@@ -124,6 +126,38 @@ public:
 
     // 所有页面清空后触发
     std::function<void()> onCleared;
+
+    // ============================================================
+    // 图例管理
+    // ============================================================
+
+    // 设置指定页面的图例可见性
+    void setLegendVisible(int pageIndex, bool visible);
+
+    // 获取指定页面的图例可见性
+    bool isLegendVisible(int pageIndex) const;
+
+    // 图例可见性变更后触发，参数为 (页面索引, 是否可见)
+    std::function<void(int pageIndex, bool visible)> onLegendVisibilityChanged;
+
+    // 曲线样式变更后触发（UI 层需 replot 刷新图例图标）
+    std::function<void(int pageIndex)> onLegendNeedReplot;
+
+    // ============================================================
+    // 框选缩放管理
+    // ============================================================
+
+    // 进入/退出框选缩放模式
+    void setRectZoomActive(int pageIndex, bool active);
+
+    // 查询框选缩放状态
+    bool isRectZoomActive(int pageIndex) const;
+
+    // 框选缩放状态变更后触发，参数为 (页面索引, 是否激活)
+    std::function<void(int pageIndex, bool active)> onRectZoomStateChanged;
+
+    // 还原缩放请求后触发
+    std::function<void(int pageIndex)> onRescaleRequested;
 
 private:
     std::string generatePageTitle() const;

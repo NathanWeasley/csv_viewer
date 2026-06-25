@@ -169,6 +169,54 @@ PlotPageInfo& PlotManager::pageInfo(int index)
 }
 
 // ============================================================
+// 框选缩放管理
+// ============================================================
+
+void PlotManager::setRectZoomActive(int pageIndex, bool active)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return;
+    if (m_pages[pageIndex].rectZoomActive == active)
+        return;
+
+    m_pages[pageIndex].rectZoomActive = active;
+
+    if (onRectZoomStateChanged)
+        onRectZoomStateChanged(pageIndex, active);
+}
+
+bool PlotManager::isRectZoomActive(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return false;
+    return m_pages[pageIndex].rectZoomActive;
+}
+
+// ============================================================
+// 图例管理
+// ============================================================
+
+void PlotManager::setLegendVisible(int pageIndex, bool visible)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return;
+    if (m_pages[pageIndex].legendVisible == visible)
+        return;
+
+    m_pages[pageIndex].legendVisible = visible;
+
+    if (onLegendVisibilityChanged)
+        onLegendVisibilityChanged(pageIndex, visible);
+}
+
+bool PlotManager::isLegendVisible(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return false;
+    return m_pages[pageIndex].legendVisible;
+}
+
+// ============================================================
 // 私有
 // ============================================================
 

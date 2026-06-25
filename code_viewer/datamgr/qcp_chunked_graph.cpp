@@ -33,11 +33,15 @@ void QCPChunkedGraph::setDataColumns(const AbstractColumn* keyCol, const Abstrac
 void QCPChunkedGraph::setLineStyle(LineStyle style)
 {
     mLineStyle = style;
+    if (mParentPlot)
+        mParentPlot->replot();
 }
 
 void QCPChunkedGraph::setScatterStyle(const QCPScatterStyle& style)
 {
     mScatterStyle = style;
+    if (mParentPlot)
+        mParentPlot->replot();
 }
 
 // ============================================================

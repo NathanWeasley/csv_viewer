@@ -323,14 +323,43 @@ void UI::bindPlotManagerCallbacks()
         // 事件过滤器：拦截滚轮事件实现 Ctrl/Shift 单轴缩放
         plot->installEventFilter(this);
 
+        // 开启图例可选交互（拖动）
+        plot->setInteraction(QCP::iSelectLegend, true);
+
         // 右键上下文菜单
         plot->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(plot, &QCustomPlot::customContextMenuRequested, this,
-            [this, plot](const QPoint& pos)
+            [this, plot, index](const QPoint& pos)
             {
+                auto& pm = m_viewer.GetPlotManager();
+
                 QMenu menu;
-                menu.addAction("还原缩放");
+
+                QAction* rescaleAction = menu.addAction("还原缩放");
+                connect(rescaleAction, &QAction::triggered, this, [this, index]()
+                {
+                    if (auto& cb = m_viewer.GetPlotManager().onRescaleRequested)
+                        cb(index);
+                });
+
+                QAction* rectZoomAction = menu.addAction("框选缩放");
+                rectZoomAction->setCheckable(true);
+                rectZoomAction->setChecked(pm.isRectZoomActive(index));
+                connect(rectZoomAction, &QAction::toggled, this, [this, index](bool checked)
+                {
+                    m_viewer.GetPlotManager().setRectZoomActive(index, checked);
+                });
+
                 menu.addSeparator();
+
+                QAction* legendAction = menu.addAction("显示图例");
+                legendAction->setCheckable(true);
+                legendAction->setChecked(pm.isLegendVisible(index));
+                connect(legendAction, &QAction::toggled, this, [this, index](bool checked)
+                {
+                    m_viewer.GetPlotManager().setLegendVisible(index, checked);
+                });
+
                 menu.addAction("更改样式");
                 menu.addSeparator();
                 menu.addAction("编辑数据项");
@@ -338,6 +367,7 @@ void UI::bindPlotManagerCallbacks()
                 menu.addAction("高亮规则");
                 menu.addSeparator();
                 menu.addAction("导出图片");
+                menu.addAction("加入收藏夹");
                 menu.addSeparator();
                 menu.addAction("关闭图表");
                 menu.exec(plot->mapToGlobal(pos));
@@ -449,6 +479,69 @@ void UI::bindPlotManagerCallbacks()
         plot->replot();
     };
 
+    // 图例可见性变更
+    pm.onLegendVisibilityChanged = [this](int pageIndex, bool visible)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        plot->legend->setVisible(visible);
+        plot->replot();
+    };
+
+    // 曲线样式变更（UI 层只需 replot 刷新图例）
+    pm.onLegendNeedReplot = [this](int pageIndex)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        plot->replot();
+    };
+
+    // 框选缩放状态变更
+    pm.onRectZoomStateChanged = [this](int pageIndex, bool active)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        if (active)
+        {
+            plot->setSelectionRectMode(QCP::srmZoom);
+            plot->setCursor(Qt::CrossCursor);
+        }
+        else
+        {
+            plot->setSelectionRectMode(QCP::srmNone);
+            plot->setCursor(Qt::ArrowCursor);
+        }
+    };
+
+    // 还原缩放请求
+    pm.onRescaleRequested = [this](int pageIndex)
+    {
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+
+        auto* plot = qobject_cast<QCustomPlot*>(m_plotTabs->widget(pageIndex));
+        if (!plot)
+            return;
+
+        plot->rescaleAxes();
+        plot->replot();
+    };
+
     // 清空全部图窗 → 清理 QTabWidget
     pm.onCleared = [this]()
     {
@@ -495,6 +588,21 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
 
 bool UI::eventFilter(QObject* obj, QEvent* event)
 {
+    if (event->type() == QEvent::ContextMenu)
+    {
+        // 框选模式下右键取消框选
+        QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
+        if (plot)
+        {
+            int pageIndex = m_plotTabs->indexOf(plot);
+            if (pageIndex >= 0 && m_viewer.GetPlotManager().isRectZoomActive(pageIndex))
+            {
+                m_viewer.GetPlotManager().setRectZoomActive(pageIndex, false);
+                return true;  // 吞掉事件，不弹出菜单
+            }
+        }
+    }
+
     if (event->type() == QEvent::Wheel)
     {
         QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
