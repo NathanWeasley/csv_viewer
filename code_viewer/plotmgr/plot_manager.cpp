@@ -64,6 +64,10 @@ bool PlotManager::removePage(int index)
     if (onPageRemoved)
         onPageRemoved(m_activeIndex, remaining);
 
+    // 最后一页被移除时重置计数器
+    if (remaining == 0)
+        m_nextPageNumber = 1;
+
     return true;
 }
 
@@ -149,6 +153,7 @@ void PlotManager::clearAll()
 {
     m_pages.clear();
     m_activeIndex = -1;
+    m_nextPageNumber = 1;
 
     if (onCleared)
         onCleared();
@@ -245,10 +250,10 @@ const std::string& PlotManager::selectedDataItem(int pageIndex) const
 // 私有
 // ============================================================
 
-std::string PlotManager::generatePageTitle() const
+std::string PlotManager::generatePageTitle()
 {
-    int nextNum = static_cast<int>(m_pages.size()) + 1;
-    return "Plot " + std::to_string(nextNum);
+    int num = m_nextPageNumber++;
+    return "Plot " + std::to_string(num);
 }
 
 } // namespace viewer

@@ -174,10 +174,11 @@ public:
     std::function<void(int pageIndex, const std::string& yColName)> onSelectedDataItemChanged;
 
 private:
-    std::string generatePageTitle() const;
+    std::string generatePageTitle();
 
     std::vector<PlotPageInfo> m_pages;
     int m_activeIndex = -1;
+    int m_nextPageNumber = 1;
 };
 
 } // namespace viewer
