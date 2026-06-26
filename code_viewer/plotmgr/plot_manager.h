@@ -5,6 +5,7 @@
 
 #include "code_viewer/base/base_def.h"
 #include "code_viewer/plotmgr/expr/expr_manager.h"
+#include "code_viewer/plotmgr/highlight/highlight_manager.h"
 
 namespace viewer
 {
@@ -23,6 +24,8 @@ struct PlotPageInfo
     // 表达式管理器（每个图窗独立持有）
     // 通过 PlotManager::exprManager(pageIndex) 访问
     ExprManager exprMgr;
+
+    HighlightManager highlightMgr;
 };
 
 // ============================================================

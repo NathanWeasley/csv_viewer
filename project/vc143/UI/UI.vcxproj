@@ -124,6 +124,7 @@
     <QtRcc Include="..\..\..\code_ui\UI.qrc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_ui\HighlightDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\main.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI.cpp" />
   </ItemGroup>
@@ -131,6 +132,7 @@
     <QtMoc Include="..\..\..\code_ui\UI.h" />
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="..\..\..\code_ui\HighlightDialog.h" />
     <ClInclude Include="..\..\..\code_ui\icons_base64.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

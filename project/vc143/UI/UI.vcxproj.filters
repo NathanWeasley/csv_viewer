@@ -30,9 +30,15 @@
     <ClCompile Include="..\..\..\code_ui\UI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_ui\HighlightDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h">
+      <Filter>Source Files</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_ui\HighlightDialog.h">
       <Filter>Source Files</Filter>
     </QtMoc>
   </ItemGroup>

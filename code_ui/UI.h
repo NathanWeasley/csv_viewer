@@ -21,8 +21,10 @@
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/datamgr/qcp_chunked_graph.h"
+#include "code_viewer/plotmgr/highlight/highlight_manager.h"
 #include "code_qcp/qcustomplot.h"
 
+class HighlightDialog;
 class UI
     : public QMainWindow
 {
@@ -69,6 +71,17 @@ private Q_SLOTS:
     // 更新指定游标的浮窗位置
     void updateCursorTooltipPosition(int cursorIdx);
 
+    // ---- Highlight Manager helpers ----
+
+    // 显示高亮规则配置对话框
+    void showHighlightDialog(int pageIndex);
+
+    // 根据高亮规则渲染高亮色块和文字标注
+    void renderHighlights(int pageIndex);
+
+    // 导出当前图窗为图片（PNG/JPEG/PDF）
+    void exportPlotImage(int pageIndex);
+
 private:
     Ui::UIClass ui;
 
@@ -112,6 +125,14 @@ private:
     QHash<int, QLineEdit*> m_exprLineEdits;
     // pageIndex → toolbar QComboBox (for star updating)
     QHash<int, QComboBox*> m_toolbarCombos;
+
+    // ---- Highlight state ----
+    // pageIndex → 高亮色块列表
+    QHash<int, QList<QCPItemRect*>> m_highlightRects;
+    // pageIndex → 文字标注列表
+    QHash<int, QList<QCPItemText*>> m_highlightLabels;
+    // pageIndex → afterReplot 连接（用于缩放时动态更新高亮区域 Y 范围）
+    QHash<int, QMetaObject::Connection> m_highlightReplotConns;
 
     viewer::Viewer m_viewer;
 };
