@@ -6,6 +6,7 @@
 #include "code_viewer/base/base_def.h"
 #include "code_viewer/datamgr/data_manager.h"
 #include "code_viewer/plotmgr/plot_manager.h"
+#include "code_viewer/plotmgr/cursor/cursor_manager.h"
 
 namespace viewer
 {
@@ -29,6 +30,9 @@ public:
 
     PlotManager&       GetPlotManager()       noexcept { return m_plots; }
     const PlotManager& GetPlotManager() const noexcept { return m_plots; }
+
+    CursorManager&       GetCursorManager()       noexcept { return m_cursors; }
+    const CursorManager& GetCursorManager() const noexcept { return m_cursors; }
 
     const std::string& GetLastError() const noexcept { return m_lastError; }
 
@@ -59,9 +63,10 @@ private:
     // Sanitize a column name: trim, replace special chars, ensure uniqueness
     std::vector<std::string> sanitizeColumnNames(const std::vector<std::string>& rawNames);
 
-    DataManager m_data;
-    PlotManager m_plots;
-    std::string m_lastError;
+    DataManager   m_data;
+    PlotManager   m_plots;
+    CursorManager m_cursors;
+    std::string   m_lastError;
 };
 
 } // namespace viewer
