@@ -107,5 +107,11 @@ private:
     QPoint m_mousePressPos;
     bool   m_mousePressOnPlot = false;
 
+    // ---- Expression bar state ----
+    // pageIndex → expression QLineEdit widget
+    QHash<int, QLineEdit*> m_exprLineEdits;
+    // pageIndex → toolbar QComboBox (for star updating)
+    QHash<int, QComboBox*> m_toolbarCombos;
+
     viewer::Viewer m_viewer;
 };

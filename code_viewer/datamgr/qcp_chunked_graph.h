@@ -40,6 +40,10 @@ public:
     // 列指针生命周期由 DataManager 管理，QCPChunkedGraph 不持有所有权
     void setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol);
 
+    // 通知 graph 底层数据已变更（例如表达式重新计算后），使范围缓存失效
+    // 调用方应在调用后手动 replot() 以刷新显示
+    void notifyDataChanged() { invalidateRangeCache(); }
+
     // ---- 线型设置 ----
     LineStyle lineStyle() const { return mLineStyle; }
     void setLineStyle(LineStyle style);

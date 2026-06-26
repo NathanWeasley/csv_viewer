@@ -17,6 +17,7 @@
 #include <qcombobox.h>
 #include <qspinbox.h>
 #include <qlineedit.h>
+#include <qpushbutton.h>
 
 #include "icons_base64.h"
 #include "code_viewer/datamgr/qcp_chunked_graph.h"
@@ -414,7 +415,14 @@ void UI::bindPlotManagerCallbacks()
                     // 创建新图窗
                     int newIdx = pm.addPage();
 
-                    // 复制所有数据项
+                    // ---- 先复制表达式数据（在 addDataItem 之前，避免 getOrCreate 创建的本地拷贝被替换）----
+                    {
+                        auto& srcExprMgr = pm.pageInfo(index).exprMgr;
+                        auto& dstExprMgr = pm.pageInfo(newIdx).exprMgr;
+                        dstExprMgr.insertAll(srcExprMgr.copyAll());
+                    }
+
+                    // 复制所有数据项（onDataItemAdded 中的 getOrCreate 会发现已有表达式）
                     for (const auto& item : itemsToCopy)
                         pm.addDataItem(newIdx, item);
 
@@ -482,7 +490,6 @@ void UI::bindPlotManagerCallbacks()
 
                 menu.addSeparator();
 
-                menu.addAction("添加表达式");
                 menu.addAction("高亮规则");
 
                 menu.addSeparator();
@@ -560,6 +567,25 @@ void UI::bindPlotManagerCallbacks()
         btnDelete->setToolTip("删除当前选中的数据曲线");
         hbox->addWidget(btnDelete);
 
+        // ---- 表达式编辑栏 ----
+        auto* exprBar = new QWidget();
+        exprBar->setFixedHeight(28);
+        auto* exprHBox = new QHBoxLayout(exprBar);
+        exprHBox->setContentsMargins(6, 3, 6, 3);
+        exprHBox->setSpacing(4);
+
+        auto* fxLabel = new QLabel("fx=");
+        fxLabel->setStyleSheet("color: #888; font-weight: bold;");
+        exprHBox->addWidget(fxLabel);
+
+        auto* exprLineEdit = new QLineEdit();
+        exprLineEdit->setPlaceholderText("expression...");
+        exprLineEdit->setStyleSheet(
+            "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
+            "background: #2a2a2a; color: #ddd; }"
+            "QLineEdit:focus { border-color: #FFD700; }");
+        exprHBox->addWidget(exprLineEdit, 1);
+
         // ---- 容器 ----
         auto* container = new QWidget();
         auto* vbox = new QVBoxLayout(container);
@@ -567,12 +593,15 @@ void UI::bindPlotManagerCallbacks()
         vbox->setSpacing(0);
         vbox->addWidget(toolbar);
         vbox->addWidget(plot, 1); // plot 占剩余空间
+        vbox->addWidget(exprBar);
 
         // ---- ComboList 选择变化 → 加载样式 + 更新选中状态 ----
         connect(cmbDataItem, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [this, plot, index, cmbDataItem](int /*idx*/)
             {
-                std::string yColName = cmbDataItem->currentText().toStdString();
+                QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
+                if (nameData.isEmpty()) return;
+                std::string yColName = nameData.toStdString();
                 auto& pm = m_viewer.GetPlotManager();
                 pm.setSelectedDataItem(index, yColName);
             });
@@ -581,9 +610,9 @@ void UI::bindPlotManagerCallbacks()
         connect(btnDelete, &QPushButton::clicked, this,
             [this, index, cmbDataItem]()
             {
-                std::string selName = cmbDataItem->currentText().toStdString();
-                if (selName.empty())
-                    return;
+                QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
+                if (nameData.isEmpty()) return;
+                std::string selName = nameData.toStdString();
                 auto& pm = m_viewer.GetPlotManager();
                 pm.removeDataItem(index, selName);
             });
@@ -591,9 +620,9 @@ void UI::bindPlotManagerCallbacks()
         // ---- 工具栏控件→graph 回写辅助 ----
         auto applyToGraph = [this, plot, cmbDataItem]()
         {
-            std::string selName = cmbDataItem->currentText().toStdString();
-            if (selName.empty())
-                return;
+            QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
+            if (nameData.isEmpty()) return;
+            std::string selName = nameData.toStdString();
 
             viewer::QCPChunkedGraph* graph = nullptr;
             for (int i = 0; i < plot->plottableCount(); ++i)
@@ -669,6 +698,104 @@ void UI::bindPlotManagerCallbacks()
         connect(cmbScatterColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [applyToGraph](int){ applyToGraph(); });
 
+        // ---- 查找 combo item 索引的辅助 lambda（按 UserRole 匹配） ----
+        auto findComboIndexByUserRole = [cmbDataItem](const std::string& name) -> int {
+            QString qName = QString::fromStdString(name);
+            for (int i = 0; i < cmbDataItem->count(); ++i) {
+                if (cmbDataItem->itemData(i, Qt::UserRole).toString() == qName)
+                    return i;
+            }
+            return -1;
+        };
+
+        // ---- 存储 widget 引用 ----
+        m_exprLineEdits[index] = exprLineEdit;
+        m_toolbarCombos[index] = cmbDataItem;
+
+        // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
+        connect(exprLineEdit, &QLineEdit::textChanged, this,
+            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole](const QString& text)
+            {
+                QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
+                if (nameData.isEmpty()) return;
+                std::string selName = nameData.toStdString();
+
+                auto& dm = m_viewer.GetDataManager();
+                auto& exprMgr = m_viewer.GetPlotManager().pageInfo(index).exprMgr;
+
+                // 更新表达式文本
+                exprMgr.setExpressionText(selName, text.toStdString());
+
+                // 用 exprtk 检查合法性
+                std::string exprStr = text.toStdString();
+                if (exprStr.empty())
+                {
+                    exprLineEdit->setStyleSheet(
+                        "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
+                        "background: #2a2a2a; color: #ddd; }"
+                        "QLineEdit:focus { border-color: #FFD700; }");
+                    return;
+                }
+
+                if (!exprMgr.validate(exprStr, dm))
+                {
+                    // 不合法：红色边框提示
+                    exprLineEdit->setStyleSheet(
+                        "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
+                        "background: #2a2a2a; color: #ddd; }"
+                        "QLineEdit:focus { border-color: #ff4444; }");
+                    return;
+                }
+
+                // 合法：恢复正常边框 + 计算
+                exprLineEdit->setStyleSheet(
+                    "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
+                    "background: #2a2a2a; color: #ddd; }"
+                    "QLineEdit:focus { border-color: #FFD700; }");
+
+                // 重新计算表达式值
+                if (exprMgr.recompute(selName, dm))
+                {
+                    // 更新 graph 数据并刷新图窗
+                    viewer::QCPChunkedGraph* graph = nullptr;
+                    for (int i = 0; i < plot->plottableCount(); ++i)
+                    {
+                        auto* p = plot->plottable(i);
+                        if (p && p->name().toStdString() == selName)
+                        {
+                            graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                            break;
+                        }
+                    }
+                    if (graph)
+                    {
+                        // 重新绑定到更新后的本地数据拷贝
+                        viewer::PlotExpression* pe = exprMgr.get(selName);
+                        if (pe && pe->computedData)
+                        {
+                            size_t xIdx = dm.GetXAxisColumn();
+                            const viewer::AbstractColumn* xCol = dm.GetColumn(xIdx);
+                            graph->setDataColumns(xCol, pe->computedData.get());
+                            graph->notifyDataChanged();
+                            plot->rescaleAxes(true); // 仅扩大不放缩，保持用户当前视图
+                            plot->replot();
+                        }
+                    }
+
+                    // 更新工具栏星号显示
+                    viewer::PlotExpression* pe = exprMgr.get(selName);
+                    if (pe)
+                    {
+                        QString displayName = QString::fromStdString(selName);
+                        if (pe->isEdited)
+                            displayName += "*";
+                        int idx = findComboIndexByUserRole(selName);
+                        if (idx >= 0)
+                            cmbDataItem->setItemText(idx, displayName);
+                    }
+                }
+            });
+
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
         m_plotTabs->insertTab(index, container, title);
@@ -696,6 +823,13 @@ void UI::bindPlotManagerCallbacks()
     // 激活页面变更
     pm.onActivePageChanged = [this](int index)
     {
+        // 切换图窗时隐藏所有游标浮窗（避免旧图窗浮窗残留）
+        for (auto* tooltip : m_cursorTooltips)
+        {
+            if (tooltip)
+                tooltip->hide();
+        }
+
         if (index >= 0 && index < m_plotTabs->count()
             && m_plotTabs->currentIndex() != index)
         {
@@ -741,6 +875,17 @@ void UI::bindPlotManagerCallbacks()
         graph->rescaleAxes(plotCount > 1);
         plot->replot();
 
+        // ---- 表达式：创建本地数据拷贝并重新绑定 graph ----
+        auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
+        viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
+        // 将 graph 的 Y 列重新绑定到本地拷贝（X 列保持不变）
+        graph->setDataColumns(xCol, pe.computedData.get());
+        graph->notifyDataChanged();
+        // 首个数据项全量缩放，后续项不改变当前视图
+        if (plotCount == 1)
+            graph->rescaleAxes(false);
+        plot->replot();
+
         // 向工具栏 ComboList 添加数据项名称
         auto* vbox = container->findChild<QVBoxLayout*>();
         if (!vbox || vbox->count() < 1)
@@ -757,6 +902,9 @@ void UI::bindPlotManagerCallbacks()
 
         cmbDataItem->blockSignals(true);
         cmbDataItem->addItem(QString::fromStdString(yColName));
+        // 在 UserRole 中存储原始数据名（不受 star 装饰影响）
+        cmbDataItem->setItemData(cmbDataItem->count() - 1,
+            QString::fromStdString(yColName), Qt::UserRole);
         // 如果是第一个数据项，自动设为选中
         if (cmbDataItem->count() == 1)
         {
@@ -788,6 +936,9 @@ void UI::bindPlotManagerCallbacks()
         if (!plot)
             return;
 
+        // ---- 清理表达式 ----
+        m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr.removeItem(yColName);
+
         // 查找并移除对应名称的 QCPChunkedGraph
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
@@ -815,8 +966,17 @@ void UI::bindPlotManagerCallbacks()
         if (!cmbDataItem)
             return;
 
-        QString qName = QString::fromStdString(yColName);
-        int rmIdx = cmbDataItem->findText(qName);
+        // 按 UserRole 查找 combo item 索引
+        int rmIdx = -1;
+        {
+            QString qName = QString::fromStdString(yColName);
+            for (int i = 0; i < cmbDataItem->count(); ++i) {
+                if (cmbDataItem->itemData(i, Qt::UserRole).toString() == qName) {
+                    rmIdx = i;
+                    break;
+                }
+            }
+        }
         if (rmIdx >= 0)
         {
             cmbDataItem->blockSignals(true);
@@ -965,6 +1125,16 @@ void UI::bindPlotManagerCallbacks()
         if (btnDelete)
             btnDelete->setEnabled(!yColName.empty());
 
+        // ---- 查找 combo item 索引辅助（按 UserRole 匹配）----
+        auto findCmbIdx = [cmbDataItem](const std::string& name) -> int {
+            QString qName = QString::fromStdString(name);
+            for (int i = 0; i < cmbDataItem->count(); ++i) {
+                if (cmbDataItem->itemData(i, Qt::UserRole).toString() == qName)
+                    return i;
+            }
+            return -1;
+        };
+
         // 同步 ComboList 当前选中项
         if (cmbDataItem)
         {
@@ -975,7 +1145,7 @@ void UI::bindPlotManagerCallbacks()
             }
             else
             {
-                int idx = cmbDataItem->findText(QString::fromStdString(yColName));
+                int idx = findCmbIdx(yColName);
                 if (idx >= 0)
                     cmbDataItem->setCurrentIndex(idx);
             }
@@ -985,6 +1155,40 @@ void UI::bindPlotManagerCallbacks()
         if (yColName.empty())
         {
             return;
+        }
+
+        // ---- 同步表达式编辑栏 ----
+        auto* lineEdit = m_exprLineEdits.value(pageIndex, nullptr);
+        if (lineEdit && !yColName.empty())
+        {
+            auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
+            viewer::PlotExpression* pe = exprMgr.get(yColName);
+            lineEdit->blockSignals(true);
+            if (pe)
+                lineEdit->setText(QString::fromStdString(pe->expressionText));
+            else
+                lineEdit->setText(QString::fromStdString(yColName));
+            lineEdit->blockSignals(false);
+        }
+
+        // ---- 更新工具栏 combo 星号显示 ----
+        if (cmbDataItem && !yColName.empty())
+        {
+            auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
+            viewer::PlotExpression* pe = exprMgr.get(yColName);
+            if (pe)
+            {
+                QString displayName = QString::fromStdString(yColName);
+                if (pe->isEdited)
+                    displayName += "*";
+                int ci = findCmbIdx(yColName);
+                if (ci >= 0 && cmbDataItem->itemText(ci) != displayName)
+                {
+                    cmbDataItem->blockSignals(true);
+                    cmbDataItem->setItemText(ci, displayName);
+                    cmbDataItem->blockSignals(false);
+                }
+            }
         }
 
         // 查找 graph
@@ -1050,6 +1254,8 @@ void UI::bindPlotManagerCallbacks()
     // 清空全部图窗 → 清理 QTabWidget
     pm.onCleared = [this]()
     {
+        m_exprLineEdits.clear();
+        m_toolbarCombos.clear();
         while (m_plotTabs->count() > 0)
         {
             QWidget* w = m_plotTabs->widget(0);
@@ -1384,10 +1590,9 @@ void UI::bindCursorManagerCallbacks()
         tracer->setInterpolating(false);
         tracer->setStyle(QCPItemTracer::tsCircle);
         tracer->setSize(8.0);
-        QPen tracerPen(QColor(0xFF, 0xD7, 0x00));
-        tracerPen.setWidth(2.5);
-        tracer->setPen(tracerPen);
-        tracer->setBrush(Qt::NoBrush);
+        // 深色描边 + 金色填充，提升辨识度
+        tracer->setPen(QPen(QColor(0x44, 0x44, 0x44), 2.5));
+        tracer->setBrush(QColor(0xFF, 0xD7, 0x00, 180));
 
         m_plotToPageIndex[plot] = index;
         m_preSelTracers[plot] = tracer;
@@ -1575,12 +1780,12 @@ void UI::bindCursorManagerCallbacks()
 
         m_cursorTooltips[cursorIdx] = tooltip;
 
-        // 创建常驻 tracer 标记（金色实心圆）
+        // 创建常驻 tracer 标记（金色实心圆 + 深色描边）
         auto* tracer = new QCPItemTracer(plot);
         tracer->setInterpolating(false);
         tracer->setStyle(QCPItemTracer::tsCircle);
         tracer->setSize(7.0);
-        tracer->setPen(QPen(Qt::NoPen));
+        tracer->setPen(QPen(QColor(0x44, 0x44, 0x44), 1.5));
         tracer->setBrush(QColor(0xFF, 0xD7, 0x00));  // Gold fill
         tracer->position->setCoords(x, y);
         tracer->setVisible(true);

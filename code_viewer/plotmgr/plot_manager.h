@@ -1,11 +1,10 @@
-#pragma once
-
 #include <functional>
 #include <string>
 #include <unordered_set>
 #include <vector>
 
 #include "code_viewer/base/base_def.h"
+#include "code_viewer/plotmgr/expr/expr_manager.h"
 
 namespace viewer
 {
@@ -20,6 +19,10 @@ struct PlotPageInfo
     bool legendVisible = false;                  // 图例是否可见
     bool rectZoomActive = false;                 // 是否处于框选缩放模式
     std::string selectedDataItem;                // 当前选中的数据项名称（空=无选中）
+
+    // 表达式管理器（每个图窗独立持有）
+    // 通过 PlotManager::exprManager(pageIndex) 访问
+    ExprManager exprMgr;
 };
 
 // ============================================================

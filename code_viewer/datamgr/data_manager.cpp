@@ -1,5 +1,6 @@
 #include "code_viewer/datamgr/data_manager.h"
 #include "code_viewer/datamgr/custom_expr/diff_func.h"
+#include "code_viewer/base/exprtk_keywords.h"
 #include "code_exprtk/exprtk.hpp"
 #include <sstream>
 #include <cstring>
@@ -576,37 +577,7 @@ std::vector<std::string> DataManager::ParseColumnRefs(const std::string& exprStr
     const std::unordered_set<std::string>* extraKeywords) const
 {
     // exprtk 内置关键字（不含用户自定义变量）
-    static const std::unordered_set<std::string> kKeywords =
-    {
-        // 数学函数
-        "sin", "cos", "tan", "abs", "acos", "asin", "atan", "atan2",
-        "ceil", "floor", "round", "trunc", "frac", "sgn",
-        "cosh", "sinh", "tanh", "acosh", "asinh", "atanh",
-        "exp", "expm1", "log", "log10", "log1p", "log2",
-        "sqrt", "cbrt", "pow", "hypot",
-        "min", "max", "clamp", "inrange",
-        "deg2rad", "rad2deg",
-        "cot", "csc", "sec", "acot", "acsc", "asec",
-        "coth", "csch", "sech", "acoth", "acsch", "asech",
-        "mod", "erf", "erfc", "ncdf",
-
-        // 控制流
-        "if", "switch", "case", "default",
-        "while", "repeat", "until",
-        "var", "return",
-
-        // 逻辑
-        "and", "nand", "or", "nor", "xor", "xnor", "not",
-        "mand", "mor",
-
-        // 常量
-        "pi", "epsilon", "inf", "nan",
-        "true", "false",
-
-        // 保留
-        "break", "continue", "for",
-        "e",  // exprtk's 'e' constant
-    };
+    const auto& kKeywords = GetExprtkKeywords();
 
     std::vector<std::string> result;
     std::unordered_set<std::string> seen;
