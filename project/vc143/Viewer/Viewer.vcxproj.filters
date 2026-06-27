@@ -24,6 +24,9 @@
     <Filter Include="datamgr\cexpr">
       <UniqueIdentifier>{3a0876e1-3c79-48dd-8f78-fa595ca5fa7a}</UniqueIdentifier>
     </Filter>
+    <Filter Include="stylemgr">
+      <UniqueIdentifier>{f2b58342-d003-4055-b68f-9a526802739f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\viewer\viewer_cb.cpp">
@@ -49,6 +52,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.cpp">
       <Filter>plotmgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\stylemgr\style_manager.cpp">
+      <Filter>stylemgr</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -81,6 +87,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.h">
       <Filter>plotmgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\stylemgr\style_manager.h">
+      <Filter>stylemgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\stylemgr\style_struct.h">
+      <Filter>stylemgr</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

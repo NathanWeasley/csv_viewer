@@ -160,6 +160,35 @@ void PlotManager::clearAll()
 }
 
 // ============================================================
+// X 轴管理
+// ============================================================
+
+size_t PlotManager::xAxisColumn(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return static_cast<size_t>(-1);
+    return m_pages[pageIndex].xAxisColumn;
+}
+
+void PlotManager::setXAxisColumn(int pageIndex, size_t colIdx)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return;
+    if (m_pages[pageIndex].xAxisColumn == colIdx)
+        return;
+
+    m_pages[pageIndex].xAxisColumn = colIdx;
+
+    if (onXAxisChanged)
+        onXAxisChanged(pageIndex, colIdx);
+}
+
+size_t PlotManager::activeXAxisColumn() const
+{
+    return xAxisColumn(m_activeIndex);
+}
+
+// ============================================================
 // 查询
 // ============================================================
 

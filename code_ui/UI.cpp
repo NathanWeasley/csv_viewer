@@ -18,6 +18,7 @@
 #include <qspinbox.h>
 #include <qlineedit.h>
 #include <qpushbutton.h>
+#include <qinputdialog.h>
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -63,7 +64,18 @@ void UI::init()
 {
     setCentralWidget(m_dockManager);
 
-    
+    // ---- 初始化样式管理器 ----
+    {
+        auto& sm = m_viewer.GetStyleManager();
+        bool dark = isSystemInDark();
+
+        // 尝试从 user/style.json 加载
+        QString stylePath = QCoreApplication::applicationDirPath() + "/user/style.json";
+        if (!sm.load(stylePath.toStdString()))
+        {
+            sm.initializeDefaults(dark);
+        }
+    }
 
     createMenu();
     createMain();
@@ -71,6 +83,13 @@ void UI::init()
     createStatusbar();
 
     bindCursorManagerCallbacks();
+}
+
+void UI::saveState()
+{
+    auto& sm = m_viewer.GetStyleManager();
+    QString stylePath = QCoreApplication::applicationDirPath() + "/user/style.json";
+    sm.save(stylePath.toStdString());
 }
 
 void UI::createMenu()
@@ -329,55 +348,77 @@ void UI::onLoadCSVClicked()
 void UI::bindPlotManagerCallbacks()
 {
     auto& pm = m_viewer.GetPlotManager();
+    auto& sm = m_viewer.GetStyleManager();
 
-    // 35 色预设（参考 MATLAB, 最后为黑和两种灰）
-    static const QColor colorPresets[] = {
-        // Row 1: MATLAB 7 色
-        QColor(0, 114, 189),     // 0:  MATLAB Blue
-        QColor(217, 83, 25),     // 1:  MATLAB Orange
-        QColor(237, 177, 32),    // 2:  MATLAB Yellow
-        QColor(126, 47, 142),    // 3:  MATLAB Purple
-        QColor(119, 172, 48),    // 4:  MATLAB Green
-        QColor(77, 190, 238),    // 5:  MATLAB Cyan
-        QColor(162, 20, 47),     // 6:  MATLAB Red
-        // Row 2: Deep saturated
-        QColor(0, 147, 147),     // 7:  Teal
-        QColor(255, 61, 127),    // 8:  Pink
-        QColor(100, 149, 237),   // 9:  Cornflower
-        QColor(205, 92, 92),     // 10: Indian Red
-        QColor(85, 107, 47),     // 11: Olive Drab
-        QColor(186, 85, 211),    // 12: Medium Orchid
-        // Row 3: Bright accents
-        QColor(0, 191, 255),     // 13: Deep Sky Blue
-        QColor(255, 215, 0),     // 14: Gold
-        QColor(50, 205, 50),     // 15: Lime Green
-        QColor(255, 99, 71),     // 16: Tomato
-        QColor(64, 224, 208),    // 17: Turquoise
-        QColor(255, 140, 0),     // 18: Dark Orange
-        // Row 4: Rich tones
-        QColor(138, 43, 226),    // 19: Blue Violet
-        QColor(0, 206, 209),     // 20: Dark Turquoise
-        QColor(255, 20, 147),    // 21: Deep Pink
-        QColor(154, 205, 50),    // 22: Yellow Green
-        QColor(70, 130, 180),    // 23: Steel Blue
-        QColor(240, 128, 128),   // 24: Light Coral
-        // Row 5: More
-        QColor(147, 112, 219),   // 25: Medium Purple
-        QColor(60, 179, 113),    // 26: Medium Sea Green
-        QColor(255, 160, 122),   // 27: Light Salmon
-        QColor(0, 191, 143),     // 28: Mint
-        QColor(255, 69, 0),      // 29: Orange Red
-        QColor(65, 105, 225),    // 30: Royal Blue
-        QColor(218, 165, 32),    // 31: Goldenrod
-        // End markers
-        QColor(Qt::black),       // 32: Black
-        QColor(128, 128, 128),   // 33: Gray
-        QColor(192, 192, 192)    // 34: Silver
+    // ---- 色板下拉填充辅助 (按值捕获 this，避免悬空引用) ----
+    auto populateColorCombo = [this](QComboBox* combo, int defaultIndex = 0)
+    {
+        auto& sm = m_viewer.GetStyleManager();
+        combo->blockSignals(true);
+        combo->clear();
+        size_t n = sm.paletteColorCount();
+        for (size_t i = 0; i < n; ++i)
+        {
+            QColor c = sm.paletteColorAt(i);
+            QPixmap swatch(20, 14);
+            swatch.fill(c);
+            combo->addItem(QIcon(swatch), QString(), QVariant::fromValue(c));
+        }
+        if (defaultIndex >= 0 && defaultIndex < static_cast<int>(n))
+            combo->setCurrentIndex(defaultIndex);
+        combo->blockSignals(false);
     };
-    static const int kColorCount = sizeof(colorPresets) / sizeof(colorPresets[0]);
+
+    // ---- 重建所有页面中工具栏色板下拉的 lambda (按值捕获 populateColorCombo) ----
+    auto rebuildAllColorCombos = [this, populateColorCombo]()
+    {
+        auto& styleMgr = m_viewer.GetStyleManager();
+        for (int pi = 0; pi < m_plotTabs->count(); ++pi)
+        {
+            auto* container = m_plotTabs->widget(pi);
+            if (!container) continue;
+            auto* vbox = container->findChild<QVBoxLayout*>();
+            if (!vbox || vbox->count() < 1) continue;
+            auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+            if (!toolbar) continue;
+            auto* hb = toolbar->findChild<QHBoxLayout*>();
+            if (!hb || hb->count() < 9) continue;
+
+            auto* cmbLC = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
+            auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
+
+            if (cmbLC)
+            {
+                QColor prevLC = cmbLC->currentData(Qt::UserRole).value<QColor>();
+                populateColorCombo(cmbLC);
+                // 尝试匹配之前的颜色
+                for (int i = 0; i < cmbLC->count(); ++i)
+                {
+                    if (cmbLC->itemData(i, Qt::UserRole).value<QColor>() == prevLC)
+                    { cmbLC->setCurrentIndex(i); break; }
+                }
+            }
+            if (cmbSCo)
+            {
+                QColor prevSCo = cmbSCo->currentData(Qt::UserRole).value<QColor>();
+                populateColorCombo(cmbSCo);
+                for (int i = 0; i < cmbSCo->count(); ++i)
+                {
+                    if (cmbSCo->itemData(i, Qt::UserRole).value<QColor>() == prevSCo)
+                    { cmbSCo->setCurrentIndex(i); break; }
+                }
+            }
+        }
+    };
+
+    // 色板切换回调
+    sm.onPaletteChanged = [rebuildAllColorCombos]()
+    {
+        rebuildAllColorCombos();
+    };
 
     // 页面添加 → 创建新 QCustomPlot 页（含工具栏）
-    pm.onPageAdded = [this](int index)
+    pm.onPageAdded = [this, populateColorCombo](int index)
     {
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
@@ -387,45 +428,25 @@ void UI::bindPlotManagerCallbacks()
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
 
-        // 深浅色主题适配
-        bool dark = isSystemInDark();
-        if (dark)
+        // 深浅色主题适配（从 StyleManager 读取）
         {
-            QColor bg(0x2d, 0x2d, 0x2d);
-            QColor axisColor(0xcc, 0xcc, 0xcc);
-            QColor tickColor(0xaa, 0xaa, 0xaa);
-            QColor baseColor(0x3a, 0x3a, 0x3a);
+            const auto& theme = m_viewer.GetStyleManager().plotTheme(isSystemInDark());
+            QColor bgColor   = theme.bgColor.toQColor();
+            QColor axisColor = theme.axisLabelColor.toQColor();
+            QColor tickColor = theme.tickLabelColor.toQColor();
+            QPen  basePen(theme.basePenColor.toQColor(), theme.basePenWidth);
 
-            plot->setBackground(bg);
+            plot->setBackground(bgColor);
             plot->xAxis->setLabelColor(axisColor);
             plot->yAxis->setLabelColor(axisColor);
             plot->xAxis->setTickLabelColor(tickColor);
             plot->yAxis->setTickLabelColor(tickColor);
-            plot->xAxis->setBasePen(QPen(baseColor));
-            plot->yAxis->setBasePen(QPen(baseColor));
-            plot->xAxis->setTickPen(QPen(baseColor));
-            plot->yAxis->setTickPen(QPen(baseColor));
-            plot->xAxis->setSubTickPen(QPen(baseColor));
-            plot->yAxis->setSubTickPen(QPen(baseColor));
-        }
-        else
-        {
-            QColor bg(0xff, 0xff, 0xff);
-            QColor axisColor(0x33, 0x33, 0x33);
-            QColor tickColor(0x55, 0x55, 0x55);
-            QColor baseColor(0xaa, 0xaa, 0xaa);
-
-            plot->setBackground(bg);
-            plot->xAxis->setLabelColor(axisColor);
-            plot->yAxis->setLabelColor(axisColor);
-            plot->xAxis->setTickLabelColor(tickColor);
-            plot->yAxis->setTickLabelColor(tickColor);
-            plot->xAxis->setBasePen(QPen(baseColor));
-            plot->yAxis->setBasePen(QPen(baseColor));
-            plot->xAxis->setTickPen(QPen(baseColor));
-            plot->yAxis->setTickPen(QPen(baseColor));
-            plot->xAxis->setSubTickPen(QPen(baseColor));
-            plot->yAxis->setSubTickPen(QPen(baseColor));
+            plot->xAxis->setBasePen(basePen);
+            plot->yAxis->setBasePen(basePen);
+            plot->xAxis->setTickPen(basePen);
+            plot->yAxis->setTickPen(basePen);
+            plot->xAxis->setSubTickPen(basePen);
+            plot->yAxis->setSubTickPen(basePen);
         }
 
         // 事件过滤器
@@ -461,6 +482,9 @@ void UI::bindPlotManagerCallbacks()
 
                     // 创建新图窗
                     int newIdx = pm.addPage();
+
+                    // ---- 复制 X 轴配置 ----
+                    pm.setXAxisColumn(newIdx, pm.pageInfo(index).xAxisColumn);
 
                     // ---- 先复制表达式数据（在 addDataItem 之前，避免 getOrCreate 创建的本地拷贝被替换）----
                     {
@@ -603,13 +627,7 @@ void UI::bindPlotManagerCallbacks()
 
         // 4. 线色下拉（色块+图标）
         auto* cmbLineColor = new QComboBox();
-        for (int i = 0; i < kColorCount; ++i)
-        {
-            QPixmap swatch(20, 14);
-            swatch.fill(colorPresets[i]);
-            cmbLineColor->addItem(QIcon(swatch), QString(), QVariant::fromValue(colorPresets[i]));
-        }
-        cmbLineColor->setCurrentIndex(8); // "Red"
+        populateColorCombo(cmbLineColor, 8);
         hbox->addWidget(cmbLineColor);
 
         // 5. 数据点类型下拉
@@ -625,13 +643,7 @@ void UI::bindPlotManagerCallbacks()
 
         // 7. 数据点颜色（色块+图标）
         auto* cmbScatterColor = new QComboBox();
-        for (int i = 0; i < kColorCount; ++i)
-        {
-            QPixmap swatch(20, 14);
-            swatch.fill(colorPresets[i]);
-            cmbScatterColor->addItem(QIcon(swatch), QString(), QVariant::fromValue(colorPresets[i]));
-        }
-        cmbScatterColor->setCurrentIndex(8); // "Red"
+        populateColorCombo(cmbScatterColor, 8);
         hbox->addWidget(cmbScatterColor);
 
         hbox->addStretch();
@@ -849,8 +861,9 @@ void UI::bindPlotManagerCallbacks()
                         viewer::PlotExpression* pe = exprMgr.get(selName);
                         if (pe && pe->computedData)
                         {
-                            size_t xIdx = dm.GetXAxisColumn();
-                            const viewer::AbstractColumn* xCol = dm.GetColumn(xIdx);
+                            size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
+                            const viewer::AbstractColumn* xCol = (xIdx != static_cast<size_t>(-1))
+                                ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
                             graph->setDataColumns(xCol, pe->computedData.get());
                             graph->notifyDataChanged();
                             plot->rescaleAxes(true); // 仅扩大不放缩，保持用户当前视图
@@ -904,6 +917,69 @@ void UI::bindPlotManagerCallbacks()
         {
             m_plotTabs->setCurrentIndex(index);
         }
+
+        // 更新状态栏 X 轴标签
+        size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
+        const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
+        if (xIdx != static_cast<size_t>(-1) && xIdx < colNames.size())
+            m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[xIdx])));
+        else
+            m_xAxisLabel->setText("X: (none)");
+    };
+
+    // X 轴变更 → 更新状态栏 + 重新绑定所有 graph 的 X 列
+    pm.onXAxisChanged = [this](int pageIndex, size_t colIdx)
+    {
+        // 更新状态栏标签
+        const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
+        if (m_viewer.GetPlotManager().activePageIndex() != pageIndex)
+            return;
+        if (colIdx != static_cast<size_t>(-1) && colIdx < colNames.size())
+            m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[colIdx])));
+        else
+            m_xAxisLabel->setText("X: (none)");
+
+        // 重新绑定当前图窗所有 graph 的 X 列数据
+        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            return;
+        auto* container = m_plotTabs->widget(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+        if (!plot)
+            return;
+        auto& dm = m_viewer.GetDataManager();
+        const viewer::AbstractColumn* newXCol = nullptr;
+        if (colIdx != static_cast<size_t>(-1))
+            newXCol = dm.GetColumn(colIdx);
+        else
+        {
+            dm.ensureIndexColumnBuilt();
+            newXCol = dm.GetIndexColumn();
+        }
+        if (!newXCol)
+            return;
+        for (int i = 0; i < plot->plottableCount(); ++i)
+        {
+            auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
+            if (graph)
+            {
+                // 保持原有 Y 列不变，只换 X 列
+                const viewer::AbstractColumn* yCol = nullptr;
+                // 通过 graph name 查找 Y 列
+                auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
+                viewer::PlotExpression* pe = exprMgr.get(graph->name().toStdString());
+                if (pe && pe->computedData)
+                    yCol = pe->computedData.get();
+                else
+                    yCol = dm.GetColumn(graph->name().toStdString());
+                if (yCol)
+                {
+                    graph->setDataColumns(newXCol, yCol);
+                    graph->notifyDataChanged();
+                }
+            }
+        }
+        plot->rescaleAxes();
+        plot->replot();
     };
 
     // 数据项添加 → 创建 QCPColumnGraph 并绑定到对应 QCustomPlot
@@ -918,22 +994,39 @@ void UI::bindPlotManagerCallbacks()
             return;
 
         auto& dm = m_viewer.GetDataManager();
-        size_t xIdx = dm.GetXAxisColumn();
-        const viewer::AbstractColumn* xCol = dm.GetColumn(xIdx);
+        auto& pm = m_viewer.GetPlotManager();
+        size_t xIdx = pm.xAxisColumn(pageIndex);
+
+        const viewer::AbstractColumn* xCol = nullptr;
         const viewer::AbstractColumn* yCol = dm.GetColumn(yColName);
-        if (!xCol || !yCol)
+        if (!yCol)
             return;
 
         // 创建 QCPColumnGraph
         auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
-        graph->setDataColumns(xCol, yCol);
 
-        // 设置默认外观（使用 colorPresets 确保颜色在工具栏中可匹配）
+        if (xIdx == static_cast<size_t>(-1))
+        {
+            // 使用数据索引作为 X 轴
+            dm.ensureIndexColumnBuilt();
+            xCol = dm.GetIndexColumn();
+            graph->setDataColumns(xCol, yCol);
+        }
+        else
+        {
+            xCol = dm.GetColumn(xIdx);
+            if (!xCol)
+                return;
+            graph->setDataColumns(xCol, yCol);
+        }
+
+        // 设置默认外观（从 StyleManager 取色板颜色，自动取模）
         QPen pen(graph->pen());
         size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
         if (plotCount > 0)
         {
-            pen.setColor(colorPresets[(plotCount - 1) % kColorCount]);
+            pen.setColor(m_viewer.GetStyleManager().paletteColorAt(
+                (plotCount - 1) % m_viewer.GetStyleManager().paletteColorCount()));
         }
         graph->setPen(pen);
 
@@ -947,7 +1040,7 @@ void UI::bindPlotManagerCallbacks()
         // ---- 表达式：创建本地数据拷贝并重新绑定 graph ----
         auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
         viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
-        // 将 graph 的 Y 列重新绑定到本地拷贝（X 列保持不变）
+        // 将 graph 的 Y 列重新绑定到本地拷贝（X 列保持不变或保持索引模式）
         graph->setDataColumns(xCol, pe.computedData.get());
         graph->notifyDataChanged();
         // 首个数据项全量缩放，后续项不改变当前视图
@@ -1369,13 +1462,65 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
     if (yIdx == static_cast<size_t>(-1))
         return;
 
-    // 向 PlotManager 注册（自动处理去重和自动创建图窗）
-    bool added = pm.addDataToActivePage(yColName);
+    // 确保有激活页面（无激活页时自动创建）
+    if (!pm.hasActivePage())
+        pm.addPage();
 
-    // 如果去重返回 false(数据项已存在) 或手动创建了新页面，需要触发图表创建
-    // addDataToActivePage 内部会触发 onDataItemAdded 回调自动创建 QCPColumnGraph
-    // 仅当添加成功时才需要处理；如果已存在，UI 层无需额外操作
-    (void)added;
+    // ---- X 轴自动/手动设置 ----
+    int pageIdx = pm.activePageIndex();
+    size_t xIdx = pm.xAxisColumn(pageIdx);
+    if (xIdx == static_cast<size_t>(-1))
+    {
+        // 1. 尝试使用全局检测结果
+        size_t globalX = dm.GetXAxisColumn();
+        if (globalX != static_cast<size_t>(-1))
+        {
+            pm.setXAxisColumn(pageIdx, globalX);
+        }
+        else
+        {
+            // 2. 全局也没检测到 → 弹出对话框让用户选择
+            const auto& colNames = dm.GetColumnNames();
+            QStringList items;
+            items << QString::fromUtf8("[数据索引]");
+            for (const auto& name : colNames)
+                items << QString::fromStdString(name);
+
+            bool ok = false;
+            QString choice = QInputDialog::getItem(
+                this,
+                QString::fromUtf8("选择 X 轴"),
+                QString::fromUtf8("未检测到默认 X 轴变量，请手动选择："),
+                items, 0, false, &ok);
+
+            if (!ok || choice.isEmpty())
+                return;  // 用户取消
+
+            if (choice == QString::fromUtf8("[数据索引]"))
+            {
+                pm.setXAxisColumn(pageIdx, static_cast<size_t>(-1));
+            }
+            else
+            {
+                size_t selIdx = dm.GetColumnIndex(choice.toStdString());
+                pm.setXAxisColumn(pageIdx, selIdx);
+            }
+        }
+    }
+
+    // 检查：如果 yColName 是当前图窗的 X 轴列，跳过（不添加到 Y 轴）
+    {
+        size_t pxIdx = pm.xAxisColumn(pageIdx);
+        if (pxIdx != static_cast<size_t>(-1) && pxIdx < dm.GetColumnNames().size())
+        {
+            const auto& colNames = dm.GetColumnNames();
+            if (yColName == colNames[pxIdx])
+                return;
+        }
+    }
+
+    // 向 PlotManager 注册（自动处理去重）
+    pm.addDataToActivePage(yColName);
 }
 
 // ============================================================
@@ -1673,15 +1818,16 @@ void UI::bindCursorManagerCallbacks()
         auto* tracer = new QCPItemTracer(plot);
         tracer->setVisible(false);
         tracer->setInterpolating(false);
-        tracer->setStyle(QCPItemTracer::tsCircle);
-        tracer->setSize(8.0);
-        // 主题适配
+        // 从 StyleManager 读取临时游标样式
         {
-            bool dark = isSystemInDark();
-            QColor penColor = dark ? QColor(0x44, 0x44, 0x44) : QColor(0x22, 0x66, 0xcc);
-            QColor brushColor = dark ? QColor(0xFF, 0xD7, 0x00, 180) : QColor(0x22, 0x66, 0xcc, 120);
-            tracer->setPen(QPen(penColor, 2.5));
-            tracer->setBrush(brushColor);
+            auto& ts = m_viewer.GetStyleManager().cursorStyle("temporary");
+            tracer->setStyle(QCPItemTracer::tsCircle);
+            tracer->setSize(ts.size);
+            QColor sc = ts.strokeActive.toQColor();
+            tracer->setPen(QPen(sc, ts.strokeWidthActive));
+            QColor bc = ts.fillActive.toQColor();
+            bc.setAlpha(static_cast<int>(255 * ts.opacityActive));
+            tracer->setBrush(bc);
         }
 
         m_plotToPageIndex[plot] = index;
@@ -1860,16 +2006,18 @@ void UI::bindCursorManagerCallbacks()
         m_cursorLabels[cursorIdx] = label;
         refreshCursorLabelStyle(cursorIdx, true);  // 新游标 → 激活态
 
-        // 创建常驻 tracer 标记
+        // 创建常驻 tracer 标记（从 StyleManager 读取 permanent 游标样式）
         auto* tracer = new QCPItemTracer(plot);
         tracer->setInterpolating(false);
-        tracer->setStyle(QCPItemTracer::tsCircle);
-        tracer->setSize(7.0);
         {
-            bool dark = isSystemInDark();
-            QColor fillColor = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
-            tracer->setPen(QPen(fillColor, 1.5));
-            tracer->setBrush(fillColor);
+            auto& ps = m_viewer.GetStyleManager().cursorStyle("permanent");
+            tracer->setStyle(QCPItemTracer::tsCircle);
+            tracer->setSize(ps.size);
+            QColor sc = ps.strokeActive.toQColor();
+            tracer->setPen(QPen(sc, ps.strokeWidthActive));
+            QColor bc = ps.fillActive.toQColor();
+            bc.setAlpha(static_cast<int>(255 * ps.opacityActive));
+            tracer->setBrush(bc);
         }
         tracer->position->setCoords(x, y);
         tracer->setVisible(true);
@@ -1941,26 +2089,34 @@ void UI::bindCursorManagerCallbacks()
             refreshCursorLabelStyle(it.key(), it.key() == cursorIdx);
         }
 
-        // 更新 tracer 样式
-        bool dark = isSystemInDark();
-        QColor activeColor = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
-        for (auto it = m_cursorTracers.begin(); it != m_cursorTracers.end(); ++it)
+        // 更新 tracer 样式（从 StyleManager 读取 permanent 游标样式）
         {
-            QCPItemTracer* tr = it.value();
-            if (!tr) continue;
-            if (it.key() == cursorIdx)
+            auto& ps = m_viewer.GetStyleManager().cursorStyle("permanent");
+            for (auto it = m_cursorTracers.begin(); it != m_cursorTracers.end(); ++it)
             {
-                tr->setBrush(activeColor);
-                tr->setPen(QPen(activeColor, 1.5));
-                tr->setSize(8.0);
-            }
-            else
-            {
-                QColor fade = activeColor;
-                fade.setAlpha(80);
-                tr->setBrush(fade);
-                tr->setPen(QPen(Qt::NoPen));
-                tr->setSize(6.0);
+                QCPItemTracer* tr = it.value();
+                if (!tr) continue;
+                if (it.key() == cursorIdx)
+                {
+                    QColor bc = ps.fillActive.toQColor();
+                    bc.setAlpha(static_cast<int>(255 * ps.opacityActive));
+                    tr->setBrush(bc);
+                    QColor sc = ps.strokeActive.toQColor();
+                    tr->setPen(QPen(sc, ps.strokeWidthActive));
+                    tr->setSize(ps.size + 1.0f);  // active size slightly larger
+                }
+                else
+                {
+                    QColor bc = ps.fillInactive.toQColor();
+                    bc.setAlpha(static_cast<int>(255 * ps.opacityInactive));
+                    tr->setBrush(bc);
+                    QColor si = ps.strokeInactive.toQColor();
+                    if (si.alpha() == 0)
+                        tr->setPen(QPen(Qt::NoPen));
+                    else
+                        tr->setPen(QPen(si, ps.strokeWidthInactive));
+                    tr->setSize(ps.size);
+                }
             }
         }
 
@@ -2117,18 +2273,26 @@ void UI::refreshCursorLabelStyle(int cursorIdx, bool active)
     if (it == m_cursorLabels.end() || !it.value())
         return;
     auto* label = it.value();
-    bool dark = isSystemInDark();
-    QColor fg = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
-    QColor bg = dark ? QColor(40, 40, 40, 220) : QColor(245, 245, 245, 230);
+
+    auto& ds = m_viewer.GetStyleManager().dataBoxStyle();
+    QColor fg = ds.textColor.toQColor();
+    QColor bg = ds.bgColor.toQColor();
+    bg.setAlpha(ds.bgAlpha);
+
     label->setColor(fg);
     label->setBrush(bg);
+    label->setFont(ds.toQFont());
+    label->setPadding(QMargins(ds.padLeft, ds.padTop, ds.padRight, ds.padBottom));
+
     if (active)
     {
-        label->setPen(QPen(fg, 2.0));
+        QColor bd = ds.borderActive.toQColor();
+        label->setPen(QPen(bd, ds.borderWidthActive));
     }
     else
     {
-        label->setPen(QPen(QColor(0x88, 0x88, 0x88), 1.0));
+        QColor bd = ds.borderInactive.toQColor();
+        label->setPen(QPen(bd, ds.borderWidthInactive));
     }
     if (label->parentPlot())
         label->parentPlot()->replot();
@@ -2327,5 +2491,3 @@ void UI::exportPlotImage(int pageIndex)
     else if (selectedFilter.contains("PDF"))
         plot->savePdf(fileName);
 }
-
-

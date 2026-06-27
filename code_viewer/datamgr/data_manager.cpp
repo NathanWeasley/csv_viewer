@@ -770,6 +770,23 @@ std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_
     return result;
 }
 
+// ============================================================
+// 索引列维护
+// ============================================================
+
+void DataManager::ensureIndexColumnBuilt()
+{
+    if (m_indexColumn)
+        return;
+
+    auto idxCol = std::make_unique<Column<double>>(ColumnType::Float64);
+    size_t rowCount = GetRowCount();
+    idxCol->reserve(rowCount);
+    for (size_t i = 0; i < rowCount; ++i)
+        idxCol->push_back(static_cast<double>(i));
+    m_indexColumn = std::move(idxCol);
+}
+
 // ---- 清理 ----
 
 void DataManager::Clear()
@@ -779,6 +796,7 @@ void DataManager::Clear()
     m_rawColumnNames.clear();
     m_nameIndex.clear();
     m_stringColumnNames.clear();
+    m_indexColumn.reset();
     m_filePath.clear();
     m_xAxisColumn = npos;
 }

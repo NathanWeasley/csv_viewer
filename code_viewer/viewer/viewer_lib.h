@@ -7,6 +7,7 @@
 #include "code_viewer/datamgr/data_manager.h"
 #include "code_viewer/plotmgr/plot_manager.h"
 #include "code_viewer/plotmgr/cursor/cursor_manager.h"
+#include "code_viewer/stylemgr/style_manager.h"
 
 namespace viewer
 {
@@ -33,6 +34,9 @@ public:
 
     CursorManager&       GetCursorManager()       noexcept { return m_cursors; }
     const CursorManager& GetCursorManager() const noexcept { return m_cursors; }
+
+    StyleManager&       GetStyleManager()       noexcept { return m_styles; }
+    const StyleManager& GetStyleManager() const noexcept { return m_styles; }
 
     const std::string& GetLastError() const noexcept { return m_lastError; }
 
@@ -66,6 +70,7 @@ private:
     DataManager   m_data;
     PlotManager   m_plots;
     CursorManager m_cursors;
+    StyleManager  m_styles;
     std::string   m_lastError;
 };
 

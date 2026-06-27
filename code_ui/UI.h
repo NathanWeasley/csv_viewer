@@ -22,6 +22,7 @@
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
+#include "code_viewer/stylemgr/style_manager.h"
 #include "code_qcp/qcustomplot.h"
 
 class HighlightDialog;
@@ -48,6 +49,7 @@ private:
     void bindCursorManagerCallbacks();
 
     void closeEvent(QCloseEvent* event);
+    void saveState();
 
 private Q_SLOTS:
     /** Open file dialog for selecting CSV files */

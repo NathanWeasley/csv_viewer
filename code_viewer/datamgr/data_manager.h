@@ -130,6 +130,16 @@ public:
     void SetXAxisColumn(size_t colIdx) { m_xAxisColumn = colIdx; }
 
     // ============================================================
+    // 隐含索引列（内部使用，不暴露在 UI 数据树中）
+    // ============================================================
+
+    // 构建隐含索引列（0.0, 1.0, 2.0, ...），幂等
+    void ensureIndexColumnBuilt();
+
+    // 获取隐含索引列指针，在 ensureIndexColumnBuilt() 之后有效
+    const AbstractColumn* GetIndexColumn() const noexcept { return m_indexColumn.get(); }
+
+    // ============================================================
     // 工具
     // ============================================================
 
@@ -175,6 +185,9 @@ private:
 
     std::string m_filePath;     // 已加载的文件路径
     size_t      m_xAxisColumn = npos;  // 当前横轴列
+
+    // 隐含索引列（0.0, 1.0, 2.0, ...），不加入 m_columns/m_columnNames
+    std::unique_ptr<AbstractColumn> m_indexColumn;
 
     static constexpr size_t npos = static_cast<size_t>(-1);
 

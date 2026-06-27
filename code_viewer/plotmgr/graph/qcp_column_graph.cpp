@@ -50,14 +50,14 @@ void QCPColumnGraph::setScatterStyle(const QCPScatterStyle& style)
 
 int QCPColumnGraph::dataCount() const
 {
-    if (!m_keyCol) return 0;
-    return static_cast<int>(m_keyCol->size());
+    if (!m_valueCol) return 0;
+    return static_cast<int>(m_valueCol->size());
 }
 
 double QCPColumnGraph::dataMainKey(int index) const
 {
-    if (!m_keyCol) return 0;
-    return m_keyCol->getDouble(static_cast<size_t>(index));
+    if (m_keyCol) return m_keyCol->getDouble(static_cast<size_t>(index));
+    return static_cast<double>(index);
 }
 
 double QCPColumnGraph::dataSortKey(int index) const

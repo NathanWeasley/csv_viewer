@@ -1,3 +1,5 @@
+#pragma once
+
 #include <functional>
 #include <string>
 #include <unordered_set>
@@ -21,8 +23,10 @@ struct PlotPageInfo
     bool rectZoomActive = false;                 // 是否处于框选缩放模式
     std::string selectedDataItem;                // 当前选中的数据项名称（空=无选中）
 
+    // 每个图窗独立的 X 轴列索引（npox = 未设置）
+    size_t xAxisColumn = static_cast<size_t>(-1);
+
     // 表达式管理器（每个图窗独立持有）
-    // 通过 PlotManager::exprManager(pageIndex) 访问
     ExprManager exprMgr;
 
     HighlightManager highlightMgr;
@@ -36,6 +40,7 @@ struct PlotPageInfo
 //   - 跟踪当前激活图窗
 //   - 每个页面记录已添加的数据项（去重）
 //   - 通过 std::function 回调通知 UI 层同步 Qt 控件
+//   - 每个图窗独立的 X 轴配置
 //
 // UI 层（UI.cpp）负责：
 //   - QTabWidget 容器管理
@@ -99,6 +104,22 @@ public:
 
     // 清空所有页面
     void clearAll();
+
+    // ============================================================
+    // X 轴管理（每个图窗独立）
+    // ============================================================
+
+    // 获取指定图窗的 X 轴列索引
+    size_t xAxisColumn(int pageIndex) const;
+
+    // 设置指定图窗的 X 轴列索引
+    void setXAxisColumn(int pageIndex, size_t colIdx);
+
+    // 获取当前激活图窗的 X 轴列索引
+    size_t activeXAxisColumn() const;
+
+    // X 轴变更后回调：(pageIndex, colIdx)
+    std::function<void(int pageIndex, size_t colIdx)> onXAxisChanged;
 
     // ============================================================
     // 查询
