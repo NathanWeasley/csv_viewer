@@ -83,6 +83,11 @@ private Q_SLOTS:
     // 导出当前图窗为图片（PNG/JPEG/PDF）
     void exportPlotImage(int pageIndex);
 
+    // ---- Alias ----
+    void loadAliasFile();
+    void saveAliasFile();
+    void showAliasDialog();
+
 private:
     Ui::UIClass ui;
 
@@ -91,8 +96,10 @@ private:
     QProgressBar* m_progressBar = nullptr;
 
     QTreeWidget* m_dataTree = nullptr;
+    QTreeWidget* m_bookmarkTree = nullptr;
     ads::CDockWidget* m_plotDock = nullptr;
     ads::CDockWidget* m_dataDock = nullptr;
+    ads::CDockWidget* m_bookmarkDock = nullptr;
 
     QLabel* m_xAxisLabel = nullptr;
 
@@ -126,6 +133,9 @@ private:
     QHash<int, QLineEdit*> m_exprLineEdits;
     // pageIndex → toolbar QComboBox (for star updating)
     QHash<int, QComboBox*> m_toolbarCombos;
+
+    // ---- Alias state ----
+    std::unordered_map<std::string, std::string> m_aliasMap;
 
     // ---- Highlight state ----
     // pageIndex → 高亮色块列表

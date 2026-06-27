@@ -71,6 +71,14 @@ public:
     bool LoadFromExpr(const std::string& exprStr, const std::string& exprName);
 
     // ============================================================
+    // 别名设置
+    // ============================================================
+    void SetAliasMap(const std::unordered_map<std::string, std::string>& aliasMap)
+    { m_aliasMap = aliasMap; }
+    const std::unordered_map<std::string, std::string>& GetAliasMap() const noexcept
+    { return m_aliasMap; }
+
+    // ============================================================
     // 列访问接口
     // ============================================================
 
@@ -188,6 +196,9 @@ private:
 
     // 隐含索引列（0.0, 1.0, 2.0, ...），不加入 m_columns/m_columnNames
     std::unique_ptr<Column> m_indexColumn;
+
+    // 别名映射（原始列名 → 重命名），由 UI 层设置
+    std::unordered_map<std::string, std::string> m_aliasMap;
 
     static constexpr size_t npos = static_cast<size_t>(-1);
 

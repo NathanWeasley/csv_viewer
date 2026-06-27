@@ -340,6 +340,21 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     m_columnNames = newSanitizedNames;
     m_nameIndex = newNameIndex;
 
+    // ---- 应用别名映射（原始列名 → 重命名）----
+    if (!m_aliasMap.empty())
+    {
+        for (size_t c = 0; c < m_columnNames.size(); ++c)
+        {
+            auto it = m_aliasMap.find(m_columnNames[c]);
+            if (it != m_aliasMap.end())
+                m_columnNames[c] = it->second;
+        }
+        // 重建 name index（列名已变更）
+        m_nameIndex.clear();
+        for (size_t c = 0; c < m_columnNames.size(); ++c)
+            m_nameIndex[m_columnNames[c]] = c;
+    }
+
     if (config.hasHeader && !headerFields.empty())
         m_rawColumnNames = headerFields;
     else

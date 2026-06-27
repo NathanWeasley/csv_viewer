@@ -23,6 +23,12 @@
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
+#include "AliasDialog.h"
+#include <qdir.h>
+#include <qfile.h>
+#include <qjsondocument.h>
+#include <qjsonarray.h>
+#include <qjsonobject.h>
 
 static bool isSystemInDark()
 {
@@ -41,17 +47,19 @@ UI::UI(QWidget *parent)
     init();
 
     /** Restore window settings */
-
-    QSettings settings;
-
-    if (settings.contains("geometry"))
     {
-        restoreGeometry(settings.value("geometry").toByteArray());
-    }
+        QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
+        QSettings settings(configPath, QSettings::IniFormat);
 
-    if (settings.contains("dockingState"))
-    {
-        m_dockManager->restoreState(settings.value("dockingState").toByteArray());
+        if (settings.contains("geometry"))
+        {
+            restoreGeometry(settings.value("geometry").toByteArray());
+        }
+
+        if (settings.contains("dockingState"))
+        {
+            m_dockManager->restoreState(settings.value("dockingState").toByteArray());
+        }
     }
 }
 
@@ -102,9 +110,9 @@ void UI::createMenu()
     fileMenu->addSeparator();
     auto* clearAll = fileMenu->addAction("Clear loaded data");
 
-    /** Connecting */
-
-    //connect(openCSV, &QAction::triggered, this, &UI::)
+    auto* settingsMenu = menuBar()->addMenu("&Settings");
+    auto* aliasAction = settingsMenu->addAction("Auto Rename");
+    connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
 }
 
 void UI::createToolbar()
@@ -167,6 +175,7 @@ void UI::createMain()
 
     ///< Left DateTree
     m_dataTree = new QTreeWidget();
+    m_dataTree->setHeaderHidden(true);
     m_dataTree->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_dataTree, &QTreeWidget::customContextMenuRequested, this,
         [this](const QPoint& /*pos*/)
@@ -189,6 +198,14 @@ void UI::createMain()
     m_dataDock->setWidget(m_dataTree);
     m_dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::LeftDockWidgetArea, m_dataDock, m_plotDock->dockAreaWidget());
+
+    ///< Right Bookmark Tree
+    m_bookmarkTree = new QTreeWidget();
+    m_bookmarkTree->setHeaderHidden(true);
+    m_bookmarkDock = new ads::CDockWidget("Bookmarks");
+    m_bookmarkDock->setWidget(m_bookmarkTree);
+    m_bookmarkDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_dockManager->addDockWidget(ads::RightDockWidgetArea, m_bookmarkDock, m_plotDock->dockAreaWidget());
 
     ///< Bind PlotManager callbacks
     bindPlotManagerCallbacks();
@@ -269,7 +286,9 @@ void UI::createStatusbar()
 
 void UI::closeEvent(QCloseEvent* event)
 {
-    QSettings settings; // Automatically opens: <exe_dir>/MyCompany/MyApp.ini
+    QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
+    QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
+    QSettings settings(configPath, QSettings::IniFormat);
 
     settings.setValue("geometry", saveGeometry());
     if (m_dockManager)
@@ -2492,4 +2511,78 @@ void UI::exportPlotImage(int pageIndex)
         plot->saveJpg(fileName, 0, 0, 2.0, 90);
     else if (selectedFilter.contains("PDF"))
         plot->savePdf(fileName);
+}
+
+// ============================================================
+// Alias: 自动重命名
+// ============================================================
+
+void UI::loadAliasFile()
+{
+    QString dir = QCoreApplication::applicationDirPath();
+    QDir().mkpath(dir + "/user");
+    QString path = dir + "/user/alias.json";
+
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return;
+
+    QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+
+    m_aliasMap.clear();
+    if (!doc.isObject())
+        return;
+
+    QJsonArray arr = doc.object().value("aliases").toArray();
+    for (const auto& item : arr)
+    {
+        QJsonObject obj = item.toObject();
+        std::string from = obj.value("from").toString().toStdString();
+        std::string to   = obj.value("to").toString().toStdString();
+        if (!from.empty() && !to.empty())
+            m_aliasMap[from] = to;
+    }
+
+    m_viewer.GetDataManager().SetAliasMap(m_aliasMap);
+}
+
+void UI::saveAliasFile()
+{
+    QString dir = QCoreApplication::applicationDirPath();
+    QDir().mkpath(dir + "/user");
+    QString path = dir + "/user/alias.json";
+
+    QJsonArray arr;
+    for (const auto& [from, to] : m_aliasMap)
+    {
+        QJsonObject obj;
+        obj["from"] = QString::fromStdString(from);
+        obj["to"]   = QString::fromStdString(to);
+        arr.append(obj);
+    }
+
+    QJsonObject root;
+    root["aliases"] = arr;
+
+    QFile file(path);
+    if (file.open(QIODevice::WriteOnly))
+    {
+        file.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+        file.close();
+    }
+
+    m_viewer.GetDataManager().SetAliasMap(m_aliasMap);
+}
+
+void UI::showAliasDialog()
+{
+    AliasDialog dlg(this);
+    dlg.setAliases(m_aliasMap);
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    m_aliasMap = dlg.getAliases();
+    saveAliasFile();
 }
