@@ -411,19 +411,33 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     if (!m_keyCol || !m_valueCol || m_keyCol->empty())
         return;
 
+    ///< Total number of points can be displayed (csv rows)
     QPair<int, int> visibleRange = getVisibleDataRange();
     int begin = visibleRange.first;
     int end   = visibleRange.second;
     if (begin >= end)
         return;
-
     int visibleCount = end - begin;
 
+    ///< Total available pixels on figure
     int pixelsW = screenPixelWidth();
+
+    ///< point-to-pixel ratio
     double ratio = static_cast<double>(visibleCount) / static_cast<double>(std::max(pixelsW, 1));
+
+    ///< Total available figure X-axis range (in x-variable unit IMPORTANT!)
+    auto axisrange = mKeyAxis->range();
+    double xspan = axisrange.upper - axisrange.lower;
+
+    ///< Maximum available X-axis range
+    //double xdatarange = m_keyCol->
+
+    ///< rescale ratio to account for span < width case
+    double bucket_scale = std::max(1.0, xspan/visibleCount);
+
     bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
 
-    int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 2.0)));
+    int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 1.0)));
     if (buckets > visibleCount / 2)
         buckets = std::max(1, visibleCount / 2);
 
@@ -467,7 +481,10 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mLineStyle != lsNone)
     {
-        applyDefaultAntialiasingHint(painter);
+        if (ratio > 1.0)
+            painter->setAntialiasing(false);
+        else
+            applyDefaultAntialiasingHint(painter);
         painter->setPen(mPen);
         painter->setBrush(Qt::NoBrush);
         drawLinePlot(painter, lines);

@@ -323,6 +323,10 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
             }
         }
 
+        // 追加数据后重新计算每列的 min/max 缓存
+        for (size_t c = 0; c < m_columns.size(); ++c)
+            m_columns[c]->recalcMinMax();
+
         reportProgress(1.0f, "Done.", "Appended " + std::to_string(totalDataRows) + " rows.");
 
         return true;
@@ -454,6 +458,10 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     m_xAxisColumn = AutoDetectXAxis();
 
+    // 计算每列的全列 min/max 缓存
+    for (size_t c = 0; c < colCount; ++c)
+        m_columns[c]->recalcMinMax();
+
     reportProgress(1.0f, "Done.", "Loaded " + std::to_string(colCount) + " columns, " +
                   std::to_string(GetRowCount()) + " rows.");
 
@@ -565,6 +573,9 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
     m_columnNames.push_back(exprName);
     m_nameIndex[exprName] = newIdx;
     m_rawColumnNames.push_back(exprName);  // 表达式列的 raw name 同 cleaned name
+
+    // 计算表达式列的 min/max 缓存
+    m_columns[newIdx]->recalcMinMax();
 
     return true;
 }

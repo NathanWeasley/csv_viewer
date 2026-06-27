@@ -67,6 +67,12 @@ struct AbstractColumn
 
     // 查询 [begin, end) 范围内的 min/max（降采样用）
     virtual std::pair<double, double> rangeMinMax(size_t begin, size_t end) const = 0;
+
+    // 全列缓存的 min/max（加载/表达式计算后自动填充）
+    virtual double      cachedMin() const noexcept = 0;
+    virtual double      cachedMax() const noexcept = 0;
+    virtual bool        hasCachedMinMax() const noexcept = 0;
+    virtual void        recalcMinMax() = 0;
 };
 
 // ============================================================
@@ -253,6 +259,7 @@ public:
         m_data = nullptr;
         m_size = 0;
         m_capacity = 0;
+        m_minMaxValid = false;
     }
 
     std::string typeName() const override
@@ -297,6 +304,38 @@ public:
         return { vmin, vmax };
     }
 
+    double cachedMin() const noexcept override { return m_cachedMin; }
+    double cachedMax() const noexcept override { return m_cachedMax; }
+    bool   hasCachedMinMax() const noexcept override { return m_minMaxValid; }
+
+    void recalcMinMax() override
+    {
+        m_minMaxValid = false;
+        if (m_size == 0)
+            return;
+
+        double vmin = std::numeric_limits<double>::max();
+        double vmax = -std::numeric_limits<double>::max();
+        bool hasValid = false;
+
+        for (size_t i = 0; i < m_size; ++i)
+        {
+            if (std::isnan(m_data[i]))
+                continue;
+            double v = static_cast<double>(m_data[i]);
+            if (v < vmin) vmin = v;
+            if (v > vmax) vmax = v;
+            hasValid = true;
+        }
+
+        if (hasValid)
+        {
+            m_cachedMin = vmin;
+            m_cachedMax = vmax;
+            m_minMaxValid = true;
+        }
+    }
+
     // -------- Column 特有接口 --------
     T operator[](size_t idx) const noexcept
     {
@@ -324,6 +363,23 @@ public:
             m_capacity = newCap;
         }
         m_data[m_size++] = val;
+
+        // 增量更新 min/max 缓存（O(1)）
+        if (!std::isnan(val))
+        {
+            double v = static_cast<double>(val);
+            if (!m_minMaxValid)
+            {
+                m_cachedMin = v;
+                m_cachedMax = v;
+                m_minMaxValid = true;
+            }
+            else
+            {
+                if (v < m_cachedMin) m_cachedMin = v;
+                if (v > m_cachedMax) m_cachedMax = v;
+            }
+        }
     }
 
     const T& back() const noexcept
@@ -387,6 +443,11 @@ private:
     size_t  m_size     = 0;
     size_t  m_capacity = 0;
     ColumnType m_type;
+
+    // min/max 缓存（全列，加载/表达式后自动计算）
+    double  m_cachedMin = 0.0;
+    double  m_cachedMax = 0.0;
+    bool    m_minMaxValid = false;
 };
 
 } // namespace viewer
