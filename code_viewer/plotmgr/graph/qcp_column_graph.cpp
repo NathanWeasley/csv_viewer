@@ -430,14 +430,14 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     double xspan = axisrange.upper - axisrange.lower;
 
     ///< Maximum available X-axis range
-    //double xdatarange = m_keyCol->
+    double xdatarange = m_keyCol->cachedMax() - m_keyCol->cachedMin();
 
     ///< rescale ratio to account for span < width case
-    double bucket_scale = std::max(1.0, xspan/visibleCount);
+    double bucket_scale = std::max(1.0, xspan/xdatarange);
 
     bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
 
-    int buckets = std::max(1, static_cast<int>(pixelsW * std::min(ratio, 1.0)));
+    int buckets = std::max(1, static_cast<int>(std::ceil(pixelsW * std::min(ratio, 1.0)/bucket_scale)));
     if (buckets > visibleCount / 2)
         buckets = std::max(1, visibleCount / 2);
 
