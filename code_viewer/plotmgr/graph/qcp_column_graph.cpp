@@ -23,10 +23,10 @@ QCPColumnGraph::~QCPColumnGraph()
 // ============================================================
 // 设置数据列
 // ============================================================
-void QCPColumnGraph::setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol)
+void QCPColumnGraph::setDataColumns(const Column* keyCol, const Column* valueCol)
 {
-    m_keyCol = static_cast<const Column<double>*>(keyCol);
-    m_valueCol = static_cast<const Column<double>*>(valueCol);
+    m_keyCol = keyCol;
+    m_valueCol = valueCol;
     recalculateRanges();
 }
 

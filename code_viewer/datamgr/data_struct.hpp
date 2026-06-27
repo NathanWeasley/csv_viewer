@@ -10,18 +10,9 @@
 #include <cstdlib>
 #include <climits>
 #include <stdexcept>
-#include <type_traits>
 
 namespace viewer
 {
-
-// ============================================================
-// ColumnType: 列类型标记
-// ============================================================
-enum class ColumnType : uint8_t
-{
-    Float64     // 所有数据统一以 double 存储
-};
 
 // ============================================================
 // CellType: 单元格分类（用于类型推断阶段）
@@ -51,50 +42,20 @@ inline CellType classifyCell(const std::string& s)
 }
 
 // ============================================================
-// AbstractColumn: 多态基类
+// Column: 连续内存存储列（double）
 // ============================================================
-struct AbstractColumn
-{
-    virtual ~AbstractColumn() = default;
-
-    virtual ColumnType  type() const noexcept = 0;
-    virtual size_t      size() const noexcept = 0;
-    virtual bool        empty() const noexcept = 0;
-    virtual void        pushFromString(const std::string& s) = 0;
-    virtual double      getDouble(size_t idx) const = 0;
-    virtual std::string typeName() const = 0;
-    virtual void        clear() = 0;
-
-    // 查询 [begin, end) 范围内的 min/max（降采样用）
-    virtual std::pair<double, double> rangeMinMax(size_t begin, size_t end) const = 0;
-
-    // 全列缓存的 min/max（加载/表达式计算后自动填充）
-    virtual double      cachedMin() const noexcept = 0;
-    virtual double      cachedMax() const noexcept = 0;
-    virtual bool        hasCachedMinMax() const noexcept = 0;
-    virtual void        recalcMinMax() = 0;
-};
-
-// ============================================================
-// Column<T>: 连续内存存储列模板（仅支持 double）
-// ============================================================
-template <typename T>
 class Column
-    : public AbstractColumn
 {
-    static_assert(std::is_same<T, double>::value,
-                  "Column<T> only supports double");
-
 public:
     // ---------- const_iterator ----------
     class const_iterator
     {
     public:
         using iterator_category = std::random_access_iterator_tag;
-        using value_type        = T;
+        using value_type        = double;
         using difference_type   = ptrdiff_t;
-        using pointer           = const T*;
-        using reference         = const T&;
+        using pointer           = const double*;
+        using reference         = const double&;
 
         const_iterator() noexcept = default;
 
@@ -122,11 +83,11 @@ public:
         bool operator>=(const const_iterator& other) const noexcept { return m_ptr >= other.m_ptr; }
 
     private:
-        friend class Column<T>;
+        friend class Column;
 
-        const T* m_ptr = nullptr;
+        const double* m_ptr = nullptr;
 
-        explicit const_iterator(const T* ptr) noexcept : m_ptr(ptr) {}
+        explicit const_iterator(const double* ptr) noexcept : m_ptr(ptr) {}
     };
 
     // ---------- iterator ----------
@@ -134,10 +95,10 @@ public:
     {
     public:
         using iterator_category = std::random_access_iterator_tag;
-        using value_type        = T;
+        using value_type        = double;
         using difference_type   = ptrdiff_t;
-        using pointer           = T*;
-        using reference         = T&;
+        using pointer           = double*;
+        using reference         = double&;
 
         iterator() noexcept = default;
 
@@ -160,45 +121,35 @@ public:
         bool operator==(const iterator& other) const noexcept { return m_ptr == other.m_ptr; }
         bool operator!=(const iterator& other) const noexcept { return m_ptr != other.m_ptr; }
         bool operator< (const iterator& other) const noexcept { return m_ptr <  other.m_ptr; }
-        bool operator<=(const iterator& other) const noexcept { return m_ptr <= other.m_ptr; }
-        bool operator> (const iterator& other) const noexcept { return m_ptr >  other.m_ptr; }
         bool operator>=(const iterator& other) const noexcept { return m_ptr >= other.m_ptr; }
 
         // 隐式转换为 const_iterator
         operator const_iterator() const noexcept { return const_iterator(m_ptr); }
 
     private:
-        friend class Column<T>;
+        friend class Column;
 
-        T* m_ptr = nullptr;
+        double* m_ptr = nullptr;
 
-        explicit iterator(T* ptr) noexcept : m_ptr(ptr) {}
+        explicit iterator(double* ptr) noexcept : m_ptr(ptr) {}
     };
 
     // ---------- 构造 ----------
-    Column() noexcept
-        : m_type(ColumnType::Float64)
-    {}
-
-    explicit Column(ColumnType t) noexcept
-        : m_type(t)
-    {}
-
-    ~Column()
-    {
-        delete[] m_data;
-    }
+    Column() noexcept = default;
+    ~Column() { delete[] m_data; }
 
     // ---- 拷贝 ----
     Column(const Column& other)
-        : m_type(other.m_type)
-        , m_size(other.m_size)
+        : m_size(other.m_size)
         , m_capacity(other.m_size)
+        , m_cachedMin(other.m_cachedMin)
+        , m_cachedMax(other.m_cachedMax)
+        , m_minMaxValid(other.m_minMaxValid)
     {
         if (m_capacity > 0)
         {
-            m_data = new T[m_capacity];
-            std::memcpy(m_data, other.m_data, m_size * sizeof(T));
+            m_data = new double[m_capacity];
+            std::memcpy(m_data, other.m_data, m_size * sizeof(double));
         }
     }
 
@@ -208,13 +159,15 @@ public:
         {
             delete[] m_data;
             m_data = nullptr;
-            m_type = other.m_type;
             m_size = other.m_size;
             m_capacity = other.m_size;
+            m_cachedMin = other.m_cachedMin;
+            m_cachedMax = other.m_cachedMax;
+            m_minMaxValid = other.m_minMaxValid;
             if (m_capacity > 0)
             {
-                m_data = new T[m_capacity];
-                std::memcpy(m_data, other.m_data, m_size * sizeof(T));
+                m_data = new double[m_capacity];
+                std::memcpy(m_data, other.m_data, m_size * sizeof(double));
             }
         }
         return *this;
@@ -225,11 +178,14 @@ public:
         : m_data(other.m_data)
         , m_size(other.m_size)
         , m_capacity(other.m_capacity)
-        , m_type(other.m_type)
+        , m_cachedMin(other.m_cachedMin)
+        , m_cachedMax(other.m_cachedMax)
+        , m_minMaxValid(other.m_minMaxValid)
     {
         other.m_data = nullptr;
         other.m_size = 0;
         other.m_capacity = 0;
+        other.m_minMaxValid = false;
     }
 
     Column& operator=(Column&& other) noexcept
@@ -240,20 +196,23 @@ public:
             m_data = other.m_data;
             m_size = other.m_size;
             m_capacity = other.m_capacity;
-            m_type = other.m_type;
+            m_cachedMin = other.m_cachedMin;
+            m_cachedMax = other.m_cachedMax;
+            m_minMaxValid = other.m_minMaxValid;
             other.m_data = nullptr;
             other.m_size = 0;
             other.m_capacity = 0;
+            other.m_minMaxValid = false;
         }
         return *this;
     }
 
-    // -------- AbstractColumn 接口 --------
-    ColumnType type()          const noexcept override { return m_type; }
-    size_t     size()          const noexcept override { return m_size; }
-    bool       empty()         const noexcept override { return m_size == 0; }
+    // -------- 容量 --------
+    size_t size()     const noexcept { return m_size; }
+    bool   empty()    const noexcept { return m_size == 0; }
+    size_t capacity() const noexcept { return m_capacity; }
 
-    void clear() override
+    void clear()
     {
         delete[] m_data;
         m_data = nullptr;
@@ -262,101 +221,34 @@ public:
         m_minMaxValid = false;
     }
 
-    std::string typeName() const override
+    // -------- 元素访问 --------
+    double  operator[](size_t idx) const noexcept { return m_data[idx]; }
+    double& operator[](size_t idx) noexcept       { return m_data[idx]; }
+
+    double getDouble(size_t idx) const { return m_data[idx]; }
+
+    const double& back() const noexcept
     {
-        return "float64";
+        static const double s_empty = 0.0;
+        return (m_size > 0) ? m_data[m_size - 1] : s_empty;
     }
 
-    double getDouble(size_t idx) const override
-    {
-        return static_cast<double>(m_data[idx]);
-    }
+    double& back() noexcept { return m_data[m_size - 1]; }
 
-    void pushFromString(const std::string& s) override
-    {
-        char* end = nullptr;
-        double val = std::strtod(s.c_str(), &end);
+    // 裸指针访问（零开销内联遍历，用于绘图热路径）
+    const double* data() const noexcept { return m_data; }
+    double*       data()       noexcept { return m_data; }
 
-        if (end != s.c_str() && *end == '\0')
-        {
-            push_back(static_cast<T>(val));
-        }
-        else
-        {
-            push_back(std::numeric_limits<T>::quiet_NaN());
-        }
-    }
-
-    std::pair<double, double> rangeMinMax(size_t begin, size_t end) const override
-    {
-        double vmin = std::numeric_limits<double>::max();
-        double vmax = -std::numeric_limits<double>::max();
-
-        for (size_t i = begin; i < end; ++i)
-        {
-            if (std::isnan(m_data[i]))
-                continue;
-            double v = static_cast<double>(m_data[i]);
-            if (v < vmin) vmin = v;
-            if (v > vmax) vmax = v;
-        }
-
-        return { vmin, vmax };
-    }
-
-    double cachedMin() const noexcept override { return m_cachedMin; }
-    double cachedMax() const noexcept override { return m_cachedMax; }
-    bool   hasCachedMinMax() const noexcept override { return m_minMaxValid; }
-
-    void recalcMinMax() override
-    {
-        m_minMaxValid = false;
-        if (m_size == 0)
-            return;
-
-        double vmin = std::numeric_limits<double>::max();
-        double vmax = -std::numeric_limits<double>::max();
-        bool hasValid = false;
-
-        for (size_t i = 0; i < m_size; ++i)
-        {
-            if (std::isnan(m_data[i]))
-                continue;
-            double v = static_cast<double>(m_data[i]);
-            if (v < vmin) vmin = v;
-            if (v > vmax) vmax = v;
-            hasValid = true;
-        }
-
-        if (hasValid)
-        {
-            m_cachedMin = vmin;
-            m_cachedMax = vmax;
-            m_minMaxValid = true;
-        }
-    }
-
-    // -------- Column 特有接口 --------
-    T operator[](size_t idx) const noexcept
-    {
-        return m_data[idx];
-    }
-
-    T& operator[](size_t idx) noexcept
-    {
-        return m_data[idx];
-    }
-
-    // 类似 std::vector 的扩容语义
-    void push_back(T val)
+    // -------- 修改 --------
+    void push_back(double val)
     {
         if (m_size >= m_capacity)
         {
             size_t newCap = (m_capacity == 0) ? 4096 : m_capacity * 2;
-            T* newData = new T[newCap];
+            double* newData = new double[newCap];
             if (m_data)
             {
-                std::memcpy(newData, m_data, m_size * sizeof(T));
+                std::memcpy(newData, m_data, m_size * sizeof(double));
                 delete[] m_data;
             }
             m_data = newData;
@@ -367,32 +259,44 @@ public:
         // 增量更新 min/max 缓存（O(1)）
         if (!std::isnan(val))
         {
-            double v = static_cast<double>(val);
             if (!m_minMaxValid)
             {
-                m_cachedMin = v;
-                m_cachedMax = v;
+                m_cachedMin = val;
+                m_cachedMax = val;
                 m_minMaxValid = true;
             }
             else
             {
-                if (v < m_cachedMin) m_cachedMin = v;
-                if (v > m_cachedMax) m_cachedMax = v;
+                if (val < m_cachedMin) m_cachedMin = val;
+                if (val > m_cachedMax) m_cachedMax = val;
             }
         }
     }
 
-    const T& back() const noexcept
+    void pushFromString(const std::string& s)
     {
-        static T s_empty = {};
-        if (m_size == 0)
-            return s_empty;
-        return m_data[m_size - 1];
+        char* end = nullptr;
+        double val = std::strtod(s.c_str(), &end);
+
+        if (end != s.c_str() && *end == '\0')
+            push_back(val);
+        else
+            push_back(std::numeric_limits<double>::quiet_NaN());
     }
 
-    T& back() noexcept
+    void reserve(size_t cap)
     {
-        return m_data[m_size - 1];
+        if (cap > m_capacity)
+        {
+            double* newData = new double[cap];
+            if (m_data)
+            {
+                std::memcpy(newData, m_data, m_size * sizeof(double));
+                delete[] m_data;
+            }
+            m_data = newData;
+            m_capacity = cap;
+        }
     }
 
     // -------- 迭代器 --------
@@ -406,43 +310,69 @@ public:
     void append(InputIt first, InputIt last)
     {
         for (; first != last; ++first)
-        {
-            push_back(static_cast<T>(*first));
-        }
+            push_back(static_cast<double>(*first));
     }
 
-    void append(const std::vector<T>& vec)
+    void append(const std::vector<double>& vec)
     {
         append(vec.begin(), vec.end());
     }
 
-    // 预留容量
-    void reserve(size_t cap)
+    // -------- 范围 min/max --------
+    std::pair<double, double> rangeMinMax(size_t begin, size_t end) const
     {
-        if (cap > m_capacity)
+        double vmin = std::numeric_limits<double>::max();
+        double vmax = -std::numeric_limits<double>::max();
+
+        for (size_t i = begin; i < end; ++i)
         {
-            T* newData = new T[cap];
-            if (m_data)
-            {
-                std::memcpy(newData, m_data, m_size * sizeof(T));
-                delete[] m_data;
-            }
-            m_data = newData;
-            m_capacity = cap;
+            if (std::isnan(m_data[i]))
+                continue;
+            double v = m_data[i];
+            if (v < vmin) vmin = v;
+            if (v > vmax) vmax = v;
+        }
+
+        return { vmin, vmax };
+    }
+
+    // -------- 全列缓存 min/max --------
+    double cachedMin() const noexcept { return m_cachedMin; }
+    double cachedMax() const noexcept { return m_cachedMax; }
+    bool   hasCachedMinMax() const noexcept { return m_minMaxValid; }
+
+    void recalcMinMax()
+    {
+        m_minMaxValid = false;
+        if (m_size == 0)
+            return;
+
+        double vmin = std::numeric_limits<double>::max();
+        double vmax = -std::numeric_limits<double>::max();
+        bool hasValid = false;
+
+        for (size_t i = 0; i < m_size; ++i)
+        {
+            if (std::isnan(m_data[i]))
+                continue;
+            double v = m_data[i];
+            if (v < vmin) vmin = v;
+            if (v > vmax) vmax = v;
+            hasValid = true;
+        }
+
+        if (hasValid)
+        {
+            m_cachedMin = vmin;
+            m_cachedMax = vmax;
+            m_minMaxValid = true;
         }
     }
 
-    size_t capacity() const noexcept { return m_capacity; }
-
-    // 裸指针访问（零开销内联遍历，用于绘图热路径）
-    const T* data() const noexcept { return m_data; }
-    T* data() noexcept { return m_data; }
-
 private:
-    T*      m_data     = nullptr;
+    double* m_data     = nullptr;
     size_t  m_size     = 0;
     size_t  m_capacity = 0;
-    ColumnType m_type;
 
     // min/max 缓存（全列，加载/表达式后自动计算）
     double  m_cachedMin = 0.0;

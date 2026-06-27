@@ -75,12 +75,12 @@ public:
     // ============================================================
 
     // 通过列索引获取列
-    AbstractColumn* GetColumn(size_t idx);
-    const AbstractColumn* GetColumn(size_t idx) const;
+    Column* GetColumn(size_t idx);
+    const Column* GetColumn(size_t idx) const;
 
     // 通过列名获取列
-    AbstractColumn* GetColumn(const std::string& name);
-    const AbstractColumn* GetColumn(const std::string& name) const;
+    Column* GetColumn(const std::string& name);
+    const Column* GetColumn(const std::string& name) const;
 
     // 总列数
     size_t GetColumnCount() const noexcept { return m_columns.size(); }
@@ -137,7 +137,7 @@ public:
     void ensureIndexColumnBuilt();
 
     // 获取隐含索引列指针，在 ensureIndexColumnBuilt() 之后有效
-    const AbstractColumn* GetIndexColumn() const noexcept { return m_indexColumn.get(); }
+    const Column* GetIndexColumn() const noexcept { return m_indexColumn.get(); }
 
     // ============================================================
     // 工具
@@ -174,7 +174,7 @@ private:
     bool isStringColumn(const TypeCount& tc) const noexcept;
 
     // ---- 内部数据 ----
-    std::vector<std::unique_ptr<AbstractColumn>> m_columns;
+    std::vector<std::unique_ptr<Column>> m_columns;
 
     std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名
@@ -187,7 +187,7 @@ private:
     size_t      m_xAxisColumn = npos;  // 当前横轴列
 
     // 隐含索引列（0.0, 1.0, 2.0, ...），不加入 m_columns/m_columnNames
-    std::unique_ptr<AbstractColumn> m_indexColumn;
+    std::unique_ptr<Column> m_indexColumn;
 
     static constexpr size_t npos = static_cast<size_t>(-1);
 

@@ -75,7 +75,7 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
     if (xIdx == static_cast<size_t>(-1))
         return result;
 
-    const AbstractColumn* xCol = dm.GetColumn(xIdx);
+    const Column* xCol = dm.GetColumn(xIdx);
     if (!xCol || xCol->size() == 0)
         return result;
 
@@ -86,7 +86,7 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
         if (colIdx == static_cast<size_t>(-1))
             continue;
 
-        const AbstractColumn* dataCol = dm.GetColumn(colIdx);
+        const Column* dataCol = dm.GetColumn(colIdx);
         if (!dataCol || dataCol->size() == 0)
             continue;
 

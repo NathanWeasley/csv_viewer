@@ -26,11 +26,11 @@ PlotExpression& ExprManager::getOrCreate(const std::string& itemName, DataManage
         pe.isEdited = false;
 
         // 深拷贝 DataManager 中的原始列数据
-        const viewer::AbstractColumn* srcCol = dm.GetColumn(itemName);
+        const viewer::Column* srcCol = dm.GetColumn(itemName);
         if (srcCol && srcCol->size() > 0)
         {
             size_t n = srcCol->size();
-            auto col = std::make_unique<Column<double>>(ColumnType::Float64);
+            auto col = std::make_unique<Column>();
             col->reserve(n);
             for (size_t i = 0; i < n; ++i)
             {
@@ -40,7 +40,7 @@ PlotExpression& ExprManager::getOrCreate(const std::string& itemName, DataManage
         }
         else
         {
-            pe.computedData = std::make_unique<Column<double>>(ColumnType::Float64);
+            pe.computedData = std::make_unique<Column>();
         }
 
         auto [insertedIt, _] = m_exprs.insert({itemName, std::move(pe)});
@@ -177,13 +177,13 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
     // 如果表达式等于数据项名称（未编辑），直接拷贝原始数据
     if (!pe.isEdited)
     {
-        const viewer::AbstractColumn* srcCol = dm.GetColumn(itemName);
+        const viewer::Column* srcCol = dm.GetColumn(itemName);
         if (!srcCol || srcCol->size() == 0)
             return false;
 
         size_t n = srcCol->size();
         if (!pe.computedData)
-            pe.computedData = std::make_unique<Column<double>>(ColumnType::Float64);
+            pe.computedData = std::make_unique<Column>();
         pe.computedData->clear();
         pe.computedData->reserve(n);
         for (size_t i = 0; i < n; ++i)
@@ -255,7 +255,7 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
 
     // 创建/清零结果列
     if (!pe.computedData)
-        pe.computedData = std::make_unique<Column<double>>(ColumnType::Float64);
+        pe.computedData = std::make_unique<Column>();
     pe.computedData->clear();
     pe.computedData->reserve(rowCount);
 
@@ -305,7 +305,7 @@ PlotExpression ExprManager::copy(const std::string& itemName) const
     if (src.computedData && src.computedData->size() > 0)
     {
         size_t n = src.computedData->size();
-        auto col = std::make_unique<Column<double>>(ColumnType::Float64);
+        auto col = std::make_unique<Column>();
         col->reserve(n);
         for (size_t i = 0; i < n; ++i)
         {
@@ -315,7 +315,7 @@ PlotExpression ExprManager::copy(const std::string& itemName) const
     }
     else
     {
-        result.computedData = std::make_unique<Column<double>>(ColumnType::Float64);
+        result.computedData = std::make_unique<Column>();
     }
 
     return result;
@@ -334,7 +334,7 @@ std::unordered_map<std::string, PlotExpression> ExprManager::copyAll() const
         if (pe.computedData && pe.computedData->size() > 0)
         {
             size_t n = pe.computedData->size();
-            auto col = std::make_unique<Column<double>>(ColumnType::Float64);
+            auto col = std::make_unique<Column>();
             col->reserve(n);
             for (size_t i = 0; i < n; ++i)
             {
@@ -344,7 +344,7 @@ std::unordered_map<std::string, PlotExpression> ExprManager::copyAll() const
         }
         else
         {
-            copyPE.computedData = std::make_unique<Column<double>>(ColumnType::Float64);
+            copyPE.computedData = std::make_unique<Column>();
         }
 
         result.insert({name, std::move(copyPE)});
@@ -505,7 +505,7 @@ std::string ExprManager::preprocessCustomFuncs(const std::string& exprStr, DataM
 
             // 验证所有参数列存在
             bool allColsExist = true;
-            std::vector<AbstractColumn*> cols;
+            std::vector<Column*> cols;
             cols.reserve(argNames.size());
 
             for (size_t ai = 0; ai < argNames.size(); ++ai)

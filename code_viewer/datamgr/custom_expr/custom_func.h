@@ -15,8 +15,8 @@ namespace viewer
 //   colCount : 参数个数
 //   rowCount : 行数
 // ============================================================
-using CrossRowComputeFn = std::unique_ptr<Column<double>>(*)(
-    AbstractColumn* const* cols, uint8_t colCount, size_t rowCount);
+using CrossRowComputeFn = std::unique_ptr<Column>(*)(
+    Column* const* cols, uint8_t colCount, size_t rowCount);
 
 // ============================================================
 // CustomFuncEntry: 编译期固定大小的函数注册项

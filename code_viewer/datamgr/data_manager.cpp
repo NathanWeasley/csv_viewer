@@ -411,11 +411,11 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     // ---- 阶段 2b: 第二遍读取 - 数据写入 ----
     reportProgress(0.52f, "Loading data (pass 2/2)...", "");
 
-    // 所有列统一使用 Column<double>
+    // 所有列统一使用 Column
     m_columns.resize(colCount);
     for (size_t c = 0; c < colCount; ++c)
     {
-        m_columns[c] = std::make_unique<Column<double>>(ColumnType::Float64);
+        m_columns[c] = std::make_unique<Column>();
     }
 
     CsvRowReader writer(config.filePath, config.delimiter, config.quoteChar);
@@ -552,7 +552,7 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
         return false;
 
     // ---- 创建结果列 ----
-    auto resultCol = std::make_unique<Column<double>>(ColumnType::Float64);
+    auto resultCol = std::make_unique<Column>();
 
     for (size_t row = 0; row < rowCount; ++row)
     {
@@ -718,7 +718,7 @@ std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_
 
             // 验证所有参数列存在，使用 vector 以适配任意参数个数
             bool allColsExist = true;
-            std::vector<AbstractColumn*> cols;
+            std::vector<Column*> cols;
             cols.reserve(argNames.size());
 
             for (size_t ai = 0; ai < argNames.size(); ++ai)
@@ -790,7 +790,7 @@ void DataManager::ensureIndexColumnBuilt()
     if (m_indexColumn)
         return;
 
-    auto idxCol = std::make_unique<Column<double>>(ColumnType::Float64);
+    auto idxCol = std::make_unique<Column>();
     size_t rowCount = GetRowCount();
     idxCol->reserve(rowCount);
     for (size_t i = 0; i < rowCount; ++i)
@@ -814,28 +814,28 @@ void DataManager::Clear()
 
 // ---- 列访问 ----
 
-AbstractColumn* DataManager::GetColumn(size_t idx)
+Column* DataManager::GetColumn(size_t idx)
 {
     if (idx >= m_columns.size())
         return nullptr;
     return m_columns[idx].get();
 }
 
-const AbstractColumn* DataManager::GetColumn(size_t idx) const
+const Column* DataManager::GetColumn(size_t idx) const
 {
     if (idx >= m_columns.size())
         return nullptr;
     return m_columns[idx].get();
 }
 
-AbstractColumn* DataManager::GetColumn(const std::string& name)
+Column* DataManager::GetColumn(const std::string& name)
 {
     size_t idx = GetColumnIndex(name);
     if (idx == npos) return nullptr;
     return GetColumn(idx);
 }
 
-const AbstractColumn* DataManager::GetColumn(const std::string& name) const
+const Column* DataManager::GetColumn(const std::string& name) const
 {
     size_t idx = GetColumnIndex(name);
     if (idx == npos) return nullptr;

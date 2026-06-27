@@ -16,11 +16,11 @@ struct FdiffFunc
     static constexpr std::string_view name = "fdiff";
     static constexpr uint8_t argCount = 1;
 
-    inline static std::unique_ptr<Column<double>> compute(
-        AbstractColumn* const* cols, uint8_t /*colCount*/, size_t rowCount)
+    inline static std::unique_ptr<Column> compute(
+        Column* const* cols, uint8_t /*colCount*/, size_t rowCount)
     {
         auto* col = cols[0];
-        auto result = std::make_unique<Column<double>>(ColumnType::Float64);
+        auto result = std::make_unique<Column>();
 
         if (rowCount == 0)
             return result;
@@ -44,11 +44,11 @@ struct BdiffFunc
     static constexpr std::string_view name = "bdiff";
     static constexpr uint8_t argCount = 1;
 
-    inline static std::unique_ptr<Column<double>> compute(
-        AbstractColumn* const* cols, uint8_t /*colCount*/, size_t rowCount)
+    inline static std::unique_ptr<Column> compute(
+        Column* const* cols, uint8_t /*colCount*/, size_t rowCount)
     {
         auto* col = cols[0];
-        auto result = std::make_unique<Column<double>>(ColumnType::Float64);
+        auto result = std::make_unique<Column>();
 
         if (rowCount == 0)
             return result;

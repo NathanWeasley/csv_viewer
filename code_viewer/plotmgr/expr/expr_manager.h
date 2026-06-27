@@ -21,7 +21,7 @@ class DataManager;
 struct PlotExpression
 {
     std::string expressionText;                   // 当前表达式文本，初始值 = 数据项名称
-    std::unique_ptr<Column<double>> computedData; // 独立的计算数据拷贝
+    std::unique_ptr<Column> computedData; // 独立的计算数据拷贝
     bool isEdited = false;                        // 是否被用户编辑过（表达式文本 != 数据项名称）
 };
 
@@ -129,7 +129,7 @@ private:
 
     // 自定义函数预处理生成的临时列（生命周期与 ExprManager 一致）
     // 在 recompute 中可能被覆盖，旧列自动释放
-    std::unordered_map<std::string, std::unique_ptr<Column<double>>> m_tempCols;
+    std::unordered_map<std::string, std::unique_ptr<Column>> m_tempCols;
 };
 
 } // namespace viewer

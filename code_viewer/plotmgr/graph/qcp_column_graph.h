@@ -38,7 +38,7 @@ public:
     // ---- 设置数据列 ----
     // 设置 X 轴数据列（key）和 Y 轴数据列（value）
     // 列指针生命周期由 DataManager 管理，QCPColumnGraph 不持有所有权
-    void setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol);
+    void setDataColumns(const Column* keyCol, const Column* valueCol);
 
     // 通知 graph 底层数据已变更（例如表达式重新计算后），使范围缓存失效
     // 调用方应在调用后手动 replot() 以刷新显示
@@ -112,11 +112,10 @@ protected:
     void invalidateRangeCache();
 
 private:
-    // 具体类型指针：消除虚函数开销，所有热路径直接调用 Column<double> 内联方法
-    const Column<double>* m_keyCol = nullptr;
-    const Column<double>* m_valueCol = nullptr;
-    const Column<double>* m_valueLowCol = nullptr;
-    const Column<double>* m_valueHighCol = nullptr;
+    const Column* m_keyCol = nullptr;
+    const Column* m_valueCol = nullptr;
+    const Column* m_valueLowCol = nullptr;
+    const Column* m_valueHighCol = nullptr;
 
     LineStyle mLineStyle = lsLine;
     QCPScatterStyle mScatterStyle;

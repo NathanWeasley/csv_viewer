@@ -862,7 +862,7 @@ void UI::bindPlotManagerCallbacks()
                         if (pe && pe->computedData)
                         {
                             size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
-                            const viewer::AbstractColumn* xCol = (xIdx != static_cast<size_t>(-1))
+                            const viewer::Column* xCol = (xIdx != static_cast<size_t>(-1))
                                 ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
                             graph->setDataColumns(xCol, pe->computedData.get());
                             graph->notifyDataChanged();
@@ -947,7 +947,7 @@ void UI::bindPlotManagerCallbacks()
         if (!plot)
             return;
         auto& dm = m_viewer.GetDataManager();
-        const viewer::AbstractColumn* newXCol = nullptr;
+        const viewer::Column* newXCol = nullptr;
         if (colIdx != static_cast<size_t>(-1))
             newXCol = dm.GetColumn(colIdx);
         else
@@ -963,7 +963,7 @@ void UI::bindPlotManagerCallbacks()
             if (graph)
             {
                 // 保持原有 Y 列不变，只换 X 列
-                const viewer::AbstractColumn* yCol = nullptr;
+                const viewer::Column* yCol = nullptr;
                 // 通过 graph name 查找 Y 列
                 auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
                 viewer::PlotExpression* pe = exprMgr.get(graph->name().toStdString());
@@ -997,8 +997,8 @@ void UI::bindPlotManagerCallbacks()
         auto& pm = m_viewer.GetPlotManager();
         size_t xIdx = pm.xAxisColumn(pageIndex);
 
-        const viewer::AbstractColumn* xCol = nullptr;
-        const viewer::AbstractColumn* yCol = dm.GetColumn(yColName);
+        const viewer::Column* xCol = nullptr;
+        const viewer::Column* yCol = dm.GetColumn(yColName);
         if (!yCol)
             return;
 
