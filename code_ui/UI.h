@@ -88,6 +88,13 @@ private Q_SLOTS:
     void saveAliasFile();
     void showAliasDialog();
 
+    // ---- Bookmark ----
+    void loadBookmarkFile();
+    void saveBookmarkFile();
+    void addBookmark(int pageIndex);
+    void onBookmarkDoubleClicked(QTreeWidgetItem* item, int column);
+    void restoreBookmark(const viewer::BookmarkEntry& entry);
+
 private:
     Ui::UIClass ui;
 

@@ -8,6 +8,7 @@
 #include "code_viewer/base/base_def.h"
 #include "code_viewer/plotmgr/expr/expr_manager.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
+#include "code_viewer/plotmgr/bookmark/bookmark_mgr.h"
 
 namespace viewer
 {
@@ -199,6 +200,11 @@ public:
 
     // 选中数据项变更后触发，参数为 (页面索引, 列名，空串表示取消选中)
     std::function<void(int pageIndex, const std::string& yColName)> onSelectedDataItemChanged;
+
+    // ============================================================
+    // 收藏夹管理
+    // ============================================================
+    BookmarkMgr bookmarkMgr;
 
 private:
     std::string generatePageTitle();

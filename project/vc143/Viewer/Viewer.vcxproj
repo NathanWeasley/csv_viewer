@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_mgr.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.cpp" />
@@ -28,6 +29,7 @@
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp" />
+    <ClInclude Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_mgr.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\stylemgr\style_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\stylemgr\style_struct.h" />
