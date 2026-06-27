@@ -183,7 +183,12 @@ void UI::createStatusbar()
 
     // Cursor status label (between X-axis and progress bar)
     m_cursorStatusLabel = new QLabel("");
-    m_cursorStatusLabel->setStyleSheet("color: #FFD700; font-weight: bold; padding: 0 12px;");
+    {
+        bool dark = isSystemInDark();
+        QString color = dark ? "#FFD700" : "#2266cc";
+        m_cursorStatusLabel->setStyleSheet(
+            QString("color: %1; font-weight: bold; padding: 0 12px;").arg(color));
+    }
     statusBar()->addWidget(m_cursorStatusLabel);
 
     // 隐藏状态栏控件之间的竖线分隔符
@@ -382,6 +387,47 @@ void UI::bindPlotManagerCallbacks()
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
 
+        // 深浅色主题适配
+        bool dark = isSystemInDark();
+        if (dark)
+        {
+            QColor bg(0x2d, 0x2d, 0x2d);
+            QColor axisColor(0xcc, 0xcc, 0xcc);
+            QColor tickColor(0xaa, 0xaa, 0xaa);
+            QColor baseColor(0x3a, 0x3a, 0x3a);
+
+            plot->setBackground(bg);
+            plot->xAxis->setLabelColor(axisColor);
+            plot->yAxis->setLabelColor(axisColor);
+            plot->xAxis->setTickLabelColor(tickColor);
+            plot->yAxis->setTickLabelColor(tickColor);
+            plot->xAxis->setBasePen(QPen(baseColor));
+            plot->yAxis->setBasePen(QPen(baseColor));
+            plot->xAxis->setTickPen(QPen(baseColor));
+            plot->yAxis->setTickPen(QPen(baseColor));
+            plot->xAxis->setSubTickPen(QPen(baseColor));
+            plot->yAxis->setSubTickPen(QPen(baseColor));
+        }
+        else
+        {
+            QColor bg(0xff, 0xff, 0xff);
+            QColor axisColor(0x33, 0x33, 0x33);
+            QColor tickColor(0x55, 0x55, 0x55);
+            QColor baseColor(0xaa, 0xaa, 0xaa);
+
+            plot->setBackground(bg);
+            plot->xAxis->setLabelColor(axisColor);
+            plot->yAxis->setLabelColor(axisColor);
+            plot->xAxis->setTickLabelColor(tickColor);
+            plot->yAxis->setTickLabelColor(tickColor);
+            plot->xAxis->setBasePen(QPen(baseColor));
+            plot->yAxis->setBasePen(QPen(baseColor));
+            plot->xAxis->setTickPen(QPen(baseColor));
+            plot->yAxis->setTickPen(QPen(baseColor));
+            plot->xAxis->setSubTickPen(QPen(baseColor));
+            plot->yAxis->setSubTickPen(QPen(baseColor));
+        }
+
         // 事件过滤器
         plot->installEventFilter(this);
 
@@ -467,6 +513,18 @@ void UI::bindPlotManagerCallbacks()
                         }
                         // 渲染新图窗的高亮
                         renderHighlights(newIdx);
+
+                        // ---- 复制游标 ----
+                        {
+                            auto& cm = m_viewer.GetCursorManager();
+                            const auto& cursors = cm.cursors();
+                            for (size_t ci = 0; ci < cursors.size(); ++ci)
+                            {
+                                if (cursors[ci].pageIndex == index)
+                                    cm.addCursor(newIdx, cursors[ci].dataItemName, cursors[ci].dataIndex);
+                            }
+                        }
+
                         dstPlot->replot();
                     }
                 });
@@ -841,13 +899,6 @@ void UI::bindPlotManagerCallbacks()
     // 激活页面变更
     pm.onActivePageChanged = [this](int index)
     {
-        // 切换图窗时隐藏所有游标浮窗（避免旧图窗浮窗残留）
-        for (auto* tooltip : m_cursorTooltips)
-        {
-            if (tooltip)
-                tooltip->hide();
-        }
-
         if (index >= 0 && index < m_plotTabs->count()
             && m_plotTabs->currentIndex() != index)
         {
@@ -953,6 +1004,22 @@ void UI::bindPlotManagerCallbacks()
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
+
+        // ---- 清理属于该数据项的游标（必须在清理表达式之前，避免 replot 访问已释放的数据） ----
+        {
+            auto& cm = m_viewer.GetCursorManager();
+            const auto& cursors = cm.cursors();
+            std::vector<int> toRemove;
+            for (size_t i = 0; i < cursors.size(); ++i)
+            {
+                if (cursors[i].pageIndex == pageIndex && cursors[i].dataItemName == yColName)
+                    toRemove.push_back(static_cast<int>(i));
+            }
+            for (auto it = toRemove.rbegin(); it != toRemove.rend(); ++it)
+            {
+                cm.removeCursor(*it);
+            }
+        }
 
         // ---- 清理表达式 ----
         m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr.removeItem(yColName);
@@ -1608,9 +1675,14 @@ void UI::bindCursorManagerCallbacks()
         tracer->setInterpolating(false);
         tracer->setStyle(QCPItemTracer::tsCircle);
         tracer->setSize(8.0);
-        // 深色描边 + 金色填充，提升辨识度
-        tracer->setPen(QPen(QColor(0x44, 0x44, 0x44), 2.5));
-        tracer->setBrush(QColor(0xFF, 0xD7, 0x00, 180));
+        // 主题适配
+        {
+            bool dark = isSystemInDark();
+            QColor penColor = dark ? QColor(0x44, 0x44, 0x44) : QColor(0x22, 0x66, 0xcc);
+            QColor brushColor = dark ? QColor(0xFF, 0xD7, 0x00, 180) : QColor(0x22, 0x66, 0xcc, 120);
+            tracer->setPen(QPen(penColor, 2.5));
+            tracer->setBrush(brushColor);
+        }
 
         m_plotToPageIndex[plot] = index;
         m_preSelTracers[plot] = tracer;
@@ -1670,6 +1742,7 @@ void UI::bindCursorManagerCallbacks()
         m_plotToPageIndex.clear();
         m_preSelTracers.clear();
         m_cursorTracers.clear();
+        m_cursorLabels.clear();
         m_highlightRects.clear();
         m_highlightLabels.clear();
 
@@ -1743,7 +1816,7 @@ void UI::bindCursorManagerCallbacks()
             m_cursorStatusLabel->clear();
     };
 
-    // ---- 游标添加 → 创建浮窗 ----
+    // ---- 游标添加 → 创建 QCPItemText 数据标签 + tracer ----
     cm.onCursorAdded = [this](int cursorIdx, int pageIndex,
                                 const std::string& dataItemName, size_t dataIndex)
     {
@@ -1772,71 +1845,53 @@ void UI::bindCursorManagerCallbacks()
         double x = graph->dataMainKey(static_cast<int>(dataIndex));
         double y = graph->dataMainValue(static_cast<int>(dataIndex));
 
-        // 创建浮窗
-        auto* tooltip = new QWidget(nullptr);
-        tooltip->setWindowFlags(Qt::ToolTip | Qt::FramelessWindowHint);
-        tooltip->setAttribute(Qt::WA_ShowWithoutActivating);
-        tooltip->setAttribute(Qt::WA_TransparentForMouseEvents);
-
-        auto* layout = new QVBoxLayout(tooltip);
-        layout->setContentsMargins(6, 4, 6, 4);
-        layout->setSpacing(1);
-
-        auto* label = new QLabel(tooltip);
+        // 创建 QCPItemText 数据标签（锚定在 plot 坐标系）
+        auto* label = new QCPItemText(plot);
+        label->position->setType(QCPItemPosition::ptPlotCoords);
+        label->position->setCoords(x, y);
         label->setText(QString("X: %1\nY: %2")
                            .arg(x, 0, 'g', 8)
                            .arg(y, 0, 'g', 8));
-        label->setStyleSheet(
-            "color: #FFFFFF;"
-            "font-family: 'Consolas', 'Courier New', monospace;"
-            "font-size: 11px;"
-        );
-        layout->addWidget(label);
+        label->setFont(QFont("Consolas, Courier New, monospace", 9));
+        label->setSelectable(false);
+        label->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+        label->setPadding(QMargins(6, 3, 6, 3));
+        label->setLayer("overlay");
+        m_cursorLabels[cursorIdx] = label;
+        refreshCursorLabelStyle(cursorIdx, true);  // 新游标 → 激活态
 
-        tooltip->setStyleSheet(
-            "background-color: rgba(40, 40, 40, 220);"
-            "border: 1px solid #FFD700;"
-            "border-radius: 4px;"
-        );
-
-        tooltip->adjustSize();
-        tooltip->show();
-
-        m_cursorTooltips[cursorIdx] = tooltip;
-
-        // 创建常驻 tracer 标记（金色实心圆 + 深色描边）
+        // 创建常驻 tracer 标记
         auto* tracer = new QCPItemTracer(plot);
         tracer->setInterpolating(false);
         tracer->setStyle(QCPItemTracer::tsCircle);
         tracer->setSize(7.0);
-        tracer->setPen(QPen(QColor(0x44, 0x44, 0x44), 1.5));
-        tracer->setBrush(QColor(0xFF, 0xD7, 0x00));  // Gold fill
+        {
+            bool dark = isSystemInDark();
+            QColor fillColor = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
+            tracer->setPen(QPen(fillColor, 1.5));
+            tracer->setBrush(fillColor);
+        }
         tracer->position->setCoords(x, y);
         tracer->setVisible(true);
         m_cursorTracers[cursorIdx] = tracer;
+
         plot->replot();
-
-        // 定位浮窗
-        updateCursorTooltipPosition(cursorIdx);
-
-        // 监听 plot 的 afterReplot，自动更新浮窗位置
-        connect(plot, &QCustomPlot::afterReplot, this,
-            [this, cursorIdx]()
-            {
-                if (m_cursorTooltips.contains(cursorIdx))
-                    updateCursorTooltipPosition(cursorIdx);
-            });
     };
 
-    // ---- 游标移除 → 删除浮窗 + tracer ----
+    // ---- 游标移除 → 删除 QCPItemText 标签 + tracer ----
     cm.onCursorRemoved = [this](int cursorIdx)
     {
-        // 删除浮窗
-        auto it = m_cursorTooltips.find(cursorIdx);
-        if (it != m_cursorTooltips.end())
+        // 删除 QCPItemText 标签
+        auto lit = m_cursorLabels.find(cursorIdx);
+        if (lit != m_cursorLabels.end())
         {
-            delete it.value();
-            m_cursorTooltips.erase(it);
+            QCPItemText* label = lit.value();
+            QCustomPlot* lplot = label ? label->parentPlot() : nullptr;
+            if (lplot)
+                lplot->removeItem(label);
+            m_cursorLabels.erase(lit);
+            if (lplot)
+                lplot->replot();
         }
 
         // 删除常驻 tracer
@@ -1846,21 +1901,21 @@ void UI::bindCursorManagerCallbacks()
             QCPItemTracer* tracer = trIt.value();
             QCustomPlot* tplot = tracer ? tracer->parentPlot() : nullptr;
             if (tplot)
-                tplot->removeItem(tracer);  // QCP 负责 delete，清除内部引用
+                tplot->removeItem(tracer);
             m_cursorTracers.erase(trIt);
             if (tplot)
                 tplot->replot();
         }
 
-        // 重新编号 tooltips
-        if (!m_cursorTooltips.empty())
+        // 重新编号 labels
+        if (!m_cursorLabels.empty())
         {
-            QHash<int, QWidget*> oldMap = m_cursorTooltips;
-            m_cursorTooltips.clear();
+            QHash<int, QCPItemText*> oldMap = m_cursorLabels;
+            m_cursorLabels.clear();
             for (auto oit = oldMap.begin(); oit != oldMap.end(); ++oit)
             {
                 int newIdx = (oit.key() > cursorIdx) ? (oit.key() - 1) : oit.key();
-                m_cursorTooltips[newIdx] = oit.value();
+                m_cursorLabels[newIdx] = oit.value();
             }
         }
 
@@ -1877,113 +1932,78 @@ void UI::bindCursorManagerCallbacks()
         }
     };
 
-    // ---- 激活游标变更 → 更新浮窗边框 + tracer 样式 + 内容（含方向键移动后刷新） ----
+    // ---- 激活游标变更 → 更新标签样式 + tracer 样式 + 内容 ----
     cm.onActiveCursorChanged = [this](int cursorIdx)
     {
-        // 先更新激活游标的 tracer 坐标和浮窗内容（处理方向键移动）
-        if (cursorIdx >= 0)
+        // 更新 QCPItemText 标签的激活/非激活样式
+        for (auto it = m_cursorLabels.begin(); it != m_cursorLabels.end(); ++it)
         {
-            const auto& cm = m_viewer.GetCursorManager();
-            const auto& cursor = cm.cursors()[cursorIdx];
-            if (cursor.pageIndex >= 0 && cursor.pageIndex < m_plotTabs->count())
-            {
-                auto* container = m_plotTabs->widget(cursor.pageIndex);
-                auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-                if (plot)
-                {
-                    viewer::QCPColumnGraph* graph = nullptr;
-                    for (int g = 0; g < plot->plottableCount(); ++g)
-                    {
-                        auto* p = plot->plottable(g);
-                        if (p && p->name().toStdString() == cursor.dataItemName)
-                        {
-                            graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
-                            break;
-                        }
-                    }
-
-                    if (graph)
-                    {
-                        double x = graph->dataMainKey(static_cast<int>(cursor.dataIndex));
-                        double y = graph->dataMainValue(static_cast<int>(cursor.dataIndex));
-
-                        // 更新 tracer 坐标
-                        auto trIt = m_cursorTracers.find(cursorIdx);
-                        if (trIt != m_cursorTracers.end() && trIt.value())
-                        {
-                            trIt.value()->position->setCoords(x, y);
-                        }
-
-                        // 更新浮窗文本
-                        auto tipIt = m_cursorTooltips.find(cursorIdx);
-                        if (tipIt != m_cursorTooltips.end() && tipIt.value())
-                        {
-                            auto* label = tipIt.value()->findChild<QLabel*>();
-                            if (label)
-                            {
-                                label->setText(QString("X: %1\nY: %2")
-                                                   .arg(x, 0, 'g', 8)
-                                                   .arg(y, 0, 'g', 8));
-                            }
-                        }
-
-                        // 更新浮窗位置
-                        updateCursorTooltipPosition(cursorIdx);
-
-                        plot->replot();
-                    }
-                }
-            }
-        }
-
-        // 更新浮窗边框样式
-        for (auto it = m_cursorTooltips.begin(); it != m_cursorTooltips.end(); ++it)
-        {
-            QWidget* w = it.value();
-            if (!w) continue;
-
-            if (it.key() == cursorIdx)
-            {
-                w->setStyleSheet(
-                    "background-color: rgba(40, 40, 40, 220);"
-                    "border: 2px solid #FFD700;"
-                    "border-radius: 4px;"
-                );
-            }
-            else
-            {
-                w->setStyleSheet(
-                    "background-color: rgba(40, 40, 40, 220);"
-                    "border: 1px solid #888888;"
-                    "border-radius: 4px;"
-                );
-            }
+            refreshCursorLabelStyle(it.key(), it.key() == cursorIdx);
         }
 
         // 更新 tracer 样式
+        bool dark = isSystemInDark();
+        QColor activeColor = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
         for (auto it = m_cursorTracers.begin(); it != m_cursorTracers.end(); ++it)
         {
             QCPItemTracer* tr = it.value();
             if (!tr) continue;
-
             if (it.key() == cursorIdx)
             {
-                tr->setBrush(QColor(0xFF, 0xD7, 0x00));
-                tr->setPen(QPen(QColor(0xFF, 0xD7, 0x00), 1.5));
+                tr->setBrush(activeColor);
+                tr->setPen(QPen(activeColor, 1.5));
                 tr->setSize(8.0);
             }
             else
             {
-                tr->setBrush(QColor(0xFF, 0xD7, 0x00, 100));
+                QColor fade = activeColor;
+                fade.setAlpha(80);
+                tr->setBrush(fade);
                 tr->setPen(QPen(Qt::NoPen));
                 tr->setSize(6.0);
             }
         }
 
-        for (auto* tr : m_cursorTracers)
+        // 更新激活游标的文本和坐标
+        if (cursorIdx >= 0)
         {
-            if (tr && tr->parentPlot())
-                tr->parentPlot()->replot();
+            const auto& cm = m_viewer.GetCursorManager();
+            if (cursorIdx < static_cast<int>(cm.cursors().size()))
+            {
+                const auto& cursor = cm.cursors()[cursorIdx];
+                if (cursor.pageIndex >= 0 && cursor.pageIndex < m_plotTabs->count())
+                {
+                    auto* container = m_plotTabs->widget(cursor.pageIndex);
+                    auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+                    if (plot)
+                    {
+                        viewer::QCPColumnGraph* graph = nullptr;
+                        for (int g = 0; g < plot->plottableCount(); ++g)
+                        {
+                            auto* p = plot->plottable(g);
+                            if (p && p->name().toStdString() == cursor.dataItemName)
+                            { graph = dynamic_cast<viewer::QCPColumnGraph*>(p); break; }
+                        }
+                        if (graph)
+                        {
+                            double x = graph->dataMainKey(static_cast<int>(cursor.dataIndex));
+                            double y = graph->dataMainValue(static_cast<int>(cursor.dataIndex));
+
+                            auto trIt = m_cursorTracers.find(cursorIdx);
+                            if (trIt != m_cursorTracers.end() && trIt.value())
+                                trIt.value()->position->setCoords(x, y);
+
+                            auto lbIt = m_cursorLabels.find(cursorIdx);
+                            if (lbIt != m_cursorLabels.end() && lbIt.value())
+                            {
+                                lbIt.value()->position->setCoords(x, y);
+                                lbIt.value()->setText(QString("X: %1\nY: %2").arg(x, 0, 'g', 8).arg(y, 0, 'g', 8));
+                            }
+                            plot->replot();
+                        }
+                    }
+                }
+            }
         }
     };
 }
@@ -2089,114 +2109,29 @@ bool UI::isDataTooDense(QCustomPlot* plot) const
 }
 
 // ============================================================
-// updateCursorTooltipPosition: 更新浮窗位置（四角自适应）
+// refreshCursorLabelStyle: 根据激活状态更新游标 QCPItemText 样式
 // ============================================================
-
-void UI::updateCursorTooltipPosition(int cursorIdx)
+void UI::refreshCursorLabelStyle(int cursorIdx, bool active)
 {
-    auto& cm = m_viewer.GetCursorManager();
-    if (cursorIdx < 0 || cursorIdx >= static_cast<int>(cm.cursors().size()))
+    auto it = m_cursorLabels.find(cursorIdx);
+    if (it == m_cursorLabels.end() || !it.value())
         return;
-
-    const auto& cursor = cm.cursors()[cursorIdx];
-    auto* tooltip = m_cursorTooltips.value(cursorIdx, nullptr);
-    if (!tooltip)
-        return;
-
-    // 获取对应 plot 和 graph
-    if (cursor.pageIndex < 0 || cursor.pageIndex >= m_plotTabs->count())
-        return;
-
-    auto* container = m_plotTabs->widget(cursor.pageIndex);
-    auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-    if (!plot)
-        return;
-
-    viewer::QCPColumnGraph* graph = nullptr;
-    for (int i = 0; i < plot->plottableCount(); ++i)
+    auto* label = it.value();
+    bool dark = isSystemInDark();
+    QColor fg = dark ? QColor(0xFF, 0xD7, 0x00) : QColor(0x22, 0x66, 0xcc);
+    QColor bg = dark ? QColor(40, 40, 40, 220) : QColor(245, 245, 245, 230);
+    label->setColor(fg);
+    label->setBrush(bg);
+    if (active)
     {
-        auto* p = plot->plottable(i);
-        if (p && p->name().toStdString() == cursor.dataItemName)
-        {
-            graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
-            break;
-        }
-    }
-    if (!graph)
-        return;
-
-    // 数据点像素位置 → 全局坐标
-    QPointF pixelPos = graph->dataPixelPosition(static_cast<int>(cursor.dataIndex));
-    QPoint globalPos = plot->mapToGlobal(pixelPos.toPoint());
-
-    // 浮窗大小
-    QSize tipSize = tooltip->size();
-
-    // 获取 plot 在屏幕上的矩形（全局坐标）
-    QRect plotGlobalRect(
-        plot->mapToGlobal(QPoint(0, 0)),
-        plot->size()
-    );
-
-    // 四角自适应：优先右上 → 右下 → 左上 → 左下
-    const int offset = 8;
-
-    struct Placement {
-        QPoint topLeft;
-        bool fits;
-    };
-
-    std::vector<Placement> candidates = {
-        // 右上
-        { QPoint(globalPos.x() + offset, globalPos.y() - tipSize.height() - offset), false },
-        // 右下
-        { QPoint(globalPos.x() + offset, globalPos.y() + offset), false },
-        // 左上
-        { QPoint(globalPos.x() - tipSize.width() - offset, globalPos.y() - tipSize.height() - offset), false },
-        // 左下
-        { QPoint(globalPos.x() - tipSize.width() - offset, globalPos.y() + offset), false },
-    };
-
-    // 检查每个位置是否在 plot 边界内
-    for (auto& c : candidates)
-    {
-        QRect tipRect(c.topLeft, tipSize);
-        c.fits = plotGlobalRect.contains(tipRect);
-    }
-
-    // 选择第一个适合的位置，都不适合则用右上
-    QPoint finalPos = candidates[0].topLeft;
-    for (const auto& c : candidates)
-    {
-        if (c.fits)
-        {
-            finalPos = c.topLeft;
-            break;
-        }
-    }
-
-    // 数据框不能超出 plot 区域（不遮挡工具栏 / 标签等）
-    bool visible = false;
-    QPoint actualPos = finalPos;
-    for (const auto& c : candidates)
-    {
-        if (c.fits)
-        {
-            actualPos = c.topLeft;
-            visible = true;
-            break;
-        }
-    }
-
-    if (visible)
-    {
-        tooltip->move(actualPos);
-        tooltip->show();
+        label->setPen(QPen(fg, 2.0));
     }
     else
     {
-        tooltip->hide();
+        label->setPen(QPen(QColor(0x88, 0x88, 0x88), 1.0));
     }
+    if (label->parentPlot())
+        label->parentPlot()->replot();
 }
 
 // ============================================================

@@ -68,8 +68,7 @@ private Q_SLOTS:
     // 检查数据密度是否过高（dataCount / plotWidth > 1.0 时跳过预选）
     bool isDataTooDense(QCustomPlot* plot) const;
 
-    // 更新指定游标的浮窗位置
-    void updateCursorTooltipPosition(int cursorIdx);
+    void refreshCursorLabelStyle(int cursorIdx, bool active);
 
     // ---- Highlight Manager helpers ----
 
@@ -111,7 +110,7 @@ private:
     QHash<QCustomPlot*, QCPItemTracer*> m_preSelTracers;
 
     // 游标浮窗（cursorIndex → tooltip widget）
-    QHash<int, QWidget*> m_cursorTooltips;
+    QHash<int, QCPItemText*> m_cursorLabels;
 
     // 游标 tracer 标记（cursorIndex → QCPItemTracer），常驻 plot 上
     QHash<int, QCPItemTracer*> m_cursorTracers;
