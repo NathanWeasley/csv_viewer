@@ -1,4 +1,4 @@
-#include "UI.h"
+﻿#include "UI.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -20,7 +20,7 @@
 #include <qpushbutton.h>
 
 #include "icons_base64.h"
-#include "code_viewer/datamgr/qcp_chunked_graph.h"
+#include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 
 static bool isSystemInDark()
@@ -445,15 +445,15 @@ void UI::bindPlotManagerCallbacks()
                     {
                         for (int si = 0; si < plot->plottableCount(); ++si)
                         {
-                            auto* srcGraph = dynamic_cast<viewer::QCPChunkedGraph*>(plot->plottable(si));
+                            auto* srcGraph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(si));
                             if (!srcGraph) continue;
 
                             std::string gname = srcGraph->name().toStdString();
 
-                            viewer::QCPChunkedGraph* dstGraph = nullptr;
+                            viewer::QCPColumnGraph* dstGraph = nullptr;
                             for (int di = 0; di < dstPlot->plottableCount(); ++di)
                             {
-                                auto* dg = dynamic_cast<viewer::QCPChunkedGraph*>(dstPlot->plottable(di));
+                                auto* dg = dynamic_cast<viewer::QCPColumnGraph*>(dstPlot->plottable(di));
                                 if (dg && dg->name().toStdString() == gname)
                                 {
                                     dstGraph = dg;
@@ -642,13 +642,13 @@ void UI::bindPlotManagerCallbacks()
             if (nameData.isEmpty()) return;
             std::string selName = nameData.toStdString();
 
-            viewer::QCPChunkedGraph* graph = nullptr;
+            viewer::QCPColumnGraph* graph = nullptr;
             for (int i = 0; i < plot->plottableCount(); ++i)
             {
                 auto* p = plot->plottable(i);
                 if (p && p->name().toStdString() == selName)
                 {
-                    graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                    graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                     break;
                 }
             }
@@ -775,13 +775,13 @@ void UI::bindPlotManagerCallbacks()
                 if (exprMgr.recompute(selName, dm))
                 {
                     // 更新 graph 数据并刷新图窗
-                    viewer::QCPChunkedGraph* graph = nullptr;
+                    viewer::QCPColumnGraph* graph = nullptr;
                     for (int i = 0; i < plot->plottableCount(); ++i)
                     {
                         auto* p = plot->plottable(i);
                         if (p && p->name().toStdString() == selName)
                         {
-                            graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                            graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                             break;
                         }
                     }
@@ -855,7 +855,7 @@ void UI::bindPlotManagerCallbacks()
         }
     };
 
-    // 数据项添加 → 创建 QCPChunkedGraph 并绑定到对应 QCustomPlot
+    // 数据项添加 → 创建 QCPColumnGraph 并绑定到对应 QCustomPlot
     pm.onDataItemAdded = [this](int pageIndex, const std::string& yColName)
     {
         if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
@@ -873,8 +873,8 @@ void UI::bindPlotManagerCallbacks()
         if (!xCol || !yCol)
             return;
 
-        // 创建 QCPChunkedGraph
-        auto* graph = new viewer::QCPChunkedGraph(plot->xAxis, plot->yAxis);
+        // 创建 QCPColumnGraph
+        auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
         graph->setDataColumns(xCol, yCol);
 
         // 设置默认外观（使用 colorPresets 确保颜色在工具栏中可匹配）
@@ -957,7 +957,7 @@ void UI::bindPlotManagerCallbacks()
         // ---- 清理表达式 ----
         m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr.removeItem(yColName);
 
-        // 查找并移除对应名称的 QCPChunkedGraph
+        // 查找并移除对应名称的 QCPColumnGraph
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
             auto* plottable = plot->plottable(i);
@@ -1210,13 +1210,13 @@ void UI::bindPlotManagerCallbacks()
         }
 
         // 查找 graph
-        viewer::QCPChunkedGraph* graph = nullptr;
+        viewer::QCPColumnGraph* graph = nullptr;
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
             auto* p = plot->plottable(i);
             if (p && p->name().toStdString() == yColName)
             {
-                graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                 break;
             }
         }
@@ -1306,7 +1306,7 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
     bool added = pm.addDataToActivePage(yColName);
 
     // 如果去重返回 false(数据项已存在) 或手动创建了新页面，需要触发图表创建
-    // addDataToActivePage 内部会触发 onDataItemAdded 回调自动创建 QCPChunkedGraph
+    // addDataToActivePage 内部会触发 onDataItemAdded 回调自动创建 QCPColumnGraph
     // 仅当添加成功时才需要处理；如果已存在，UI 层无需额外操作
     (void)added;
 }
@@ -1391,7 +1391,7 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         }
 
         auto result = findNearestDataPoint(plot, me->pos(), 10.0);
-        viewer::QCPChunkedGraph* graph = result.first;
+        viewer::QCPColumnGraph* graph = result.first;
         size_t dataIdx = result.second;
 
         if (graph)
@@ -1430,13 +1430,13 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         {
             if (cursors[i].pageIndex != pageIndex)
                 continue;
-            viewer::QCPChunkedGraph* cg = nullptr;
+            viewer::QCPColumnGraph* cg = nullptr;
             for (int g = 0; g < plot->plottableCount(); ++g)
             {
                 auto* p = plot->plottable(g);
                 if (p && p->name().toStdString() == cursors[i].dataItemName)
                 {
-                    cg = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                    cg = dynamic_cast<viewer::QCPColumnGraph*>(p);
                     break;
                 }
             }
@@ -1485,13 +1485,13 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
                 continue;
 
             // 查找对应 graph
-            viewer::QCPChunkedGraph* cg = nullptr;
+            viewer::QCPColumnGraph* cg = nullptr;
             for (int g = 0; g < plot->plottableCount(); ++g)
             {
                 auto* p = plot->plottable(g);
                 if (p && p->name().toStdString() == cursors[i].dataItemName)
                 {
-                    cg = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                    cg = dynamic_cast<viewer::QCPColumnGraph*>(p);
                     break;
                 }
             }
@@ -1552,13 +1552,13 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
                 return QMainWindow::eventFilter(obj, event);
 
             // 查找对应 graph
-            viewer::QCPChunkedGraph* cg = nullptr;
+            viewer::QCPColumnGraph* cg = nullptr;
             for (int g = 0; g < plot->plottableCount(); ++g)
             {
                 auto* p = plot->plottable(g);
                 if (p && p->name().toStdString() == cursor.dataItemName)
                 {
-                    cg = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                    cg = dynamic_cast<viewer::QCPColumnGraph*>(p);
                     break;
                 }
             }
@@ -1689,13 +1689,13 @@ void UI::bindCursorManagerCallbacks()
             return;
 
         // 查找 graph
-        viewer::QCPChunkedGraph* graph = nullptr;
+        viewer::QCPColumnGraph* graph = nullptr;
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
             auto* p = plot->plottable(i);
             if (p && p->name().toStdString() == dataItemName)
             {
-                graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                 break;
             }
         }
@@ -1756,13 +1756,13 @@ void UI::bindCursorManagerCallbacks()
             return;
 
         // 查找 graph
-        viewer::QCPChunkedGraph* graph = nullptr;
+        viewer::QCPColumnGraph* graph = nullptr;
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
             auto* p = plot->plottable(i);
             if (p && p->name().toStdString() == dataItemName)
             {
-                graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                 break;
             }
         }
@@ -1891,13 +1891,13 @@ void UI::bindCursorManagerCallbacks()
                 auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
                 if (plot)
                 {
-                    viewer::QCPChunkedGraph* graph = nullptr;
+                    viewer::QCPColumnGraph* graph = nullptr;
                     for (int g = 0; g < plot->plottableCount(); ++g)
                     {
                         auto* p = plot->plottable(g);
                         if (p && p->name().toStdString() == cursor.dataItemName)
                         {
-                            graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+                            graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
                             break;
                         }
                     }
@@ -1992,16 +1992,16 @@ void UI::bindCursorManagerCallbacks()
 // findNearestDataPoint: 在 plot 的所有 graph 中查找最近的数据点
 // ============================================================
 
-QPair<viewer::QCPChunkedGraph*, size_t> UI::findNearestDataPoint(
+QPair<viewer::QCPColumnGraph*, size_t> UI::findNearestDataPoint(
     QCustomPlot* plot, const QPoint& mousePos, double pixelThreshold) const
 {
-    viewer::QCPChunkedGraph* bestGraph = nullptr;
+    viewer::QCPColumnGraph* bestGraph = nullptr;
     size_t bestIdx = 0;
     double bestDistSq = pixelThreshold * pixelThreshold;
 
     for (int i = 0; i < plot->plottableCount(); ++i)
     {
-        auto* graph = dynamic_cast<viewer::QCPChunkedGraph*>(plot->plottable(i));
+        auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
         if (!graph)
             continue;
 
@@ -2067,7 +2067,7 @@ bool UI::isDataTooDense(QCustomPlot* plot) const
     int totalVisiblePoints = 0;
     for (int i = 0; i < plot->plottableCount(); ++i)
     {
-        auto* graph = dynamic_cast<viewer::QCPChunkedGraph*>(plot->plottable(i));
+        auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
         if (!graph || graph->dataCount() == 0)
             continue;
 
@@ -2112,13 +2112,13 @@ void UI::updateCursorTooltipPosition(int cursorIdx)
     if (!plot)
         return;
 
-    viewer::QCPChunkedGraph* graph = nullptr;
+    viewer::QCPColumnGraph* graph = nullptr;
     for (int i = 0; i < plot->plottableCount(); ++i)
     {
         auto* p = plot->plottable(i);
         if (p && p->name().toStdString() == cursor.dataItemName)
         {
-            graph = dynamic_cast<viewer::QCPChunkedGraph*>(p);
+            graph = dynamic_cast<viewer::QCPColumnGraph*>(p);
             break;
         }
     }

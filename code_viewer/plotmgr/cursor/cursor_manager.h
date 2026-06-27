@@ -15,7 +15,7 @@ namespace viewer
 struct CursorInfo
 {
     int         pageIndex     = -1;       // 所属图窗索引
-    std::string dataItemName;             // Y列名（对应 QCPChunkedGraph::name()）
+    std::string dataItemName;             // Y列名（对应 QCPColumnGraph::name()）
     size_t      dataIndex     = 0;        // 数据行索引
     bool        isActive      = false;
 };

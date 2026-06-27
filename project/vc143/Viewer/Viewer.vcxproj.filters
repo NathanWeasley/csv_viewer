@@ -35,9 +35,6 @@
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp">
       <Filter>datamgr</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.cpp">
-      <Filter>datamgr</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\plot_manager.cpp">
       <Filter>plotmgr</Filter>
     </ClCompile>
@@ -48,6 +45,9 @@
       <Filter>plotmgr</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.cpp">
+      <Filter>plotmgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.cpp">
       <Filter>plotmgr</Filter>
     </ClCompile>
   </ItemGroup>
@@ -84,11 +84,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <QtMoc Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.h">
-      <Filter>datamgr</Filter>
-    </QtMoc>
     <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h">
       <Filter>viewer_qt</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.h">
+      <Filter>plotmgr</Filter>
     </QtMoc>
   </ItemGroup>
 </Project>

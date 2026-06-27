@@ -12,8 +12,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
-    <ClCompile Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.cpp" />
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\plot_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\cursor\cursor_manager.cpp" />
@@ -28,10 +28,10 @@
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.h" />
+    <QtMoc Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\plot_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\cursor\cursor_manager.h" />
-    <QtMoc Include="..\..\..\code_viewer\datamgr\qcp_chunked_graph.h" />
     <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

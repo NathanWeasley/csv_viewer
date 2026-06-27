@@ -1,4 +1,4 @@
-#include "code_viewer/datamgr/qcp_chunked_graph.h"
+#include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include <limits>
 
 namespace viewer
@@ -7,15 +7,15 @@ namespace viewer
 // ============================================================
 // 构造 / 析构
 // ============================================================
-QCPChunkedGraph::QCPChunkedGraph(QCPAxis* keyAxis, QCPAxis* valueAxis)
+QCPColumnGraph::QCPColumnGraph(QCPAxis* keyAxis, QCPAxis* valueAxis)
     : QCPAbstractPlottable(keyAxis, valueAxis)
 {
-    mName = "ChunkedGraph";
+    mName = "ColumnGraph";
     // 默认散点样式：不显示散点
     mScatterStyle = QCPScatterStyle(QCPScatterStyle::ssNone);
 }
 
-QCPChunkedGraph::~QCPChunkedGraph()
+QCPColumnGraph::~QCPColumnGraph()
 {
     // 不拥有数据列指针，不需要释放
 }
@@ -23,21 +23,21 @@ QCPChunkedGraph::~QCPChunkedGraph()
 // ============================================================
 // 设置数据列
 // ============================================================
-void QCPChunkedGraph::setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol)
+void QCPColumnGraph::setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol)
 {
     m_keyCol = static_cast<const Column<double>*>(keyCol);
     m_valueCol = static_cast<const Column<double>*>(valueCol);
     recalculateRanges();
 }
 
-void QCPChunkedGraph::setLineStyle(LineStyle style)
+void QCPColumnGraph::setLineStyle(LineStyle style)
 {
     mLineStyle = style;
     if (mParentPlot)
         mParentPlot->replot();
 }
 
-void QCPChunkedGraph::setScatterStyle(const QCPScatterStyle& style)
+void QCPColumnGraph::setScatterStyle(const QCPScatterStyle& style)
 {
     mScatterStyle = style;
     if (mParentPlot)
@@ -48,47 +48,47 @@ void QCPChunkedGraph::setScatterStyle(const QCPScatterStyle& style)
 // QCPPlottableInterface1D 接口
 // ============================================================
 
-int QCPChunkedGraph::dataCount() const
+int QCPColumnGraph::dataCount() const
 {
     if (!m_keyCol) return 0;
     return static_cast<int>(m_keyCol->size());
 }
 
-double QCPChunkedGraph::dataMainKey(int index) const
+double QCPColumnGraph::dataMainKey(int index) const
 {
     if (!m_keyCol) return 0;
     return m_keyCol->getDouble(static_cast<size_t>(index));
 }
 
-double QCPChunkedGraph::dataSortKey(int index) const
+double QCPColumnGraph::dataSortKey(int index) const
 {
     // 对于普通线图，sort key = main key
     return dataMainKey(index);
 }
 
-double QCPChunkedGraph::dataMainValue(int index) const
+double QCPColumnGraph::dataMainValue(int index) const
 {
     if (!m_valueCol) return 0;
     return m_valueCol->getDouble(static_cast<size_t>(index));
 }
 
-QCPRange QCPChunkedGraph::dataValueRange(int index) const
+QCPRange QCPColumnGraph::dataValueRange(int index) const
 {
     double v = dataMainValue(index);
     return QCPRange(v, v);
 }
 
-QPointF QCPChunkedGraph::dataPixelPosition(int index) const
+QPointF QCPColumnGraph::dataPixelPosition(int index) const
 {
     return coordsToPixels(dataMainKey(index), dataMainValue(index));
 }
 
-bool QCPChunkedGraph::sortKeyIsMainKey() const
+bool QCPColumnGraph::sortKeyIsMainKey() const
 {
     return true;
 }
 
-QCPDataSelection QCPChunkedGraph::selectTestRect(const QRectF& rect, bool onlySelectable) const
+QCPDataSelection QCPColumnGraph::selectTestRect(const QRectF& rect, bool onlySelectable) const
 {
     QCPDataSelection result;
     if ((onlySelectable && mSelectable == QCP::stNone) || !m_keyCol || m_keyCol->empty())
@@ -128,7 +128,7 @@ QCPDataSelection QCPChunkedGraph::selectTestRect(const QRectF& rect, bool onlySe
     return result;
 }
 
-int QCPChunkedGraph::findBegin(double sortKey, bool expandedRange) const
+int QCPColumnGraph::findBegin(double sortKey, bool expandedRange) const
 {
     if (!m_keyCol || m_keyCol->empty())
         return 0;
@@ -154,7 +154,7 @@ int QCPChunkedGraph::findBegin(double sortKey, bool expandedRange) const
     return static_cast<int>(low);
 }
 
-int QCPChunkedGraph::findEnd(double sortKey, bool expandedRange) const
+int QCPColumnGraph::findEnd(double sortKey, bool expandedRange) const
 {
     if (!m_keyCol || m_keyCol->empty())
         return 0;
@@ -182,7 +182,7 @@ int QCPChunkedGraph::findEnd(double sortKey, bool expandedRange) const
 // QCPAbstractPlottable 接口
 // ============================================================
 
-double QCPChunkedGraph::selectTest(const QPointF& pos, bool onlySelectable, QVariant* details) const
+double QCPColumnGraph::selectTest(const QPointF& pos, bool onlySelectable, QVariant* details) const
 {
     if ((onlySelectable && mSelectable == QCP::stNone) || !m_keyCol || m_keyCol->empty())
         return -1;
@@ -288,7 +288,7 @@ double QCPChunkedGraph::selectTest(const QPointF& pos, bool onlySelectable, QVar
     return std::sqrt(minDistSqr);
 }
 
-QCPRange QCPChunkedGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDomain) const
+QCPRange QCPColumnGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDomain) const
 {
     foundRange = false;
     QCPRange range;
@@ -300,7 +300,7 @@ QCPRange QCPChunkedGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDo
     if (inSignDomain == QCP::sdBoth)
     {
         if (!mRangeCacheValid)
-            const_cast<QCPChunkedGraph*>(this)->recalculateRanges();
+            const_cast<QCPColumnGraph*>(this)->recalculateRanges();
 
         if (mRangeCacheValid)
         {
@@ -340,7 +340,7 @@ QCPRange QCPChunkedGraph::getKeyRange(bool& foundRange, QCP::SignDomain inSignDo
     return range;
 }
 
-QCPRange QCPChunkedGraph::getValueRange(bool& foundRange, QCP::SignDomain inSignDomain,
+QCPRange QCPColumnGraph::getValueRange(bool& foundRange, QCP::SignDomain inSignDomain,
                                         const QCPRange& inKeyRange) const
 {
     foundRange = false;
@@ -355,7 +355,7 @@ QCPRange QCPChunkedGraph::getValueRange(bool& foundRange, QCP::SignDomain inSign
     if (inSignDomain == QCP::sdBoth && !restrictKeyRange)
     {
         if (!mRangeCacheValid)
-            const_cast<QCPChunkedGraph*>(this)->recalculateRanges();
+            const_cast<QCPColumnGraph*>(this)->recalculateRanges();
 
         if (mRangeCacheValid)
         {
@@ -406,7 +406,7 @@ QCPRange QCPChunkedGraph::getValueRange(bool& foundRange, QCP::SignDomain inSign
 // 绘图
 // ============================================================
 
-void QCPChunkedGraph::draw(QCPPainter* painter)
+void QCPColumnGraph::draw(QCPPainter* painter)
 {
     if (!m_keyCol || !m_valueCol || m_keyCol->empty())
         return;
@@ -480,7 +480,7 @@ void QCPChunkedGraph::draw(QCPPainter* painter)
     }
 }
 
-void QCPChunkedGraph::drawLegendIcon(QCPPainter* painter, const QRectF& rect) const
+void QCPColumnGraph::drawLegendIcon(QCPPainter* painter, const QRectF& rect) const
 {
     // 构建自定义 dash pattern
     QPen iconPen = mPen;
@@ -520,7 +520,7 @@ void QCPChunkedGraph::drawLegendIcon(QCPPainter* painter, const QRectF& rect) co
 // 绘图辅助
 // ============================================================
 
-QPair<int, int> QCPChunkedGraph::getVisibleDataRange() const
+QPair<int, int> QCPColumnGraph::getVisibleDataRange() const
 {
     if (!m_keyCol || !mKeyAxis)
         return {0, 0};
@@ -538,7 +538,7 @@ QPair<int, int> QCPChunkedGraph::getVisibleDataRange() const
     return {begin, end};
 }
 
-QVector<QCPGraphData> QCPChunkedGraph::fetchDataRange(int begin, int end) const
+QVector<QCPGraphData> QCPColumnGraph::fetchDataRange(int begin, int end) const
 {
     QVector<QCPGraphData> result;
     if (!m_keyCol || !m_valueCol)
@@ -564,7 +564,7 @@ QVector<QCPGraphData> QCPChunkedGraph::fetchDataRange(int begin, int end) const
     return result;
 }
 
-void QCPChunkedGraph::getLines(QVector<QPointF>* lines, const QCPDataRange& dataRange) const
+void QCPColumnGraph::getLines(QVector<QPointF>* lines, const QCPDataRange& dataRange) const
 {
     if (!m_keyCol || !m_valueCol)
         return;
@@ -588,7 +588,7 @@ void QCPChunkedGraph::getLines(QVector<QPointF>* lines, const QCPDataRange& data
     }
 }
 
-void QCPChunkedGraph::getScatters(QVector<QPointF>* scatters, const QCPDataRange& dataRange) const
+void QCPColumnGraph::getScatters(QVector<QPointF>* scatters, const QCPDataRange& dataRange) const
 {
     if (!m_keyCol || !m_valueCol)
         return;
@@ -608,7 +608,7 @@ void QCPChunkedGraph::getScatters(QVector<QPointF>* scatters, const QCPDataRange
     }
 }
 
-void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& lines) const
+void QCPColumnGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& lines) const
 {
     if (lines.size() < 2)
         return;
@@ -657,7 +657,7 @@ void QCPChunkedGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& 
     }
 }
 
-void QCPChunkedGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
+void QCPColumnGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
 {
     for (const auto& pt : scatters)
         mScatterStyle.drawShape(painter, pt);
@@ -667,7 +667,7 @@ void QCPChunkedGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF
 // 坐标转换函数（来自 QCPGraph 的实现逻辑）
 // ============================================================
 
-QVector<QPointF> QCPChunkedGraph::dataToLines(const QVector<QCPGraphData>& data) const
+QVector<QPointF> QCPColumnGraph::dataToLines(const QVector<QCPGraphData>& data) const
 {
     QVector<QPointF> result;
     result.reserve(data.size());
@@ -676,7 +676,7 @@ QVector<QPointF> QCPChunkedGraph::dataToLines(const QVector<QCPGraphData>& data)
     return result;
 }
 
-QVector<QPointF> QCPChunkedGraph::dataToStepLeftLines(const QVector<QCPGraphData>& data) const
+QVector<QPointF> QCPColumnGraph::dataToStepLeftLines(const QVector<QCPGraphData>& data) const
 {
     QVector<QPointF> result;
     result.reserve(data.size() * 2);
@@ -691,7 +691,7 @@ QVector<QPointF> QCPChunkedGraph::dataToStepLeftLines(const QVector<QCPGraphData
     return result;
 }
 
-QVector<QPointF> QCPChunkedGraph::dataToStepRightLines(const QVector<QCPGraphData>& data) const
+QVector<QPointF> QCPColumnGraph::dataToStepRightLines(const QVector<QCPGraphData>& data) const
 {
     QVector<QPointF> result;
     result.reserve(data.size() * 2);
@@ -706,7 +706,7 @@ QVector<QPointF> QCPChunkedGraph::dataToStepRightLines(const QVector<QCPGraphDat
     return result;
 }
 
-QVector<QPointF> QCPChunkedGraph::dataToStepCenterLines(const QVector<QCPGraphData>& data) const
+QVector<QPointF> QCPColumnGraph::dataToStepCenterLines(const QVector<QCPGraphData>& data) const
 {
     QVector<QPointF> result;
     result.reserve(data.size() * 2);
@@ -729,7 +729,7 @@ QVector<QPointF> QCPChunkedGraph::dataToStepCenterLines(const QVector<QCPGraphDa
     return result;
 }
 
-QVector<QPointF> QCPChunkedGraph::dataToImpulseLines(const QVector<QCPGraphData>& data) const
+QVector<QPointF> QCPColumnGraph::dataToImpulseLines(const QVector<QCPGraphData>& data) const
 {
     QVector<QPointF> result;
     result.reserve(data.size() * 2);
@@ -747,7 +747,7 @@ QVector<QPointF> QCPChunkedGraph::dataToImpulseLines(const QVector<QCPGraphData>
 // 范围缓存
 // ============================================================
 
-void QCPChunkedGraph::recalculateRanges()
+void QCPColumnGraph::recalculateRanges()
 {
     mRangeCacheValid = false;
 
@@ -795,7 +795,7 @@ void QCPChunkedGraph::recalculateRanges()
     }
 }
 
-void QCPChunkedGraph::invalidateRangeCache()
+void QCPColumnGraph::invalidateRangeCache()
 {
     mRangeCacheValid = false;
 }
@@ -804,7 +804,7 @@ void QCPChunkedGraph::invalidateRangeCache()
 // Column → QPointF 直出（消除 QCPGraphData 中间拷贝）
 // ============================================================
 
-void QCPChunkedGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end) const
+void QCPColumnGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end) const
 {
     if (!m_keyCol || !m_valueCol)
         return;
@@ -827,7 +827,7 @@ void QCPChunkedGraph::getLinesDirect(QVector<QPointF>* lines, int begin, int end
     }
 }
 
-void QCPChunkedGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, int end) const
+void QCPColumnGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, int end) const
 {
     if (!m_keyCol || !m_valueCol)
         return;
@@ -846,7 +846,7 @@ void QCPChunkedGraph::getLinesDirectStyled(QVector<QPointF>* lines, int begin, i
 // 元素级降采样
 // ============================================================
 
-void QCPChunkedGraph::getLinesDownsampled(QVector<QPointF>* lines,
+void QCPColumnGraph::getLinesDownsampled(QVector<QPointF>* lines,
                                            int begin, int end, int numBuckets) const
 {
     if (!m_keyCol || !m_valueCol || numBuckets <= 0)
@@ -910,7 +910,7 @@ void QCPChunkedGraph::getLinesDownsampled(QVector<QPointF>* lines,
 // 工具
 // ============================================================
 
-int QCPChunkedGraph::screenPixelWidth() const
+int QCPColumnGraph::screenPixelWidth() const
 {
     if (mKeyAxis && mKeyAxis->axisRect())
         return mKeyAxis->axisRect()->width();

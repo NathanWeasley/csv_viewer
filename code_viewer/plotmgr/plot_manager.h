@@ -40,7 +40,7 @@ struct PlotPageInfo
 // UI 层（UI.cpp）负责：
 //   - QTabWidget 容器管理
 //   - QCustomPlot 实例创建/销毁
-//   - QCPChunkedGraph 创建与数据绑定
+//   - QCPColumnGraph 创建与数据绑定
 //   - 监听 PlotManager 回调以同步视图
 // ============================================================
 class VIEWER_API PlotManager

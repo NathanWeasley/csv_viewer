@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QProgressBar>
@@ -20,7 +20,7 @@
 #include "ui_UI.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
-#include "code_viewer/datamgr/qcp_chunked_graph.h"
+#include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
 #include "code_qcp/qcustomplot.h"
 
@@ -62,7 +62,7 @@ private Q_SLOTS:
     // ---- Cursor Manager helpers ----
 
     // 查找鼠标最近的数据点，返回 (graph, dataIndex) pair；未找到返回 (nullptr, 0)
-    QPair<viewer::QCPChunkedGraph*, size_t> findNearestDataPoint(
+    QPair<viewer::QCPColumnGraph*, size_t> findNearestDataPoint(
         QCustomPlot* plot, const QPoint& mousePos, double pixelThreshold = 10.0) const;
 
     // 检查数据密度是否过高（dataCount / plotWidth > 1.0 时跳过预选）

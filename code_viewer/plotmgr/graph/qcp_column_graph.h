@@ -9,12 +9,12 @@ namespace viewer
 {
 
 // ============================================================
-// QCPChunkedGraph: 零拷贝 QCustomPlot plottable
+// QCPColumnGraph: 零拷贝 QCustomPlot plottable
 // 
 // 直接从 Column<VFLOAT> 读取数据，不创建任何中间缓冲区
 // 支持 QCustomPlot 的缩放、拖拽操作实时更新显示
 // ============================================================
-class VIEWER_API QCPChunkedGraph
+class VIEWER_API QCPColumnGraph
     : public QCPAbstractPlottable
     , public QCPPlottableInterface1D
 {
@@ -32,12 +32,12 @@ public:
         lsImpulse      // 脉冲线
     };
 
-    QCPChunkedGraph(QCPAxis* keyAxis, QCPAxis* valueAxis);
-    virtual ~QCPChunkedGraph() override;
+    QCPColumnGraph(QCPAxis* keyAxis, QCPAxis* valueAxis);
+    virtual ~QCPColumnGraph() override;
 
     // ---- 设置数据列 ----
     // 设置 X 轴数据列（key）和 Y 轴数据列（value）
-    // 列指针生命周期由 DataManager 管理，QCPChunkedGraph 不持有所有权
+    // 列指针生命周期由 DataManager 管理，QCPColumnGraph 不持有所有权
     void setDataColumns(const AbstractColumn* keyCol, const AbstractColumn* valueCol);
 
     // 通知 graph 底层数据已变更（例如表达式重新计算后），使范围缓存失效
@@ -122,7 +122,7 @@ private:
     QCPScatterStyle mScatterStyle;
     bool mAdaptiveSampling = false;
 
-    // 范围缓存（方案3：避免每次缩放/拖拽时 O(N) 全量扫描）
+    // 范围缓存
     mutable bool mRangeCacheValid = false;
     mutable double mCachedKeyMin = 0, mCachedKeyMax = 0;
     mutable double mCachedValueMin = 0, mCachedValueMax = 0;
