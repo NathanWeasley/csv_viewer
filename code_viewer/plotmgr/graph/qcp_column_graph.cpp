@@ -13,6 +13,7 @@ QCPColumnGraph::QCPColumnGraph(QCPAxis* keyAxis, QCPAxis* valueAxis)
     mName = "ColumnGraph";
     // 默认散点样式：不显示散点
     mScatterStyle = QCPScatterStyle(QCPScatterStyle::ssNone);
+    setAntialiased(false);
 }
 
 QCPColumnGraph::~QCPColumnGraph()

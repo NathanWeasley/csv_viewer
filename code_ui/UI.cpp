@@ -1002,12 +1002,16 @@ void UI::bindPlotManagerCallbacks()
         if (!yCol)
             return;
 
-        // 创建 QCPColumnGraph
+        size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
+
+        // 抑制中途重绘，所有 setup 完成后统一 replot
+        plot->setUpdatesEnabled(false);
+
+        // 创建 QCPColumnGraph（首次绑定原始 Y 列）
         auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
 
         if (xIdx == static_cast<size_t>(-1))
         {
-            // 使用数据索引作为 X 轴
             dm.ensureIndexColumnBuilt();
             xCol = dm.GetIndexColumn();
             graph->setDataColumns(xCol, yCol);
@@ -1016,36 +1020,34 @@ void UI::bindPlotManagerCallbacks()
         {
             xCol = dm.GetColumn(xIdx);
             if (!xCol)
+            {
+                plot->setUpdatesEnabled(true);
                 return;
+            }
             graph->setDataColumns(xCol, yCol);
         }
 
-        // 设置默认外观（从 StyleManager 取色板颜色，自动取模）
+        // 设置默认外观
         QPen pen(graph->pen());
-        size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
         if (plotCount > 0)
         {
             pen.setColor(m_viewer.GetStyleManager().paletteColorAt(
                 (plotCount - 1) % m_viewer.GetStyleManager().paletteColorCount()));
         }
         graph->setPen(pen);
-
-        // 名称设置为 Y 列名
         graph->setName(QString::fromStdString(yColName));
 
-        // 缩放轴以包含数据（第一个图完全匹配，后续图仅扩大）
-        graph->rescaleAxes(plotCount > 1);
-        plot->replot();
-
-        // ---- 表达式：创建本地数据拷贝并重新绑定 graph ----
+        // 创建表达式本地拷贝，切换到独立数据源
         auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
         viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
-        // 将 graph 的 Y 列重新绑定到本地拷贝（X 列保持不变或保持索引模式）
         graph->setDataColumns(xCol, pe.computedData.get());
         graph->notifyDataChanged();
-        // 首个数据项全量缩放，后续项不改变当前视图
-        if (plotCount == 1)
-            graph->rescaleAxes(false);
+
+        // 首个数据项全量缩放，后续项仅扩大
+        graph->rescaleAxes(plotCount > 1);
+
+        // 所有 setup 完成，统一重绘
+        plot->setUpdatesEnabled(true);
         plot->replot();
 
         // 向工具栏 ComboList 添加数据项名称

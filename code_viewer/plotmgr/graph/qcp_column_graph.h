@@ -70,6 +70,7 @@ public:
     virtual int findEnd(double sortKey, bool expandedRange = true) const override;
 
 protected:
+
     // ---- QCPAbstractPlottable 内部接口 ----
     virtual void draw(QCPPainter* painter) override;
     virtual void drawLegendIcon(QCPPainter* painter, const QRectF& rect) const override;
