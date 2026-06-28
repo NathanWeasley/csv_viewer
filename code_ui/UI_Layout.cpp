@@ -20,7 +20,6 @@
 #include <qpushbutton.h>
 #include <qinputdialog.h>
 
-#include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
@@ -187,21 +186,12 @@ void UI::createMenu()
 
 void UI::createToolbar()
 {
-    ///< Load icons and create buttons
-    QIcon loadcsv = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADCSV)]);
-    auto* action_loadcsv = new QAction(loadcsv, "Load CSVs", this);
-
-    QIcon loadfolder = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADFOLDER)]);
-    auto* action_loadfolder = new QAction(loadfolder, "Load Folders", this);
-
-    QIcon clearall = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::CLEAR)]);
-    auto* action_clearall = new QAction(clearall, "Clear All", this);
-
-    QIcon dofft = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::FFT)]);
-    auto* action_dofft = new QAction(dofft, "FFT", this);
-
-    QIcon addfx = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::EXPR)]);
-    auto* action_addfx = new QAction(addfx, "Expression", this);
+    ///< Load icons via unified resource table — supports both BASE64 and SVG_FILE sources
+    auto* action_loadcsv    = new QAction(createToolbarIcon(IconIdx::LOADCSV),    "Load CSVs",    this);
+    auto* action_loadfolder = new QAction(createToolbarIcon(IconIdx::LOADFOLDER), "Load Folders", this);
+    auto* action_clearall   = new QAction(createToolbarIcon(IconIdx::CLEAR),      "Clear All",    this);
+    auto* action_dofft      = new QAction(createToolbarIcon(IconIdx::FFT),        "FFT",          this);
+    auto* action_addfx      = new QAction(createToolbarIcon(IconIdx::EXPR),       "Expression",   this);
 
     ///< Add buttons to toolbar
     ui.mainToolBar->addAction(action_loadcsv);
@@ -221,23 +211,48 @@ void UI::createToolbar()
     });
 }
 
-QIcon UI::createDpiAwareIcon(const QString& fullstr, int logicalsize)
+QString UI::loadIconSvg(IconIdx idx)
 {
-    // 1. Strip prefix and decode text
-    QString base64Data = fullstr.section(',', 1);
-    QByteArray svgBytes = QByteArray::fromBase64(base64Data.toUtf8());
-    QString svgText = QString::fromUtf8(svgBytes);
+    const IconResource* res = findIconResource(idx);
+    if (!res)
+        return QString();
 
+    if (res->source == IconSource::BASE64)
+    {
+        // Decode base64 data URI → raw SVG text
+        const QString& dataUri = g_iconBase64[ENUM2IDX(res->id)];
+        const QString b64 = dataUri.section(',', 1);
+        return QString::fromUtf8(QByteArray::fromBase64(b64.toUtf8()));
+    }
+    else // IconSource::SVG_FILE
+    {
+        // Read SVG text from external file
+        QFile file(QString::fromUtf8(res->path));
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
+            return QString();
+        return QString::fromUtf8(file.readAll());
+    }
+}
+
+QIcon UI::createToolbarIcon(IconIdx idx, const char* /*tooltip*/, int logicalsize)
+{
+    QString svgText = loadIconSvg(idx);
+    if (svgText.isEmpty())
+        return QIcon();
+
+    // Color normalization — same pipeline for both BASE64 and SVG_FILE
     if (isSystemInDark())
-    {
-        //svgText.replace("#323544", "#7F7F7F", Qt::CaseInsensitive);
         forceStrokeColor(svgText, "#AFAFAF");
-    }
     else
-    {
         forceStrokeColor(svgText, "#222222");
-    }
-    svgBytes = svgText.toUtf8();
+
+    return createDpiAwareIcon(svgText, logicalsize);
+}
+
+QIcon UI::createDpiAwareIcon(const QString& svgText, int logicalsize)
+{
+    // 1. Color normalization is already applied by the caller (createToolbarIcon)
+    QByteArray svgBytes = svgText.toUtf8();
 
     // 2. Query the primary screen's current device pixel ratio (e.g., 1.5, 2.0)
     qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
