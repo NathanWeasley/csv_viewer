@@ -311,8 +311,6 @@ void UI::bindPlotManagerCallbacks()
                     m_viewer.GetPlotManager().setLegendVisible(index, checked);
                 });
 
-                menu.addSeparator();
-
                 QAction* highlightAction = menu.addAction("高亮规则");
                 connect(highlightAction, &QAction::triggered, this, [this, index]()
                 {
@@ -320,12 +318,6 @@ void UI::bindPlotManagerCallbacks()
                 });
 
                 menu.addSeparator();
-
-                QAction* exportAction = menu.addAction("导出图片");
-                connect(exportAction, &QAction::triggered, this, [this, index]()
-                {
-                    exportPlotImage(index);
-                });
 
                 bool hasData = !pm.pageInfo(index).dataItems.empty();
 
@@ -336,7 +328,15 @@ void UI::bindPlotManagerCallbacks()
                     onFFTRequested(index);
                 });
 
+                QAction* stftAction = menu.addAction("计算STFT");
+
                 menu.addSeparator();
+
+                QAction* exportAction = menu.addAction("导出图片");
+                connect(exportAction, &QAction::triggered, this, [this, index]()
+                {
+                    exportPlotImage(index);
+                });
 
                 QAction* bookmarkAction = menu.addAction("加入收藏夹");
                 bookmarkAction->setEnabled(hasData && !isFFT);
