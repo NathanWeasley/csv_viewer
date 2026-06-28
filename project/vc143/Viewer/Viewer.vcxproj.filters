@@ -56,7 +56,7 @@
     <ClCompile Include="..\..\..\code_viewer\stylemgr\style_manager.cpp">
       <Filter>stylemgr</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_mgr.cpp">
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.cpp">
       <Filter>plotmgr</Filter>
     </ClCompile>
   </ItemGroup>
@@ -97,7 +97,7 @@
     <ClInclude Include="..\..\..\code_viewer\stylemgr\style_struct.h">
       <Filter>stylemgr</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_mgr.h">
+    <ClInclude Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.h">
       <Filter>plotmgr</Filter>
     </ClInclude>
   </ItemGroup>

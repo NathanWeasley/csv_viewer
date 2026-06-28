@@ -19,6 +19,10 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <QFormLayout>
+#include <QDialogButtonBox>
+#include <QStyle>
+#include <QApplication>
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -30,8 +34,78 @@
 #include <qjsonarray.h>
 #include <qjsonobject.h>
 
+namespace {
+    constexpr int RoleType = Qt::UserRole + 1;
+    constexpr int RolePath = Qt::UserRole + 2;
+    constexpr int RoleName = Qt::UserRole + 3;
+}
+
 // ============================================================
-// 收藏夹
+// 收藏夹 - 树重建
+// ============================================================
+
+static void populateTree(QTreeWidgetItem* parentItem,
+                          const viewer::BookmarkFolder& folder,
+                          const std::string& parentPath)
+{
+    std::string curPath = parentPath.empty()
+        ? folder.name
+        : parentPath + "/" + folder.name;
+
+    for (const auto& sub : folder.subFolders)
+    {
+        auto* subItem = new QTreeWidgetItem(parentItem);
+        subItem->setText(0, QString::fromStdString(sub.name));
+        subItem->setData(0, RoleType, QStringLiteral("folder"));
+        std::string subPath = curPath.empty()
+            ? sub.name
+            : curPath + "/" + sub.name;
+        subItem->setData(0, RolePath, QString::fromStdString(subPath));
+        subItem->setData(0, RoleName, QString::fromStdString(sub.name));
+        subItem->setIcon(0, qApp->style()->standardIcon(QStyle::SP_DirIcon));
+        populateTree(subItem, sub, curPath);
+    }
+
+    for (const auto& e : folder.entries)
+    {
+        auto* eItem = new QTreeWidgetItem(parentItem);
+        eItem->setText(0, QString::fromStdString(e.name));
+        eItem->setData(0, RoleType, QStringLiteral("bookmark"));
+        eItem->setData(0, RolePath, QString::fromStdString(curPath));
+        eItem->setData(0, RoleName, QString::fromStdString(e.name));
+        eItem->setIcon(0, qApp->style()->standardIcon(QStyle::SP_FileIcon));
+    }
+}
+
+void UI::rebuildBookmarkTree()
+{
+    m_bookmarkTree->clear();
+    const auto& root = m_viewer.GetPlotManager().bookmarkMgr.root();
+
+    for (const auto& sub : root.subFolders)
+    {
+        auto* item = new QTreeWidgetItem(m_bookmarkTree);
+        item->setText(0, QString::fromStdString(sub.name));
+        item->setData(0, RoleType, QStringLiteral("folder"));
+        item->setData(0, RolePath, QString::fromStdString(sub.name));
+        item->setData(0, RoleName, QString::fromStdString(sub.name));
+        item->setIcon(0, qApp->style()->standardIcon(QStyle::SP_DirIcon));
+        populateTree(item, sub, std::string());
+    }
+
+    for (const auto& e : root.entries)
+    {
+        auto* item = new QTreeWidgetItem(m_bookmarkTree);
+        item->setText(0, QString::fromStdString(e.name));
+        item->setData(0, RoleType, QStringLiteral("bookmark"));
+        item->setData(0, RolePath, QString());
+        item->setData(0, RoleName, QString::fromStdString(e.name));
+        item->setIcon(0, qApp->style()->standardIcon(QStyle::SP_FileIcon));
+    }
+}
+
+// ============================================================
+// 收藏夹 - 文件 I/O
 // ============================================================
 
 void UI::loadBookmarkFile()
@@ -39,13 +113,7 @@ void UI::loadBookmarkFile()
     QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
     QString path = QCoreApplication::applicationDirPath() + "/user/bookmarks.json";
     m_viewer.GetPlotManager().bookmarkMgr.loadFromFile(path.toStdString());
-
-    m_bookmarkTree->clear();
-    for (const auto& entry : m_viewer.GetPlotManager().bookmarkMgr.entries())
-    {
-        auto* item = new QTreeWidgetItem(m_bookmarkTree);
-        item->setText(0, QString::fromStdString(entry.name));
-    }
+    rebuildBookmarkTree();
 }
 
 void UI::saveBookmarkFile()
@@ -61,13 +129,50 @@ void UI::addBookmark(int pageIndex)
     const auto& info = pm.pageInfo(pageIndex);
     if (info.dataItems.empty()) return;
 
-    bool ok = false;
-    QString name = QInputDialog::getText(this, QString::fromUtf8("加入收藏夹"),
-        QString::fromUtf8("收藏名称："), QLineEdit::Normal, QString(), &ok);
-    if (!ok || name.trimmed().isEmpty()) return;
+    // 输入收藏名称和文件夹
+    QDialog dlg(this);
+    dlg.setWindowTitle(QString::fromUtf8("加入收藏夹"));
+    auto* layout = new QFormLayout(&dlg);
 
-    std::string bmName = name.trimmed().toStdString();
-    if (pm.bookmarkMgr.exists(bmName))
+    auto* nameEdit = new QLineEdit(&dlg);
+    nameEdit->setPlaceholderText(QString::fromUtf8("收藏名称（必填）"));
+    layout->addRow(QString::fromUtf8("收藏名称："), nameEdit);
+
+    auto* folderEdit = new QLineEdit(&dlg);
+    folderEdit->setPlaceholderText(QString::fromUtf8("文件夹路径，如 folder/sub，留空则放在根目录"));
+    layout->addRow(QString::fromUtf8("文件夹："), folderEdit);
+
+    auto* btnBox = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
+    connect(btnBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(btnBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+    layout->addRow(btnBox);
+
+    if (dlg.exec() != QDialog::Accepted) return;
+
+    std::string bmName = nameEdit->text().trimmed().toStdString();
+    if (bmName.empty())
+    {
+        QMessageBox::warning(this, QString::fromUtf8("错误"),
+            QString::fromUtf8("收藏名称不能为空。"));
+        return;
+    }
+
+    std::string folderPath = folderEdit->text().trimmed().toStdString();
+
+    // 如果指定了文件夹，检查文件夹是否存在
+    if (!folderPath.empty())
+    {
+        if (!pm.bookmarkMgr.hasFolder(folderPath))
+        {
+            QMessageBox::warning(this, QString::fromUtf8("错误"),
+                QString::fromUtf8("指定的文件夹不存在。"));
+            return;
+        }
+    }
+
+    // 全局唯一性检查
+    if (!pm.bookmarkMgr.isNameUnique(bmName))
     {
         QMessageBox::warning(this, QString::fromUtf8("重名"),
             QString::fromUtf8("名称已存在，请使用其他名称。"));
@@ -112,18 +217,24 @@ void UI::addBookmark(int pageIndex)
     }
 
     entry.highlights = info.highlightMgr.rules();
-    if (!pm.bookmarkMgr.add(entry)) return;
+    if (!pm.bookmarkMgr.addBookmark(folderPath, entry)) return;
 
     saveBookmarkFile();
-    auto* bmItem = new QTreeWidgetItem(m_bookmarkTree);
-    bmItem->setText(0, name);
+    rebuildBookmarkTree();
 }
 
 void UI::onBookmarkDoubleClicked(QTreeWidgetItem* item, int /*column*/)
 {
     if (!item) return;
-    std::string name = item->text(0).toStdString();
-    const auto* entry = m_viewer.GetPlotManager().bookmarkMgr.find(name);
+
+    QString type = item->data(0, RoleType).toString();
+    if (type != QStringLiteral("bookmark"))
+        return;   // 文件夹双击不处理（可自行展开/折叠）
+
+    std::string folderPath = item->data(0, RolePath).toString().toStdString();
+    std::string name       = item->data(0, RoleName).toString().toStdString();
+
+    const auto* entry = m_viewer.GetPlotManager().bookmarkMgr.find(folderPath, name);
     if (!entry) return;
 
     restoreBookmark(*entry);
@@ -181,4 +292,224 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
         plot->rescaleAxes();
         plot->replot();
     }
+}
+
+// ============================================================
+// 收藏夹 - 右键菜单
+// ============================================================
+
+void UI::onBookmarkTreeContextMenu(const QPoint& pos)
+{
+    QTreeWidgetItem* item = m_bookmarkTree->itemAt(pos);
+    QMenu menu;
+
+    if (!item)
+    {
+        QAction* newFolderAction = menu.addAction(QString::fromUtf8("新建文件夹"));
+        connect(newFolderAction, &QAction::triggered, this, [this]()
+        {
+            bool ok = false;
+            QString name = QInputDialog::getText(this,
+                QString::fromUtf8("新建文件夹"),
+                QString::fromUtf8("文件夹名称："),
+                QLineEdit::Normal, QString(), &ok);
+            if (!ok || name.trimmed().isEmpty()) return;
+
+            std::string folderName = name.trimmed().toStdString();
+            if (!m_viewer.GetPlotManager().bookmarkMgr.addFolder("", folderName))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法创建文件夹（名称可能已存在）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+        menu.exec(m_bookmarkTree->viewport()->mapToGlobal(pos));
+        return;
+    }
+
+    QString type = item->data(0, RoleType).toString();
+    std::string curPath = item->data(0, RolePath).toString().toStdString();
+    std::string curName = item->data(0, RoleName).toString().toStdString();
+
+    if (type == QStringLiteral("folder"))
+    {
+        QAction* newSubAction = menu.addAction(QString::fromUtf8("新建子文件夹"));
+        connect(newSubAction, &QAction::triggered, this, [this, curPath]()
+        {
+            bool ok = false;
+            QString name = QInputDialog::getText(this,
+                QString::fromUtf8("新建子文件夹"),
+                QString::fromUtf8("子文件夹名称："),
+                QLineEdit::Normal, QString(), &ok);
+            if (!ok || name.trimmed().isEmpty()) return;
+
+            std::string subName = name.trimmed().toStdString();
+            if (!m_viewer.GetPlotManager().bookmarkMgr.addFolder(curPath, subName))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法创建子文件夹（名称可能已存在）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+        menu.addSeparator();
+
+        QAction* renameAction = menu.addAction(QString::fromUtf8("重命名"));
+        connect(renameAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            bool ok = false;
+            QString newName = QInputDialog::getText(this,
+                QString::fromUtf8("重命名文件夹"),
+                QString::fromUtf8("新名称："),
+                QLineEdit::Normal,
+                QString::fromStdString(curName), &ok);
+            if (!ok || newName.trimmed().isEmpty()) return;
+            if (newName.trimmed().toStdString() == curName) return;
+
+            if (!m_viewer.GetPlotManager().bookmarkMgr.renameFolder(
+                    curPath, newName.trimmed().toStdString()))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法重命名文件夹（名称可能已存在）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+
+        QAction* moveAction = menu.addAction(QString::fromUtf8("移动到..."));
+        connect(moveAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            bool ok = false;
+            QString target = QInputDialog::getText(this,
+                QString::fromUtf8("移动文件夹"),
+                QString::fromUtf8("目标父文件夹路径（留空=根目录）："),
+                QLineEdit::Normal, QString(), &ok);
+            if (!ok) return;
+
+            std::string targetPath = target.trimmed().toStdString();
+            if (targetPath == curPath) return;
+
+            if (!targetPath.empty() &&
+                !m_viewer.GetPlotManager().bookmarkMgr.hasFolder(targetPath))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("目标文件夹不存在。"));
+                return;
+            }
+
+            if (!m_viewer.GetPlotManager().bookmarkMgr.moveFolder(curPath, targetPath))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法移动文件夹（名称冲突或非法操作）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+        menu.addSeparator();
+
+        QAction* deleteAction = menu.addAction(QString::fromUtf8("删除"));
+        connect(deleteAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            auto result = QMessageBox::question(this,
+                QString::fromUtf8("确认删除"),
+                QString::fromUtf8("确定要删除文件夹 \"%1\" 及其所有内容吗？")
+                    .arg(QString::fromStdString(curName)),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+            if (result != QMessageBox::Yes) return;
+
+            m_viewer.GetPlotManager().bookmarkMgr.removeFolder(curPath);
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+    }
+    else if (type == QStringLiteral("bookmark"))
+    {
+        QAction* renameAction = menu.addAction(QString::fromUtf8("重命名"));
+        connect(renameAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            bool ok = false;
+            QString newName = QInputDialog::getText(this,
+                QString::fromUtf8("重命名收藏项"),
+                QString::fromUtf8("新名称："),
+                QLineEdit::Normal,
+                QString::fromStdString(curName), &ok);
+            if (!ok || newName.trimmed().isEmpty()) return;
+            if (newName.trimmed().toStdString() == curName) return;
+
+            if (!m_viewer.GetPlotManager().bookmarkMgr.renameBookmark(
+                    curPath, curName, newName.trimmed().toStdString()))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法重命名收藏项（名称可能已存在）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+
+        QAction* moveAction = menu.addAction(QString::fromUtf8("移动到..."));
+        connect(moveAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            bool ok = false;
+            QString target = QInputDialog::getText(this,
+                QString::fromUtf8("移动收藏项"),
+                QString::fromUtf8("目标文件夹路径（留空=根目录）："),
+                QLineEdit::Normal, QString(), &ok);
+            if (!ok) return;
+
+            std::string targetPath = target.trimmed().toStdString();
+            if (targetPath == curPath) return;
+
+            if (!targetPath.empty() &&
+                !m_viewer.GetPlotManager().bookmarkMgr.hasFolder(targetPath))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("目标文件夹不存在。"));
+                return;
+            }
+
+            if (!m_viewer.GetPlotManager().bookmarkMgr.moveBookmark(
+                    curPath, targetPath, curName))
+            {
+                QMessageBox::warning(this,
+                    QString::fromUtf8("错误"),
+                    QString::fromUtf8("无法移动收藏项（名称冲突）。"));
+                return;
+            }
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+        menu.addSeparator();
+
+        QAction* deleteAction = menu.addAction(QString::fromUtf8("删除"));
+        connect(deleteAction, &QAction::triggered, this, [this, curPath, curName]()
+        {
+            auto result = QMessageBox::question(this,
+                QString::fromUtf8("确认删除"),
+                QString::fromUtf8("确定要删除收藏项 \"%1\" 吗？")
+                    .arg(QString::fromStdString(curName)),
+                QMessageBox::Yes | QMessageBox::No,
+                QMessageBox::No);
+            if (result != QMessageBox::Yes) return;
+
+            m_viewer.GetPlotManager().bookmarkMgr.removeBookmark(curPath, curName);
+            saveBookmarkFile();
+            rebuildBookmarkTree();
+        });
+    }
+
+    menu.exec(m_bookmarkTree->viewport()->mapToGlobal(pos));
 }

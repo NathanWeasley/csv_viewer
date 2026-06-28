@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QtWidgets/QMainWindow>
 #include <QtWidgets/QProgressBar>
@@ -93,6 +93,8 @@ private Q_SLOTS:
     void saveBookmarkFile();
     void addBookmark(int pageIndex);
     void onBookmarkDoubleClicked(QTreeWidgetItem* item, int column);
+    void onBookmarkTreeContextMenu(const QPoint& pos);
+    void rebuildBookmarkTree();
     void restoreBookmark(const viewer::BookmarkEntry& entry);
 
 private:

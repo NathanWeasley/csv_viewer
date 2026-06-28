@@ -83,12 +83,15 @@ void UI::createMain()
     ///< Right Bookmark Tree
     m_bookmarkTree = new QTreeWidget();
     m_bookmarkTree->setHeaderHidden(true);
+    m_bookmarkTree->setContextMenuPolicy(Qt::CustomContextMenu);
     m_bookmarkDock = new ads::CDockWidget("Bookmarks");
     m_bookmarkDock->setWidget(m_bookmarkTree);
     m_bookmarkDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::RightDockWidgetArea, m_bookmarkDock, m_plotDock->dockAreaWidget());
 
     connect(m_bookmarkTree, &QTreeWidget::itemDoubleClicked, this, &UI::onBookmarkDoubleClicked);
+    connect(m_bookmarkTree, &QTreeWidget::customContextMenuRequested,
+            this, &UI::onBookmarkTreeContextMenu);
 
     ///< Bind PlotManager callbacks
     bindPlotManagerCallbacks();

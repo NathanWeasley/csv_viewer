@@ -8,7 +8,7 @@
 #include "code_viewer/base/base_def.h"
 #include "code_viewer/plotmgr/expr/expr_manager.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
-#include "code_viewer/plotmgr/bookmark/bookmark_mgr.h"
+#include "code_viewer/plotmgr/bookmark/bookmark_manager.h"
 
 namespace viewer
 {
