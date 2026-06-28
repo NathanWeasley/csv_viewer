@@ -14,6 +14,7 @@
 #include <qclipboard.h>
 #include <qmenu.h>
 #include <qtabbar.h>
+#include <qcheckbox.h>
 #include <qcombobox.h>
 #include <qspinbox.h>
 #include <qlineedit.h>
@@ -73,7 +74,7 @@ void UI::bindPlotManagerCallbacks()
             auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
             if (!toolbar) continue;
             auto* hb = toolbar->findChild<QHBoxLayout*>();
-            if (!hb || hb->count() < 9) continue;
+            if (!hb || hb->count() < 11) continue;
 
             auto* cmbLC = qobject_cast<QComboBox*>(hb->itemAt(3)->widget());
             auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
@@ -140,6 +141,19 @@ void UI::bindPlotManagerCallbacks()
             plot->yAxis->setSubTickPen(basePen);
         }
 
+        // 副网格
+        {
+            QPen subGridPen = plot->xAxis->basePen();
+            subGridPen.setStyle(Qt::DotLine);
+            QColor subGridColor = subGridPen.color();
+            subGridColor.setAlpha(60);
+            subGridPen.setColor(subGridColor);
+            plot->xAxis->grid()->setSubGridPen(subGridPen);
+            plot->yAxis->grid()->setSubGridPen(subGridPen);
+        }
+        plot->xAxis->grid()->setSubGridVisible(true);
+        plot->yAxis->grid()->setSubGridVisible(true);
+
         // 事件过滤器
         plot->installEventFilter(this);
 
@@ -152,6 +166,7 @@ void UI::bindPlotManagerCallbacks()
             [this, plot, index](const QPoint& pos)
             {
                 auto& pm = m_viewer.GetPlotManager();
+                bool isFFT = pm.isFFTPage(index);
 
                 QMenu menu;
 
@@ -162,6 +177,7 @@ void UI::bindPlotManagerCallbacks()
                 });
 
                 QAction* dupPageAction = menu.addAction("复制图窗");
+                dupPageAction->setEnabled(!isFFT);
                 connect(dupPageAction, &QAction::triggered, this, [this, plot, index]()
                 {
                     auto& pm = m_viewer.GetPlotManager();
@@ -240,6 +256,30 @@ void UI::bindPlotManagerCallbacks()
                             }
                         }
 
+                        // ---- 复制对数轴状态 ----
+                        dstPlot->xAxis->setScaleType(plot->xAxis->scaleType());
+                        dstPlot->yAxis->setScaleType(plot->yAxis->scaleType());
+                        {
+                            auto* dstVbox = dstContainer->findChild<QVBoxLayout*>();
+                            if (dstVbox && dstVbox->count() >= 1)
+                            {
+                                auto* dstToolbar = qobject_cast<QWidget*>(dstVbox->itemAt(0)->widget());
+                                if (dstToolbar)
+                                {
+                                    auto* dstHb = dstToolbar->findChild<QHBoxLayout*>();
+                                    if (dstHb && dstHb->count() >= 10)
+                                    {
+                                        bool srcLogX = (plot->xAxis->scaleType() == QCPAxis::stLogarithmic);
+                                        bool srcLogY = (plot->yAxis->scaleType() == QCPAxis::stLogarithmic);
+                                        auto* dstChkLogX = qobject_cast<QCheckBox*>(dstHb->itemAt(7)->widget());
+                                        auto* dstChkLogY = qobject_cast<QCheckBox*>(dstHb->itemAt(8)->widget());
+                                        if (dstChkLogX) { dstChkLogX->blockSignals(true); dstChkLogX->setChecked(srcLogX); dstChkLogX->blockSignals(false); }
+                                        if (dstChkLogY) { dstChkLogY->blockSignals(true); dstChkLogY->setChecked(srcLogY); dstChkLogY->blockSignals(false); }
+                                    }
+                                }
+                            }
+                        }
+
                         dstPlot->replot();
                     }
                 });
@@ -288,8 +328,18 @@ void UI::bindPlotManagerCallbacks()
                 });
 
                 bool hasData = !pm.pageInfo(index).dataItems.empty();
+
+                QAction* fftAction = menu.addAction("计算FFT");
+                fftAction->setEnabled(hasData && !isFFT);
+                connect(fftAction, &QAction::triggered, this, [this, index]()
+                {
+                    onFFTRequested(index);
+                });
+
+                menu.addSeparator();
+
                 QAction* bookmarkAction = menu.addAction("加入收藏夹");
-                bookmarkAction->setEnabled(hasData);
+                bookmarkAction->setEnabled(hasData && !isFFT);
                 connect(bookmarkAction, &QAction::triggered, this, [this, index]()
                 {
                     addBookmark(index);
@@ -314,7 +364,7 @@ void UI::bindPlotManagerCallbacks()
 
         // 2. 线形下拉
         auto* cmbLineStyle = new QComboBox();
-        cmbLineStyle->addItems({"实线", "点线", "虚线", "点划线"});
+        cmbLineStyle->addItems({"无", "实线", "点线", "虚线", "点划线"});
         hbox->addWidget(cmbLineStyle);
 
         // 3. 线宽数字框
@@ -344,9 +394,21 @@ void UI::bindPlotManagerCallbacks()
         populateColorCombo(cmbScatterColor, 8);
         hbox->addWidget(cmbScatterColor);
 
+        // 8. 对数 X 轴复选框
+        auto* chkLogX = new QCheckBox("log X");
+        chkLogX->setToolTip("X 轴对数显示");
+        chkLogX->setFixedHeight(22);
+        hbox->addWidget(chkLogX);
+
+        // 9. 对数 Y 轴复选框
+        auto* chkLogY = new QCheckBox("log Y");
+        chkLogY->setToolTip("Y 轴对数显示");
+        chkLogY->setFixedHeight(22);
+        hbox->addWidget(chkLogY);
+
         hbox->addStretch();
 
-        // 8. 删除按钮（最右侧）
+        // 10. 删除按钮（最右侧）
         auto* btnDelete = new QPushButton("✕");
         btnDelete->setFixedSize(24, 24);
         btnDelete->setEnabled(false);
@@ -438,34 +500,44 @@ void UI::bindPlotManagerCallbacks()
             auto* spnSS = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
             auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
 
-            QPen pen = graph->pen();
-            // 线型
-            static const Qt::PenStyle penStyles[] = {Qt::SolidLine, Qt::DotLine, Qt::DashLine, Qt::DashDotLine};
-            pen.setStyle(penStyles[cmbLS->currentIndex()]);
-            // 线宽
-            pen.setWidth(spnLW->value());
-            // 线色（从 UserRole 取 QColor）
-            QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
-            if (lineColor.isValid())
-                pen.setColor(lineColor);
-            graph->setPen(pen);
-
-            // 散点
-            QCPScatterStyle ss = graph->scatterStyle();
-            int scIdx = cmbSC->currentIndex();
-            static const QCPScatterStyle::ScatterShape shapes[] = {
-                QCPScatterStyle::ssNone, QCPScatterStyle::ssCircle, QCPScatterStyle::ssDisc,
-                QCPScatterStyle::ssSquare, QCPScatterStyle::ssDiamond, QCPScatterStyle::ssStar
-            };
-            ss.setShape(shapes[scIdx]);
-            ss.setSize(spnSS->value());
-            QColor scatterColor = cmbSCo->currentData(Qt::UserRole).value<QColor>();
-            if (scatterColor.isValid())
+            int lsIdx = cmbLS->currentIndex();
+            // lsIdx: 0=无, 1=实线, 2=点线, 3=虚线, 4=点划线
+            if (lsIdx == 0)
             {
-                QPen spen(scatterColor);
-                ss.setPen(spen);
+                graph->setLineStyle(viewer::QCPColumnGraph::lsNone);
             }
-            graph->setScatterStyle(ss);
+            else
+            {
+                graph->setLineStyle(viewer::QCPColumnGraph::lsLine);
+
+                QPen pen = graph->pen();
+                static const Qt::PenStyle penStyles[] = {Qt::NoPen, Qt::SolidLine, Qt::DotLine, Qt::DashLine, Qt::DashDotLine};
+                pen.setStyle(penStyles[lsIdx]);
+                pen.setWidth(spnLW->value());
+                QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
+                if (lineColor.isValid())
+                    pen.setColor(lineColor);
+                graph->setPen(pen);
+            }
+
+            // 散点样式由工具栏控件独立控制
+            {
+                QCPScatterStyle ss = graph->scatterStyle();
+                int scIdx = cmbSC->currentIndex();
+                static const QCPScatterStyle::ScatterShape shapes[] = {
+                    QCPScatterStyle::ssNone, QCPScatterStyle::ssCircle, QCPScatterStyle::ssDisc,
+                    QCPScatterStyle::ssSquare, QCPScatterStyle::ssDiamond, QCPScatterStyle::ssStar
+                };
+                ss.setShape(shapes[scIdx]);
+                ss.setSize(spnSS->value());
+                QColor scatterColor = cmbSCo->currentData(Qt::UserRole).value<QColor>();
+                if (scatterColor.isValid())
+                {
+                    ss.setPen(QPen(scatterColor));
+                    ss.setBrush(QBrush(scatterColor));
+                }
+                graph->setScatterStyle(ss);
+            }
 
             plot->replot(); // pen 变化需要手动 replot
         };
@@ -483,6 +555,16 @@ void UI::bindPlotManagerCallbacks()
             this, [applyToGraph](int){ applyToGraph(); });
         connect(cmbScatterColor, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, [applyToGraph](int){ applyToGraph(); });
+
+        // ---- 对数轴复选框 → 切换坐标轴类型 ----
+        connect(chkLogX, &QCheckBox::toggled, plot, [plot](bool on){
+            plot->xAxis->setScaleType(on ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
+            plot->replot();
+        });
+        connect(chkLogY, &QCheckBox::toggled, plot, [plot](bool on){
+            plot->yAxis->setScaleType(on ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
+            plot->replot();
+        });
 
         // ---- 查找 combo item 索引的辅助 lambda（按 UserRole 匹配） ----
         auto findComboIndexByUserRole = [cmbDataItem](const std::string& name) -> int {
@@ -756,7 +838,7 @@ void UI::bindPlotManagerCallbacks()
         if (!toolbar)
             return;
         auto* hb = toolbar->findChild<QHBoxLayout*>();
-        if (!hb || hb->count() < 9)
+        if (!hb || hb->count() < 11)
             return;
         auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
         if (!cmbDataItem)
@@ -775,7 +857,7 @@ void UI::bindPlotManagerCallbacks()
         cmbDataItem->blockSignals(false);
 
         // 启用删除按钮
-        auto* btnDeleteAdd = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+        auto* btnDeleteAdd = qobject_cast<QPushButton*>(hb->itemAt(10)->widget());
         if (btnDeleteAdd)
             btnDeleteAdd->setEnabled(true);
 
@@ -838,7 +920,7 @@ void UI::bindPlotManagerCallbacks()
         if (!toolbar)
             return;
         auto* hb = toolbar->findChild<QHBoxLayout*>();
-        if (!hb || hb->count() < 9)
+        if (!hb || hb->count() < 11)
             return;
         auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
         if (!cmbDataItem)
@@ -875,7 +957,7 @@ void UI::bindPlotManagerCallbacks()
             // 没有剩余项时禁用删除按钮
             if (cmbDataItem->count() == 0)
             {
-                auto* btnDeleteRm = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+                auto* btnDeleteRm = qobject_cast<QPushButton*>(hb->itemAt(10)->widget());
                 if (btnDeleteRm)
                     btnDeleteRm->setEnabled(false);
             }
@@ -987,7 +1069,7 @@ void UI::bindPlotManagerCallbacks()
             return;
 
     auto* hb = toolbar->findChild<QHBoxLayout*>();
-        if (!hb || hb->count() < 9)
+        if (!hb || hb->count() < 11)
             return;
 
         auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
@@ -997,7 +1079,7 @@ void UI::bindPlotManagerCallbacks()
         auto* cmbSC       = qobject_cast<QComboBox*>(hb->itemAt(4)->widget());
         auto* spnSS       = qobject_cast<QSpinBox*>(hb->itemAt(5)->widget());
         auto* cmbSCo      = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
-        auto* btnDelete   = qobject_cast<QPushButton*>(hb->itemAt(8)->widget());
+        auto* btnDelete   = qobject_cast<QPushButton*>(hb->itemAt(10)->widget());
 
         // 根据选中状态启用/禁用删除按钮
         if (btnDelete)
@@ -1093,22 +1175,29 @@ void UI::bindPlotManagerCallbacks()
             w->blockSignals(false);
         };
 
-        QPen pen = graph->pen();
-        // 线型映射：Qt::SolidLine=0, Qt::DotLine=1, Qt::DashLine=2, Qt::DashDotLine=3
-        static const std::map<Qt::PenStyle, int> styleMap = {
-            {Qt::SolidLine, 0}, {Qt::DotLine, 1}, {Qt::DashLine, 2}, {Qt::DashDotLine, 3}
-        };
-        guard(cmbLS, [&]{ cmbLS->setCurrentIndex(styleMap.count(pen.style()) ? styleMap.at(pen.style()) : 0); });
-        guard(spnLW, [&]{ spnLW->setValue(pen.width()); });
-
-        guard(cmbLC, [&]{
-            int ci = -1;
-            for (int i = 0; i < cmbLC->count(); ++i) {
-                QColor c = cmbLC->itemData(i, Qt::UserRole).value<QColor>();
-                if (c == pen.color()) { ci = i; break; }
-            }
-            if (ci >= 0) cmbLC->setCurrentIndex(ci);
-        });
+        // 线型映射："无"=0, "实线(SolidLine)"=1, "点线(DotLine)"=2, "虚线(DashLine)"=3, "点划线(DashDotLine)"=4
+        bool isLineNone = (graph->lineStyle() == viewer::QCPColumnGraph::lsNone);
+        if (isLineNone)
+        {
+            guard(cmbLS, [&]{ cmbLS->setCurrentIndex(0); });
+        }
+        else
+        {
+            QPen pen = graph->pen();
+            static const std::map<Qt::PenStyle, int> styleMap = {
+                {Qt::SolidLine, 1}, {Qt::DotLine, 2}, {Qt::DashLine, 3}, {Qt::DashDotLine, 4}
+            };
+            guard(cmbLS, [&]{ cmbLS->setCurrentIndex(styleMap.count(pen.style()) ? styleMap.at(pen.style()) : 1); });
+            guard(spnLW, [&]{ spnLW->setValue(pen.width()); });
+            guard(cmbLC, [&]{
+                int ci = -1;
+                for (int i = 0; i < cmbLC->count(); ++i) {
+                    QColor c = cmbLC->itemData(i, Qt::UserRole).value<QColor>();
+                    if (c == pen.color()) { ci = i; break; }
+                }
+                if (ci >= 0) cmbLC->setCurrentIndex(ci);
+            });
+        }
 
         QCPScatterStyle ss = graph->scatterStyle();
         // 散点形状映射

@@ -9,10 +9,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>qrc;rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="math">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
     <Filter Include="base">
       <UniqueIdentifier>{99349809-55BA-4b9d-BF79-8FDBB0286EB3}</UniqueIdentifier>
       <Extensions>ui</Extensions>
@@ -26,6 +22,10 @@
     </Filter>
     <Filter Include="stylemgr">
       <UniqueIdentifier>{f2b58342-d003-4055-b68f-9a526802739f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="datamgr\math">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -57,6 +57,9 @@
       <Filter>stylemgr</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.cpp">
+      <Filter>plotmgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\plotmgr\fft\fft_manager.cpp">
       <Filter>plotmgr</Filter>
     </ClCompile>
   </ItemGroup>
@@ -106,6 +109,9 @@
       <Filter>viewer_qt</Filter>
     </QtMoc>
     <QtMoc Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.h">
+      <Filter>plotmgr</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_viewer\plotmgr\fft\fft_manager.h">
       <Filter>plotmgr</Filter>
     </QtMoc>
   </ItemGroup>

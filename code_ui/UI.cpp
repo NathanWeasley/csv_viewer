@@ -189,7 +189,10 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
         }
     }
 
+    // FFT 图窗禁止添加数据项
+    if (pm.hasActivePage() && pm.isFFTPage(pm.activePageIndex()))
+        return;
+
     // 向 PlotManager 注册（自动处理去重）
     pm.addDataToActivePage(yColName);
 }
-

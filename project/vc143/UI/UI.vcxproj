@@ -125,6 +125,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_ui\AliasDialog.cpp" />
+    <ClCompile Include="..\..\..\code_ui\FFTDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\HighlightDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\main.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI.cpp" />
@@ -132,6 +133,7 @@
     <ClCompile Include="..\..\..\code_ui\UI_Bookmark.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Cursor.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Event.cpp" />
+    <ClCompile Include="..\..\..\code_ui\UI_FFT.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_FileIO.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Highlight.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Layout.cpp" />
@@ -144,6 +146,7 @@
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\HighlightDialog.h" />
     <QtMoc Include="..\..\..\code_ui\AliasDialog.h" />
+    <QtMoc Include="..\..\..\code_ui\FFTDialog.h" />
     <ClInclude Include="..\..\..\code_ui\icons_base64.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

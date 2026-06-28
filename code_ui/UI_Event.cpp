@@ -39,12 +39,24 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
 
     // ============================================================
-    // 右键上下文菜单（框选模式）
+    // 右键上下文菜单（框选模式 / FFT 框选取消）
     // ============================================================
     if (event->type() == QEvent::ContextMenu)
     {
         if (plot)
         {
+            // FFT 框选模式中，右键取消框选
+            if (m_fftSelecting && m_fftPageIndex >= 0)
+            {
+                auto* container = m_plotTabs->widget(m_fftPageIndex);
+                auto* fftPlot = container ? container->findChild<QCustomPlot*>() : nullptr;
+                if (fftPlot == plot)
+                {
+                    cancelFFTSelection();
+                    return true;
+                }
+            }
+
             int pageIndex = m_plotToPageIndex.value(plot, -1);
             if (pageIndex >= 0 && m_viewer.GetPlotManager().isRectZoomActive(pageIndex))
             {
@@ -86,6 +98,101 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     }
 
     // ============================================================
+    // FFT 框选模式下独占鼠标事件，放行 Paint 等内部事件
+    // ============================================================
+    if (plot && m_fftSelecting && m_fftPageIndex >= 0)
+    {
+        auto* container = m_plotTabs->widget(m_fftPageIndex);
+        auto* fftPlot = container ? container->findChild<QCustomPlot*>() : nullptr;
+        if (fftPlot == plot)
+        {
+            if (event->type() == QEvent::MouseButtonPress)
+            {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::LeftButton)
+                {
+                    m_fftSelStart = me->pos();
+                    m_fftSelEnd = me->pos();
+                    if (m_fftSelectRect)
+                    {
+                        m_fftSelectRect->topLeft->setCoords(
+                            plot->xAxis->pixelToCoord(m_fftSelStart.x()),
+                            plot->yAxis->pixelToCoord(m_fftSelStart.y()));
+                        m_fftSelectRect->bottomRight->setCoords(
+                            plot->xAxis->pixelToCoord(m_fftSelEnd.x()),
+                            plot->yAxis->pixelToCoord(m_fftSelEnd.y()));
+                        m_fftSelectRect->setVisible(true);
+                        plot->replot();
+                    }
+                    return true;
+                }
+            }
+
+            if (event->type() == QEvent::MouseMove)
+            {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->buttons() & Qt::LeftButton)
+                {
+                    m_fftSelEnd = me->pos();
+                    if (m_fftSelectRect)
+                    {
+                        m_fftSelectRect->topLeft->setCoords(
+                            plot->xAxis->pixelToCoord(m_fftSelStart.x()),
+                            plot->yAxis->pixelToCoord(m_fftSelStart.y()));
+                        m_fftSelectRect->bottomRight->setCoords(
+                            plot->xAxis->pixelToCoord(m_fftSelEnd.x()),
+                            plot->yAxis->pixelToCoord(m_fftSelEnd.y()));
+                        plot->replot();
+                    }
+                }
+                return true;
+            }
+
+            if (event->type() == QEvent::MouseButtonRelease)
+            {
+                QMouseEvent* me = static_cast<QMouseEvent*>(event);
+                if (me->button() == Qt::LeftButton)
+                {
+                    double x1 = plot->xAxis->pixelToCoord(m_fftSelStart.x());
+                    double x2 = plot->xAxis->pixelToCoord(m_fftSelEnd.x());
+                    double xMin = std::min(x1, x2);
+                    double xMax = std::max(x1, x2);
+
+                    if (m_fftSelectRect)
+                    {
+                        plot->removeItem(m_fftSelectRect);
+                        m_fftSelectRect = nullptr;
+                    }
+                    m_fftSelecting = false;
+                    plot->setCursor(Qt::ArrowCursor);
+                    plot->replot();
+
+                    int pageIdx = m_fftPageIndex;
+                    m_fftPageIndex = -1;
+                    showFFTDialog(pageIdx, xMin, xMax);
+                    return true;
+                }
+            }
+
+            // 对输入事件阻止穿透；Paint/Resize 等内部事件放行
+            switch (event->type())
+            {
+            case QEvent::MouseMove:
+            case QEvent::MouseButtonPress:
+            case QEvent::MouseButtonRelease:
+            case QEvent::MouseButtonDblClick:
+            case QEvent::Wheel:
+            case QEvent::KeyPress:
+            case QEvent::KeyRelease:
+                return true;
+            default:
+                break;
+            }
+            // Paint / Resize 等放行，否则 plot 白屏
+        }
+    }
+
+    // ============================================================
     // 游标交互事件（仅 QCustomPlot）
     // ============================================================
     if (!plot)
@@ -102,7 +209,6 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     {
         QMouseEvent* me = static_cast<QMouseEvent*>(event);
 
-        // 密度检查：数据点数/像素宽度 > 1 时不启用预选
         if (isDataTooDense(plot))
         {
             cm.clearPreSelection();
@@ -123,7 +229,6 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             cm.clearPreSelection();
         }
 
-        // 让 QCustomPlot 继续处理拖拽等相关事件
         return QMainWindow::eventFilter(obj, event);
     }
 
@@ -134,15 +239,12 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         m_mousePressPos = me->pos();
         m_mousePressOnPlot = true;
 
-        // KeyPress（Delete）需要焦点，设置 plot 可获焦
         plot->setFocusPolicy(Qt::StrongFocus);
         plot->setFocus();
 
-        // Shift 按下时不传递给 QCustomPlot，避免启动拖拽导致粘滞
         if (me->modifiers() & Qt::ShiftModifier)
             return true;
 
-        // 点击在已有游标附近 → 阻止 QCP 拖拽启动
         const double cursorHitRadius = 10.0;
         const auto& cursors = cm.cursors();
         for (size_t i = 0; i < cursors.size(); ++i)
@@ -165,11 +267,10 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             double dy = cpos.y() - me->pos().y();
             if ((dx * dx + dy * dy) < (cursorHitRadius * cursorHitRadius))
             {
-                return true;  // 阻止 QCP 拖拽
+                return true;
             }
         }
 
-        // 让 QCustomPlot 继续处理拖拽/缩放
         return QMainWindow::eventFilter(obj, event);
     }
 
@@ -187,14 +288,11 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
 
         if (!isClick)
         {
-            // 拖拽操作，让 QCustomPlot 自己处理
             return QMainWindow::eventFilter(obj, event);
         }
 
-        // ---- 单击处理 ----
         bool shiftHeld = (me->modifiers() & Qt::ShiftModifier);
 
-        // 优先：点击已有游标附近 → 激活该游标
         const double cursorHitRadius = 10.0;
         const auto& cursors = cm.cursors();
         int hitCursorIdx = -1;
@@ -203,7 +301,6 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             if (cursors[i].pageIndex != pageIndex)
                 continue;
 
-            // 查找对应 graph
             viewer::QCPColumnGraph* cg = nullptr;
             for (int g = 0; g < plot->plottableCount(); ++g)
             {
@@ -235,23 +332,31 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         if (shiftHeld && cm.hasPreSelection()
             && cm.preSelPage() == pageIndex)
         {
-            // Shift+单击预选点 → 添加游标
             cm.addCursor(pageIndex, cm.preSelItem(), cm.preSelIndex());
-            return true; // 消费事件
+            return true;
         }
         else
         {
-            // 空白处单击 → 解除所有游标激活
             cm.setActiveCursor(-1);
             cm.clearPreSelection();
             return QMainWindow::eventFilter(obj, event);
         }
     }
 
-    // ---- KeyPress: Delete / 方向键 ----
+    // ---- KeyPress: Delete / 方向键 / Escape ----
     if (event->type() == QEvent::KeyPress)
     {
         QKeyEvent* ke = static_cast<QKeyEvent*>(event);
+
+        if (ke->key() == Qt::Key_Escape)
+        {
+            if (m_fftSelecting)
+            {
+                cancelFFTSelection();
+                return true;
+            }
+        }
+
         if (ke->key() == Qt::Key_Delete)
         {
             if (cm.hasActiveCursor())
@@ -270,7 +375,6 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             if (cursor.pageIndex != pageIndex)
                 return QMainWindow::eventFilter(obj, event);
 
-            // 查找对应 graph
             viewer::QCPColumnGraph* cg = nullptr;
             for (int g = 0; g < plot->plottableCount(); ++g)
             {

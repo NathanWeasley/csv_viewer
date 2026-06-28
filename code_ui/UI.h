@@ -17,11 +17,13 @@
 #include <QLabel>
 #include <QPoint>
 #include <map>
+#include <unordered_map>
 #include "ui_UI.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
+#include "code_viewer/plotmgr/fft/fft_manager.h"
 #include "code_viewer/stylemgr/style_manager.h"
 #include "code_qcp/qcustomplot.h"
 
@@ -97,6 +99,11 @@ private Q_SLOTS:
     void rebuildBookmarkTree();
     void restoreBookmark(const viewer::BookmarkEntry& entry);
 
+    // ---- FFT ----
+    void onFFTRequested(int pageIndex);
+    void showFFTDialog(int pageIndex, double xMin, double xMax);
+    void cancelFFTSelection();
+
 private:
     Ui::UIClass ui;
 
@@ -153,6 +160,17 @@ private:
     QHash<int, QList<QCPItemText*>> m_highlightLabels;
     // pageIndex → afterReplot 连接（用于缩放时动态更新高亮区域 Y 范围）
     QHash<int, QMetaObject::Connection> m_highlightReplotConns;
+
+    // ---- FFT state ----
+    bool m_fftSelecting = false;          // 是否处于 FFT 框选模式
+    int  m_fftPageIndex = -1;             // 发起 FFT 的图窗索引
+    QPoint m_fftSelStart;                 // 框选起始像素坐标
+    QPoint m_fftSelEnd;                   // 框选结束像素坐标
+    QCPItemRect* m_fftSelectRect = nullptr; // 框选矩形叠加层
+
+    // FFT 结果列生命周期（pageIndex → unique_ptr）
+    std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftMagCols;
+    std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftFreqCols;
 
     viewer::Viewer m_viewer;
 };

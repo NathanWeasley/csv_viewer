@@ -431,7 +431,16 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     double xspan = axisrange.upper - axisrange.lower;
 
     ///< Maximum available X-axis range
-    double xdatarange = m_keyCol->cachedMax() - m_keyCol->cachedMin();
+    double xdatarange;
+    if (m_keyCol->hasCachedMinMax())
+    {
+        xdatarange = m_keyCol->cachedMax() - m_keyCol->cachedMin();
+    }
+    else
+    {
+        auto r = m_keyCol->rangeMinMax(begin, end);
+        xdatarange = r.second - r.first;
+    }
 
     ///< rescale ratio to account for span < width case
     double bucket_scale = std::max(1.0, xspan/xdatarange);
@@ -456,10 +465,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
         QCPDataRange dataRange(begin, end);
-        if (useDownsample)
-            getLinesDownsampled(&scatters, begin, end, buckets);
-        else
-            getScatters(&scatters, dataRange);
+        getScatters(&scatters, dataRange);
     }
 
     if (mBrush.style() != Qt::NoBrush && !lines.isEmpty())
@@ -493,7 +499,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
-        applyScattersAntialiasingHint(painter);
+        painter->setAntialiasing(false);
         drawScatterPlot(painter, scatters);
     }
 }

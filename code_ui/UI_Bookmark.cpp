@@ -18,6 +18,7 @@
 #include <qspinbox.h>
 #include <qlineedit.h>
 #include <qpushbutton.h>
+#include <qcheckbox.h>
 #include <qinputdialog.h>
 #include <QFormLayout>
 #include <QDialogButtonBox>
@@ -187,6 +188,8 @@ void UI::addBookmark(int pageIndex)
     entry.name = bmName;
     entry.xAxisColumn = info.xAxisColumn;
     entry.legendVisible = info.legendVisible;
+    entry.logX = (plot->xAxis->scaleType() == QCPAxis::stLogarithmic);
+    entry.logY = (plot->yAxis->scaleType() == QCPAxis::stLogarithmic);
 
     for (const auto& item : info.dataItems)
     {
@@ -289,6 +292,33 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
         renderHighlights(newIdx);
 
         if (entry.legendVisible) pm.setLegendVisible(newIdx, true);
+
+        // 恢复对数轴状态
+        plot->xAxis->setScaleType(entry.logX ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
+        plot->yAxis->setScaleType(entry.logY ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
+
+        // 同步工具栏复选框
+        auto* vbox = cw->findChild<QVBoxLayout*>();
+        if (vbox && vbox->count() >= 1)
+        {
+            auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+            if (toolbar)
+            {
+                auto* hb = toolbar->findChild<QHBoxLayout*>();
+                if (hb && hb->count() >= 10)
+                {
+                    auto* chkLogX = qobject_cast<QCheckBox*>(hb->itemAt(7)->widget());
+                    auto* chkLogY = qobject_cast<QCheckBox*>(hb->itemAt(8)->widget());
+                    if (chkLogX) chkLogX->blockSignals(true);
+                    if (chkLogX) chkLogX->setChecked(entry.logX);
+                    if (chkLogX) chkLogX->blockSignals(false);
+                    if (chkLogY) chkLogY->blockSignals(true);
+                    if (chkLogY) chkLogY->setChecked(entry.logY);
+                    if (chkLogY) chkLogY->blockSignals(false);
+                }
+            }
+        }
+
         plot->rescaleAxes();
         plot->replot();
     }

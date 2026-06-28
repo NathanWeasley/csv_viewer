@@ -93,6 +93,10 @@ bool PlotManager::addDataItem(int pageIndex, const std::string& yColName)
     if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
         return false;
 
+    // FFT 图窗禁止添加数据项
+    if (m_pages[pageIndex].isFFT)
+        return false;
+
     auto& items = m_pages[pageIndex].dataItems;
     if (items.count(yColName) > 0)
         return false;  // 已存在，跳过
@@ -108,6 +112,10 @@ bool PlotManager::addDataItem(int pageIndex, const std::string& yColName)
 bool PlotManager::removeDataItem(int pageIndex, const std::string& yColName)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return false;
+
+    // FFT 图窗禁止移除数据项
+    if (m_pages[pageIndex].isFFT)
         return false;
 
     auto& items = m_pages[pageIndex].dataItems;
@@ -273,6 +281,26 @@ const std::string& PlotManager::selectedDataItem(int pageIndex) const
     if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
         return empty;
     return m_pages[pageIndex].selectedDataItem;
+}
+
+// ============================================================
+// FFT 管理
+// ============================================================
+
+int PlotManager::addFFTPage(const std::string& title)
+{
+    std::string pageTitle = title.empty() ? ("FFT " + std::to_string(m_nextPageNumber)) : title;
+    int index = addPage(pageTitle);
+    m_pages[index].isFFT = true;
+    m_nextPageNumber++;
+    return index;
+}
+
+bool PlotManager::isFFTPage(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return false;
+    return m_pages[pageIndex].isFFT;
 }
 
 // ============================================================

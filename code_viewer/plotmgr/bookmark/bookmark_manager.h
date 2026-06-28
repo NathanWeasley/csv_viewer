@@ -33,6 +33,8 @@ struct BookmarkEntry
     std::string                    name;            // 收藏项名称（全局唯一）
     size_t                         xAxisColumn = static_cast<size_t>(-1);
     bool                           legendVisible = false;
+    bool                           logX = false;    // X 轴对数显示
+    bool                           logY = false;    // Y 轴对数显示
     std::vector<std::string>       dataItems;       // Y 列名集合
     std::vector<GraphStyleSnapshot> graphs;          // 每列样式快照
     std::vector<HighlightRule>     highlights;      // 高亮规则

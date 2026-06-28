@@ -23,6 +23,7 @@ struct PlotPageInfo
     bool legendVisible = false;                  // 图例是否可见
     bool rectZoomActive = false;                 // 是否处于框选缩放模式
     std::string selectedDataItem;                // 当前选中的数据项名称（空=无选中）
+    bool isFFT = false;                          // 是否为 FFT 图窗（禁止添加数据项/收藏/复制）
 
     // 每个图窗独立的 X 轴列索引（npox = 未设置）
     size_t xAxisColumn = static_cast<size_t>(-1);
@@ -200,6 +201,16 @@ public:
 
     // 选中数据项变更后触发，参数为 (页面索引, 列名，空串表示取消选中)
     std::function<void(int pageIndex, const std::string& yColName)> onSelectedDataItemChanged;
+
+    // ============================================================
+    // FFT 管理
+    // ============================================================
+
+    // 添加 FFT 图窗，内部设置 isFFT=true，返回新页面索引
+    int addFFTPage(const std::string& title = "");
+
+    // 查询图窗是否为 FFT 类型
+    bool isFFTPage(int pageIndex) const;
 
     // ============================================================
     // 收藏夹管理

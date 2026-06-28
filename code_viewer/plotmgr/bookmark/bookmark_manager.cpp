@@ -431,6 +431,8 @@ void BookmarkMgr::entryToJson(const BookmarkEntry& entry, QJsonObject& out) cons
     out["name"]          = QString::fromStdString(entry.name);
     out["xAxisColumn"]   = static_cast<qint64>(entry.xAxisColumn);
     out["legendVisible"] = entry.legendVisible;
+    out["logX"]          = entry.logX;
+    out["logY"]          = entry.logY;
 
     QJsonArray diArr;
     for (const auto& di : entry.dataItems)
@@ -461,6 +463,8 @@ void BookmarkMgr::jsonToEntry(const QJsonObject& obj, BookmarkEntry& out)
     out.name          = obj.value("name").toString().toStdString();
     out.xAxisColumn   = static_cast<size_t>(obj.value("xAxisColumn").toInt(-1));
     out.legendVisible = obj.value("legendVisible").toBool(false);
+    out.logX          = obj.value("logX").toBool(false);
+    out.logY          = obj.value("logY").toBool(false);
 
     out.dataItems.clear();
     QJsonArray diArr = obj.value("dataItems").toArray();
