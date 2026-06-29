@@ -38,6 +38,9 @@ public:
     // ---- 自适应降采样全局开关 ----
     static bool s_adaptiveSamplingEnabled;
 
+    // ---- 抗锯齿全局开关（降采样开启时强制生效） ----
+    static bool s_antiAliasingEnabled;
+
     // ---- 设置数据列 ----
     // 设置 X 轴数据列（key）和 Y 轴数据列（value）
     // 列指针生命周期由 DataManager 管理，QCPColumnGraph 不持有所有权

@@ -175,6 +175,7 @@ private:
     // ---- Settings state ----
     bool m_adaptiveDownsampling = true;  // 自适应降采样开关
     bool m_openglEnabled = true;          // OpenGL 绘制开关
+    bool m_antiAliasingEnabled = false;   // 抗锯齿开关
 
     viewer::Viewer m_viewer;
 };

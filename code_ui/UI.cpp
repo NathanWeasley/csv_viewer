@@ -50,6 +50,10 @@ UI::UI(QWidget *parent)
 
         // 读取 OpenGL 设置（默认 true）
         m_openglEnabled = settings.value("openglEnabled", true).toBool();
+
+        // 读取抗锯齿设置（默认 false）
+        m_antiAliasingEnabled = settings.value("antiAliasing", false).toBool();
+        viewer::QCPColumnGraph::s_antiAliasingEnabled = m_antiAliasingEnabled;
     }
 
     init();
@@ -126,6 +130,7 @@ void UI::closeEvent(QCloseEvent* event)
 
     settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
     settings.setValue("openglEnabled", m_openglEnabled);
+    settings.setValue("antiAliasing", m_antiAliasingEnabled);
 
     QMainWindow::closeEvent(event);
 }
