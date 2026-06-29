@@ -90,7 +90,8 @@
       <PreprocessorDefinitions>QCUSTOMPLOT_USE_LIBRARY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(TargetDir)..\extra\qads\*.dll" "$(TargetDir)"</Command>
+      <Command>xcopy /Y /D "$(TargetDir)..\extra\qads\*.dll" "$(TargetDir)"
+xcopy /Y /D "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\..\deploy\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">

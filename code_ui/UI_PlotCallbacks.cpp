@@ -114,7 +114,7 @@ void UI::bindPlotManagerCallbacks()
     {
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
-        plot->setOpenGl(true);
+        plot->setOpenGl(false);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
