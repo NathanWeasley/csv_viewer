@@ -26,7 +26,6 @@
 #include "code_viewer/plotmgr/fft/fft_manager.h"
 #include "code_viewer/stylemgr/style_manager.h"
 #include "code_qcp/qcustomplot.h"
-#include "icons_base64.h"
 
 class HighlightDialog;
 class UI
@@ -61,13 +60,8 @@ private Q_SLOTS:
     /** Data tree item double-clicked → add to active plot */
     void onDataItemDoubleClicked(QTreeWidgetItem* item, int column);
 
-    QIcon createDpiAwareIcon(const QString& svgText, int logicalsize = 24);
+    QIcon createDpiAwareIcon(const QString& fullstr, int logicalsize = 24);
     void forceStrokeColor(QString& str, const QString& color);
-
-    ///< Load raw SVG text from an icon resource (handles both BASE64 inline and SVG_FILE paths)
-    QString loadIconSvg(IconIdx idx);
-    ///< Full pipeline: load SVG → normalize color → render DPI-aware QIcon
-    QIcon createToolbarIcon(IconIdx idx, const char* tooltip, int logicalsize = 24);
 
     // ---- Cursor Manager helpers ----
 
