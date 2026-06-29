@@ -8,38 +8,9 @@
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
-#include <climits>
-#include <stdexcept>
 
 namespace viewer
 {
-
-// ============================================================
-// CellType: 单元格分类（用于类型推断阶段）
-// ============================================================
-enum class CellType : uint8_t
-{
-    Float,      // 可解析为浮点数
-    String      // 不可解析的字符串
-};
-
-// ============================================================
-// 类型辅助函数
-// ============================================================
-
-// 分类一个单元格字符串属于什么类型
-inline CellType classifyCell(const std::string& s)
-{
-    if (s.empty())
-        return CellType::Float;
-
-    char* end = nullptr;
-    std::strtod(s.c_str(), &end);
-    if (end != s.c_str() && *end == '\0')
-        return CellType::Float;
-
-    return CellType::String;
-}
 
 // ============================================================
 // Column: 连续内存存储列（double）

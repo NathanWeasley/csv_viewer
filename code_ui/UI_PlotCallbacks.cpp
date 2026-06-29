@@ -834,7 +834,11 @@ void UI::bindPlotManagerCallbacks()
         // 创建表达式本地拷贝，切换到独立数据源
         auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
         viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
-        graph->setDataColumns(xCol, pe.computedData.get());
+        // 未编辑时 computedData 为 nullptr，直接从 DataManager 读取原始列
+        const viewer::Column* yDataSource = pe.computedData.get();
+        if (!yDataSource)
+            yDataSource = dm.GetColumn(yColName);
+        graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
 
         // 首个数据项全量缩放，后续项仅扩大
