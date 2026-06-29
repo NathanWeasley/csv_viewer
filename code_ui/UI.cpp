@@ -39,9 +39,22 @@ UI::UI(QWidget *parent)
 
     m_dockManager = new ads::CDockManager(ui.centralWidget);
 
+    /** 先读取 Settings 状态（init/createMenu 中需要用到） */
+    {
+        QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
+        QSettings settings(configPath, QSettings::IniFormat);
+
+        // 读取自适应降采样设置（默认 true）
+        m_adaptiveDownsampling = settings.value("adaptiveDownsampling", true).toBool();
+        viewer::QCPColumnGraph::s_adaptiveSamplingEnabled = m_adaptiveDownsampling;
+
+        // 读取 OpenGL 设置（默认 true）
+        m_openglEnabled = settings.value("openglEnabled", true).toBool();
+    }
+
     init();
 
-    /** Restore window settings */
+    /** Restore window geometry & docking state */
     {
         QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
         QSettings settings(configPath, QSettings::IniFormat);
@@ -110,6 +123,9 @@ void UI::closeEvent(QCloseEvent* event)
     {
         settings.setValue("dockingState", m_dockManager->saveState());
     }
+
+    settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
+    settings.setValue("openglEnabled", m_openglEnabled);
 
     QMainWindow::closeEvent(event);
 }

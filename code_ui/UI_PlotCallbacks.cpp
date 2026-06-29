@@ -114,7 +114,7 @@ void UI::bindPlotManagerCallbacks()
     {
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
-        plot->setOpenGl(false);
+        plot->setOpenGl(m_openglEnabled);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
@@ -426,12 +426,35 @@ void UI::bindPlotManagerCallbacks()
         fxLabel->setStyleSheet("color: #888; font-weight: bold;");
         exprHBox->addWidget(fxLabel);
 
+        // ---- 主题感知表达式样式辅助 ----
+        auto exprStyleNormal = [&]() -> QString {
+            if (isSystemInDark())
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
+                    "background: #2a2a2a; color: #ddd; }"
+                    "QLineEdit:focus { border-color: #FFD700; }");
+            else
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #aaa; border-radius: 3px; padding: 2px 6px; "
+                    "background: #f5f5f5; color: #333; }"
+                    "QLineEdit:focus { border-color: #2266cc; }");
+        };
+        auto exprStyleError = [&]() -> QString {
+            if (isSystemInDark())
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
+                    "background: #2a2a2a; color: #ddd; }"
+                    "QLineEdit:focus { border-color: #ff4444; }");
+            else
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
+                    "background: #f5f5f5; color: #333; }"
+                    "QLineEdit:focus { border-color: #ff4444; }");
+        };
+
         auto* exprLineEdit = new QLineEdit();
         exprLineEdit->setPlaceholderText("expression...");
-        exprLineEdit->setStyleSheet(
-            "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-            "background: #2a2a2a; color: #ddd; }"
-            "QLineEdit:focus { border-color: #FFD700; }");
+        exprLineEdit->setStyleSheet(exprStyleNormal());
         exprHBox->addWidget(exprLineEdit, 1);
 
         // ---- 容器 ----
@@ -582,7 +605,7 @@ void UI::bindPlotManagerCallbacks()
 
         // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
         connect(exprLineEdit, &QLineEdit::textChanged, this,
-            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole](const QString& text)
+            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole, exprStyleNormal, exprStyleError](const QString& text)
             {
                 QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
                 if (nameData.isEmpty()) return;
@@ -598,28 +621,19 @@ void UI::bindPlotManagerCallbacks()
                 std::string exprStr = text.toStdString();
                 if (exprStr.empty())
                 {
-                    exprLineEdit->setStyleSheet(
-                        "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-                        "background: #2a2a2a; color: #ddd; }"
-                        "QLineEdit:focus { border-color: #FFD700; }");
+                    exprLineEdit->setStyleSheet(exprStyleNormal());
                     return;
                 }
 
                 if (!exprMgr.validate(exprStr, dm))
                 {
                     // 不合法：红色边框提示
-                    exprLineEdit->setStyleSheet(
-                        "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
-                        "background: #2a2a2a; color: #ddd; }"
-                        "QLineEdit:focus { border-color: #ff4444; }");
+                    exprLineEdit->setStyleSheet(exprStyleError());
                     return;
                 }
 
                 // 合法：恢复正常边框 + 计算
-                exprLineEdit->setStyleSheet(
-                    "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-                    "background: #2a2a2a; color: #ddd; }"
-                    "QLineEdit:focus { border-color: #FFD700; }");
+                exprLineEdit->setStyleSheet(exprStyleNormal());
 
                 // 重新计算表达式值
                 if (exprMgr.recompute(selName, dm))

@@ -4,6 +4,9 @@
 namespace viewer
 {
 
+// 静态成员定义：默认启用自适应降采样
+bool QCPColumnGraph::s_adaptiveSamplingEnabled = true;
+
 // ============================================================
 // 构造 / 析构
 // ============================================================
@@ -445,7 +448,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     ///< rescale ratio to account for span < width case
     double bucket_scale = std::max(1.0, xspan/xdatarange);
 
-    bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
+    bool useDownsample = (s_adaptiveSamplingEnabled && ratio > 2.0 && mLineStyle == lsLine);
 
     int buckets = std::max(1, static_cast<int>(std::ceil(pixelsW * std::min(ratio, 1.0)/bucket_scale)));
     if (buckets > visibleCount / 2)

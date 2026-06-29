@@ -172,5 +172,9 @@ private:
     std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftMagCols;
     std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftFreqCols;
 
+    // ---- Settings state ----
+    bool m_adaptiveDownsampling = true;  // 自适应降采样开关
+    bool m_openglEnabled = true;          // OpenGL 绘制开关
+
     viewer::Viewer m_viewer;
 };

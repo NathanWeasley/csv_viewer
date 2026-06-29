@@ -129,6 +129,9 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
             }
             else if (c == m_delimiter)
             {
+                // Trim leading/trailing whitespace from the field
+                while (!current.empty() && (current.back() == ' ' || current.back() == '\t'))
+                    current.pop_back();
                 fields.push_back(current);
                 current.clear();
                 ++i;
@@ -141,7 +144,10 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
         }
     }
 
-    fields.push_back(current);  // 最后一个字段
+    // Trim leading/trailing whitespace from the last field
+    while (!current.empty() && (current.back() == ' ' || current.back() == '\t'))
+        current.pop_back();
+    fields.push_back(current);
     return true;
 }
 

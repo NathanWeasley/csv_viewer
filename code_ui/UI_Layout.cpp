@@ -183,6 +183,23 @@ void UI::createMenu()
     auto* settingsMenu = menuBar()->addMenu("&Settings");
     auto* aliasAction = settingsMenu->addAction("Auto Rename");
     connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
+
+    auto* downsampleAction = settingsMenu->addAction(QString::fromUtf8("自适应降采样"));
+    downsampleAction->setCheckable(true);
+    downsampleAction->setChecked(m_adaptiveDownsampling);
+    connect(downsampleAction, &QAction::toggled, this, [this](bool checked)
+    {
+        m_adaptiveDownsampling = checked;
+        viewer::QCPColumnGraph::s_adaptiveSamplingEnabled = checked;
+    });
+
+    auto* openglAction = settingsMenu->addAction("OpenGL 绘制");
+    openglAction->setCheckable(true);
+    openglAction->setChecked(m_openglEnabled);
+    connect(openglAction, &QAction::toggled, this, [this](bool checked)
+    {
+        m_openglEnabled = checked;
+    });
 }
 
 void UI::createToolbar()
