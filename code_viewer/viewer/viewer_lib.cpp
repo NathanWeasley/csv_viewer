@@ -50,7 +50,7 @@ static std::string sanitizeSingleName(std::string raw)
     // Replace special characters with '_'
     for (char& c : cleaned)
     {
-        if (c == ',' || c == '"' || c == '\'' || c == ';' || c == '|' ||
+        if (c == ' ' || c == ',' || c == '"' || c == '\'' || c == ';' || c == '|' ||
             c == '\\' || c == '/' || c == '(' || c == ')' || c == '[' ||
             c == ']' || c == '{' || c == '}' || c == '<' || c == '>' ||
             c == ':' || c == '*' || c == '?' || c == '#' || c == '@' ||

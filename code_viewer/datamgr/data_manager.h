@@ -105,13 +105,6 @@ public:
     // 按列名查找索引（未找到返回 npos）
     size_t GetColumnIndex(const std::string& name) const;
 
-    // 获取字符串列名集合
-    const std::unordered_set<std::string>& GetStringColumnNames() const noexcept { return m_stringColumnNames; }
-
-    // 判断某列是否为字符串列
-    bool IsStringColumn(size_t colIdx) const;
-    bool IsStringColumn(const std::string& name) const;
-
     // ============================================================
     // 行访问接口
     // ============================================================
@@ -158,11 +151,6 @@ public:
     const std::string& GetFilePath() const noexcept { return m_filePath; }
 
 private:
-    // ---- 列名处理 ----
-    void sanitizeColumnNames(const std::vector<std::string>& rawNames, 
-                             std::vector<std::string>& outSanitized,
-                             std::unordered_map<std::string, size_t>& outIndex);
-
     // ---- 表达式列名提取 ----
     // extraKeywords: 额外的排除标识符（如自定义函数名），不在其中且存在于 m_nameIndex 中的才会被返回
     std::vector<std::string> ParseColumnRefs(const std::string& exprStr,
@@ -173,23 +161,12 @@ private:
     // 返回处理后的表达式字符串。若某函数调用参数列不存在则返回空字符串表示失败
     std::string PreprocessCustomFuncs(const std::string& exprStr, size_t rowCount);
 
-    // ---- 类型推断 ----
-    struct TypeCount {
-        uint64_t floatCount = 0;
-        uint64_t stringCount = 0;
-    };
-
-    bool isStringColumn(const TypeCount& tc) const noexcept;
-
     // ---- 内部数据 ----
     std::vector<std::unique_ptr<Column>> m_columns;
 
     std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名
     std::unordered_map<std::string, size_t> m_nameIndex;  // 列名->索引
-
-    // 字符串列名集合（这些列的数据为全 NaN，仅展示不绘制）
-    std::unordered_set<std::string> m_stringColumnNames;
 
     std::string m_filePath;     // 已加载的文件路径
     size_t      m_xAxisColumn = npos;  // 当前横轴列

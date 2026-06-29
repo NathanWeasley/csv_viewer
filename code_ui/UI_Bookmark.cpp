@@ -282,7 +282,12 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
             {
                 auto& exprMgr = pm.pageInfo(newIdx).exprMgr;
                 exprMgr.setExpressionText(gs.dataItemName, gs.expressionText);
-                exprMgr.recompute(gs.dataItemName, dm);
+                if (exprMgr.recompute(gs.dataItemName, dm))
+                {
+                    // 使 graph 的 range 缓存失效，确保 rescaleAxes 使用表达式处理后的实际数据范围
+                    if (graph)
+                        graph->notifyDataChanged();
+                }
             }
         }
 
