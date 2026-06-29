@@ -250,11 +250,15 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
     int newIdx = pm.addPage(entry.name);
     pm.setXAxisColumn(newIdx, entry.xAxisColumn);
 
+    auto* cw = m_plotTabs->widget(newIdx);
+    auto* plot = cw ? cw->findChild<QCustomPlot*>() : nullptr;
+
+    // 抑制中间重绘，全部设置完成后统一 replot
+    if (plot) plot->setUpdatesEnabled(false);
+
     for (const auto& it : entry.dataItems)
         pm.addDataItem(newIdx, it);
 
-    auto* cw = m_plotTabs->widget(newIdx);
-    auto* plot = cw ? cw->findChild<QCustomPlot*>() : nullptr;
     if (plot)
     {
         for (const auto& gs : entry.graphs)
@@ -284,9 +288,71 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
                 exprMgr.setExpressionText(gs.dataItemName, gs.expressionText);
                 if (exprMgr.recompute(gs.dataItemName, dm))
                 {
-                    // 使 graph 的 range 缓存失效，确保 rescaleAxes 使用表达式处理后的实际数据范围
-                    if (graph)
+                    // 重新绑定 graph 到表达式计算结果列（recompute 后 computedData 持有新数据）
+                    viewer::PlotExpression* pe = exprMgr.get(gs.dataItemName);
+                    if (graph && pe && pe->computedData)
+                    {
+                        size_t xIdx = pm.xAxisColumn(newIdx);
+                        const viewer::Column* xCol;
+                        if (xIdx != static_cast<size_t>(-1))
+                            xCol = dm.GetColumn(xIdx);
+                        else
+                        {
+                            dm.ensureIndexColumnBuilt();
+                            xCol = dm.GetIndexColumn();
+                        }
+                        graph->setDataColumns(xCol, pe->computedData.get());
                         graph->notifyDataChanged();
+                    }
+                }
+            }
+        }
+
+        // 更新工具栏 ComboList 星号显示（表达式编辑后的名称标记）
+        {
+            auto* vbox = cw->findChild<QVBoxLayout*>();
+            if (vbox && vbox->count() >= 1)
+            {
+                auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
+                if (toolbar)
+                {
+                    auto* hb = toolbar->findChild<QHBoxLayout*>();
+                    if (hb && hb->count() >= 11)
+                    {
+                        auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
+                        if (cmbDataItem)
+                        {
+                            auto& exprMgr = pm.pageInfo(newIdx).exprMgr;
+                            cmbDataItem->blockSignals(true);
+                            for (int i = 0; i < cmbDataItem->count(); ++i)
+                            {
+                                std::string name = cmbDataItem->itemData(i, Qt::UserRole).toString().toStdString();
+                                viewer::PlotExpression* pe = exprMgr.get(name);
+                                if (pe && pe->isEdited)
+                                    cmbDataItem->setItemText(i, QString::fromStdString(name + "*"));
+                            }
+                            cmbDataItem->blockSignals(false);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 更新表达式编辑栏（显示已编辑的表达式文本）
+        auto* lineEdit = m_exprLineEdits.value(newIdx, nullptr);
+        if (lineEdit)
+        {
+            auto& exprMgr = pm.pageInfo(newIdx).exprMgr;
+            // 取第一个有表达式的数据项来更新表达式栏
+            for (const auto& gs : entry.graphs)
+            {
+                viewer::PlotExpression* pe = exprMgr.get(gs.dataItemName);
+                if (pe && pe->isEdited)
+                {
+                    lineEdit->blockSignals(true);
+                    lineEdit->setText(QString::fromStdString(pe->expressionText));
+                    lineEdit->blockSignals(false);
+                    break;
                 }
             }
         }
@@ -324,6 +390,8 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
             }
         }
 
+        // 恢复重绘并统一执行一次
+        plot->setUpdatesEnabled(true);
         plot->rescaleAxes();
         plot->replot();
     }

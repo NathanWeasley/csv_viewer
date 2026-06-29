@@ -200,6 +200,11 @@ void UI::bindPlotManagerCallbacks()
                         dstExprMgr.insertAll(srcExprMgr.copyAll());
                     }
 
+                    // ---- 抑制批量 addDataItem 导致的中间重绘 ----
+                    auto* dstContainer = m_plotTabs->widget(newIdx);
+                    auto* dstPlot = dstContainer ? dstContainer->findChild<QCustomPlot*>() : nullptr;
+                    if (dstPlot) dstPlot->setUpdatesEnabled(false);
+
                     // 复制所有数据项（onDataItemAdded 中的 getOrCreate 会发现已有表达式）
                     for (const auto& item : itemsToCopy)
                         pm.addDataItem(newIdx, item);
@@ -216,8 +221,6 @@ void UI::bindPlotManagerCallbacks()
                     }
 
                     // ---- 复制样式：从源 plot 的 graph 复制 pen + scatter 到目标 plot ----
-                    auto* dstContainer = m_plotTabs->widget(newIdx);
-                    auto* dstPlot = dstContainer ? dstContainer->findChild<QCustomPlot*>() : nullptr;
                     if (dstPlot)
                     {
                         for (int si = 0; si < plot->plottableCount(); ++si)
@@ -280,6 +283,8 @@ void UI::bindPlotManagerCallbacks()
                             }
                         }
 
+                        dstPlot->setUpdatesEnabled(true);
+                        dstPlot->rescaleAxes();
                         dstPlot->replot();
                     }
                 });
@@ -679,6 +684,9 @@ void UI::bindPlotManagerCallbacks()
                 }
             });
 
+        // 初始隐藏 plot，等首个数据项添加完成后再显示，避免先闪现空图窗
+        plot->setVisible(false);
+
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
         m_plotTabs->insertTab(index, container, title);
@@ -798,7 +806,8 @@ void UI::bindPlotManagerCallbacks()
 
         size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
 
-        // 抑制中途重绘，所有 setup 完成后统一 replot
+        // 保存当前 updatesEnabled 状态，避免覆盖外层已设的 false
+        bool prevUpdatesEnabled = plot->updatesEnabled();
         plot->setUpdatesEnabled(false);
 
         // 创建 QCPColumnGraph（首次绑定原始 Y 列）
@@ -815,7 +824,7 @@ void UI::bindPlotManagerCallbacks()
             xCol = dm.GetColumn(xIdx);
             if (!xCol)
             {
-                plot->setUpdatesEnabled(true);
+                plot->setUpdatesEnabled(prevUpdatesEnabled);
                 return;
             }
             graph->setDataColumns(xCol, yCol);
@@ -841,12 +850,15 @@ void UI::bindPlotManagerCallbacks()
         graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
 
-        // 首个数据项全量缩放，后续项仅扩大
+        // 首个数据项全量缩放，后续项仅扩大；首个数据项时使 plot 可见
+        if (plotCount == 1)
+            plot->setVisible(true);
         graph->rescaleAxes(plotCount > 1);
 
-        // 所有 setup 完成，统一重绘
-        plot->setUpdatesEnabled(true);
-        plot->replot();
+        // 恢复外层 updatesEnabled 状态，仅当外层未禁用时才 replot
+        plot->setUpdatesEnabled(prevUpdatesEnabled);
+        if (prevUpdatesEnabled)
+            plot->replot();
 
         // 向工具栏 ComboList 添加数据项名称
         auto* vbox = container->findChild<QVBoxLayout*>();

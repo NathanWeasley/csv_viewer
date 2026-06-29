@@ -311,10 +311,7 @@ std::unordered_map<std::string, PlotExpression> ExprManager::copyAll() const
             }
             copyPE.computedData = std::move(col);
         }
-        else
-        {
-            copyPE.computedData = std::make_unique<Column>();
-        }
+        // else: 保持 nullptr（未编辑时 graph 应从 DataManager 读取）
 
         result.insert({name, std::move(copyPE)});
     }
