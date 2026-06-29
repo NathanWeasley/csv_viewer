@@ -129,6 +129,9 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
             }
             else if (c == m_delimiter)
             {
+                // Trim leading/trailing whitespace from the field
+                while (!current.empty() && (current.back() == ' ' || current.back() == '\t'))
+                    current.pop_back();
                 fields.push_back(current);
                 current.clear();
                 ++i;
@@ -141,7 +144,10 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
         }
     }
 
-    fields.push_back(current);  // 最后一个字段
+    // Trim leading/trailing whitespace from the last field
+    while (!current.empty() && (current.back() == ' ' || current.back() == '\t'))
+        current.pop_back();
+    fields.push_back(current);
     return true;
 }
 
@@ -234,25 +240,10 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     std::vector<std::string> newSanitizedNames;
     std::unordered_map<std::string, size_t> newNameIndex;
 
-    if (!config.preSanitizedNames.empty())
-    {
-        newSanitizedNames = config.preSanitizedNames;
-        for (size_t i = 0; i < newSanitizedNames.size(); ++i)
-            newNameIndex[newSanitizedNames[i]] = i;
-    }
-    else
-    {
-        std::vector<std::string> rawNames;
-        if (config.hasHeader && !headerFields.empty())
-            rawNames = headerFields;
-        else
-        {
-            rawNames.resize(colCount);
-            for (size_t c = 0; c < colCount; ++c)
-                rawNames[c] = "Col_" + std::to_string(c);
-        }
-        sanitizeColumnNames(rawNames, newSanitizedNames, newNameIndex);
-    }
+    // preSanitizedNames 由 Viewer::LoadCSV/OnLoadCSV 始终传入
+    newSanitizedNames = config.preSanitizedNames;
+    for (size_t i = 0; i < newSanitizedNames.size(); ++i)
+        newNameIndex[newSanitizedNames[i]] = i;
 
     if (!isFirstLoad)
     {
@@ -333,7 +324,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     }
 
     // ================================================================
-    // 首个 CSV 加载: 两遍扫描
+    // 首个 CSV 加载: 单遍扫描直接写入（不区分字符串/数值列）
     // ================================================================
 
     m_filePath = config.filePath.string();
@@ -364,68 +355,6 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
             m_rawColumnNames[c] = "col_" + std::to_string(c + 1);
     }
 
-    // ---- 阶段 2a: 扫描所有行的类型 ----
-    reportProgress(0.05f, "Scanning data types...", "");
-
-    std::vector<TypeCount> typeCounters(colCount);
-
-    uint64_t scannedRows = 0;
-    std::vector<std::string> rowFields;
-
-    scanner.reset();
-    if (config.hasHeader)
-    {
-        for (int i = 0; i <= config.headerRow; ++i)
-            scanner.readRow(rowFields);
-    }
-    rowFields.clear();
-
-    const uint64_t PROGRESS_INTERVAL = std::max<uint64_t>(1, totalDataRows / 200);
-
-    while (scanner.readRow(rowFields))
-    {
-        size_t n = std::min(rowFields.size(), colCount);
-        for (size_t c = 0; c < n; ++c)
-        {
-            CellType ct = classifyCell(rowFields[c]);
-            switch (ct)
-            {
-            case CellType::Float:  ++typeCounters[c].floatCount; break;
-            case CellType::String: ++typeCounters[c].stringCount; break;
-            }
-        }
-        ++scannedRows;
-
-        if (scannedRows % PROGRESS_INTERVAL == 0)
-        {
-            float p = 0.05f + 0.45f * static_cast<float>(scannedRows) / static_cast<float>(totalDataRows);
-            reportProgress(p, "Scanning data types (pass 1/2)...",
-                           std::to_string(scannedRows) + " / " + std::to_string(totalDataRows));
-        }
-    }
-
-    // 检测字符串列，并追加 _string 后缀
-    m_stringColumnNames.clear();
-    for (size_t c = 0; c < colCount; ++c)
-    {
-        if (isStringColumn(typeCounters[c]))
-        {
-            std::string& colName = m_columnNames[c];
-            m_stringColumnNames.insert(colName + "_string");
-
-            // 更新列名为带 _string 后缀
-            std::string oldName = colName;
-            colName = oldName + "_string";
-
-            // 更新 name index
-            m_nameIndex.erase(oldName);
-            m_nameIndex[colName] = c;
-        }
-    }
-
-    // ---- 阶段 2b: 第二遍读取 - 数据写入 ----
-    reportProgress(0.52f, "Loading data (pass 2/2)...", "");
-
     // 所有列统一使用 Column
     m_columns.resize(colCount);
     for (size_t c = 0; c < colCount; ++c)
@@ -433,23 +362,21 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         m_columns[c] = std::make_unique<Column>();
     }
 
-    CsvRowReader writer(config.filePath, config.delimiter, config.quoteChar);
-    if (!writer.open())
-    {
-        Clear();
-        return false;
-    }
-
+    scanner.reset();
     if (config.hasHeader)
     {
+        std::vector<std::string> skipFields;
         for (int i = 0; i <= config.headerRow; ++i)
-            writer.readRow(rowFields);
+            scanner.readRow(skipFields);
     }
 
-    uint64_t writtenRows = 0;
-    rowFields.clear();
+    const uint64_t PROGRESS_INTERVAL = std::max<uint64_t>(1, totalDataRows / 200);
+    uint64_t loadedRows = 0;
+    std::vector<std::string> rowFields;
 
-    while (writer.readRow(rowFields))
+    reportProgress(0.05f, "Loading data...", "");
+
+    while (scanner.readRow(rowFields))
     {
         size_t n = std::min(rowFields.size(), colCount);
         for (size_t c = 0; c < n; ++c)
@@ -462,12 +389,12 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
             m_columns[c]->pushFromString("");
         }
 
-        ++writtenRows;
-        if (writtenRows % PROGRESS_INTERVAL == 0)
+        ++loadedRows;
+        if (loadedRows % PROGRESS_INTERVAL == 0)
         {
-            float p = 0.52f + 0.47f * static_cast<float>(writtenRows) / static_cast<float>(totalDataRows);
-            reportProgress(p, "Loading data (pass 2/2)...",
-                           std::to_string(writtenRows) + " / " + std::to_string(totalDataRows));
+            float p = 0.05f + 0.94f * static_cast<float>(loadedRows) / static_cast<float>(totalDataRows);
+            reportProgress(p, "Loading data...",
+                           std::to_string(loadedRows) + " / " + std::to_string(totalDataRows));
         }
     }
 
@@ -821,7 +748,6 @@ void DataManager::Clear()
     m_columnNames.clear();
     m_rawColumnNames.clear();
     m_nameIndex.clear();
-    m_stringColumnNames.clear();
     m_indexColumn.reset();
     m_filePath.clear();
     m_xAxisColumn = npos;
@@ -871,20 +797,6 @@ size_t DataManager::GetRowCount() const noexcept
     return m_columns[0]->size();
 }
 
-// ---- 字符串列判断 ----
-
-bool DataManager::IsStringColumn(size_t colIdx) const
-{
-    if (colIdx >= m_columnNames.size())
-        return false;
-    return m_stringColumnNames.count(m_columnNames[colIdx]) > 0;
-}
-
-bool DataManager::IsStringColumn(const std::string& name) const
-{
-    return m_stringColumnNames.count(name) > 0;
-}
-
 // ---- 行访问 ----
 
 std::vector<double> DataManager::GetRowAsDoubles(size_t rowIdx) const
@@ -913,81 +825,6 @@ double DataManager::GetValueAsDouble(const std::string& colName, size_t rowIdx) 
     return GetValueAsDouble(idx, rowIdx);
 }
 
-// ---- 列名处理 ----
-
-void DataManager::sanitizeColumnNames(
-    const std::vector<std::string>& rawNames,
-    std::vector<std::string>& outSanitized,
-    std::unordered_map<std::string, size_t>& outIndex)
-{
-    outSanitized.clear();
-    outSanitized.reserve(rawNames.size());
-    outIndex.clear();
-
-    for (size_t i = 0; i < rawNames.size(); ++i)
-    {
-        std::string name = rawNames[i];
-
-        // 清洗：只保留字母、数字、下划线
-        std::string cleaned;
-        bool firstChar = true;
-        for (char c : name)
-        {
-            if (std::isalnum(static_cast<unsigned char>(c)) || c == '_')
-            {
-                cleaned += c;
-                firstChar = false;
-            }
-            else if (firstChar && std::isdigit(static_cast<unsigned char>(c)))
-            {
-                // 首字符是数字 -> 加 "col_" 前缀
-                cleaned = "col_" + name;
-                break;
-            }
-            else if (c == ' ' || c == '\t')
-            {
-                if (!cleaned.empty())
-                    cleaned += '_';
-            }
-            else
-            {
-                continue;
-            }
-        }
-
-        // 如果是空字符串或全是特殊字符
-        if (cleaned.empty())
-            cleaned = "col_" + std::to_string(i);
-
-        // 去除末尾下划线
-        while (!cleaned.empty() && cleaned.back() == '_')
-            cleaned.pop_back();
-
-        if (cleaned.empty())
-            cleaned = "col_" + std::to_string(i);
-
-        // 检查重名
-        std::string finalName = cleaned;
-        int suffix = 0;
-        while (outIndex.find(finalName) != outIndex.end())
-        {
-            ++suffix;
-            finalName = cleaned + "_" + std::to_string(suffix);
-        }
-
-        outSanitized.push_back(finalName);
-        outIndex[finalName] = i;
-    }
-}
-
-// ---- 类型推断 ----
-
-bool DataManager::isStringColumn(const TypeCount& tc) const noexcept
-{
-    // 只要有不可解析的字符串就标记为字符串列
-    return tc.stringCount > 0;
-}
-
 // ---- 横轴检测 ----
 
 size_t DataManager::AutoDetectXAxis() const
@@ -1013,10 +850,6 @@ size_t DataManager::AutoDetectXAxis() const
     for (size_t i = 0; i < m_columnNames.size(); ++i)
     {
         const std::string& name = m_columnNames[i];
-
-        // 跳过字符串列
-        if (m_stringColumnNames.count(name) > 0)
-            continue;
 
         std::string lowerName;
         lowerName.reserve(name.size());

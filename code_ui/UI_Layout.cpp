@@ -174,15 +174,46 @@ void UI::createMenu()
 {
     /** Generating MainWindow part */
 
-    auto* fileMenu = menuBar()->addMenu("&File");
-    auto* openCSV = fileMenu->addAction("Open CSV file");
-    auto* openFolder = fileMenu->addAction("Open CSV files in folders");
+    auto* fileMenu = menuBar()->addMenu("文件");
+    auto* openCSV = fileMenu->addAction("载入多个CSV文件");
+    auto* openFolder = fileMenu->addAction("载入多个文件夹下的全部CSV文件");
+    auto* openBinary = fileMenu->addAction("载入JSON+二进制文件");
     fileMenu->addSeparator();
-    auto* clearAll = fileMenu->addAction("Clear loaded data");
+    auto* clearAll = fileMenu->addAction("清空全部数据");
 
-    auto* settingsMenu = menuBar()->addMenu("&Settings");
-    auto* aliasAction = settingsMenu->addAction("Auto Rename");
+    auto* settingsMenu = menuBar()->addMenu("设置");
+    auto* aliasAction = settingsMenu->addAction("自动重命名数据");
     connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
+
+    settingsMenu->addSeparator();
+
+    auto* downsampleAction = settingsMenu->addAction(QString::fromUtf8("自适应降采样"));
+    downsampleAction->setCheckable(true);
+    downsampleAction->setChecked(m_adaptiveDownsampling);
+    connect(downsampleAction, &QAction::toggled, this, [this](bool checked)
+    {
+        m_adaptiveDownsampling = checked;
+        viewer::QCPColumnGraph::s_adaptiveSamplingEnabled = checked;
+    });
+
+    auto* openglAction = settingsMenu->addAction("OpenGL 绘制");
+    openglAction->setCheckable(true);
+    openglAction->setChecked(m_openglEnabled);
+    connect(openglAction, &QAction::toggled, this, [this](bool checked)
+    {
+        m_openglEnabled = checked;
+    });
+
+    auto* antiAliasingAction = settingsMenu->addAction(QString::fromUtf8("曲线抗锯齿"));
+    antiAliasingAction->setCheckable(true);
+    antiAliasingAction->setChecked(m_antiAliasingEnabled);
+    connect(antiAliasingAction, &QAction::toggled, this, [this](bool checked)
+    {
+        m_antiAliasingEnabled = checked;
+        viewer::QCPColumnGraph::s_antiAliasingEnabled = checked;
+    });
+
+    auto* aboutMenu = menuBar()->addMenu("关于");
 }
 
 void UI::createToolbar()

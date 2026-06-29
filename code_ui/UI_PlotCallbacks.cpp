@@ -114,7 +114,7 @@ void UI::bindPlotManagerCallbacks()
     {
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
-        plot->setOpenGl(true);
+        plot->setOpenGl(m_openglEnabled);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
@@ -200,6 +200,11 @@ void UI::bindPlotManagerCallbacks()
                         dstExprMgr.insertAll(srcExprMgr.copyAll());
                     }
 
+                    // ---- 抑制批量 addDataItem 导致的中间重绘 ----
+                    auto* dstContainer = m_plotTabs->widget(newIdx);
+                    auto* dstPlot = dstContainer ? dstContainer->findChild<QCustomPlot*>() : nullptr;
+                    if (dstPlot) dstPlot->setUpdatesEnabled(false);
+
                     // 复制所有数据项（onDataItemAdded 中的 getOrCreate 会发现已有表达式）
                     for (const auto& item : itemsToCopy)
                         pm.addDataItem(newIdx, item);
@@ -216,8 +221,6 @@ void UI::bindPlotManagerCallbacks()
                     }
 
                     // ---- 复制样式：从源 plot 的 graph 复制 pen + scatter 到目标 plot ----
-                    auto* dstContainer = m_plotTabs->widget(newIdx);
-                    auto* dstPlot = dstContainer ? dstContainer->findChild<QCustomPlot*>() : nullptr;
                     if (dstPlot)
                     {
                         for (int si = 0; si < plot->plottableCount(); ++si)
@@ -280,6 +283,8 @@ void UI::bindPlotManagerCallbacks()
                             }
                         }
 
+                        dstPlot->setUpdatesEnabled(true);
+                        dstPlot->rescaleAxes();
                         dstPlot->replot();
                     }
                 });
@@ -426,12 +431,35 @@ void UI::bindPlotManagerCallbacks()
         fxLabel->setStyleSheet("color: #888; font-weight: bold;");
         exprHBox->addWidget(fxLabel);
 
+        // ---- 主题感知表达式样式辅助 ----
+        auto exprStyleNormal = [&]() -> QString {
+            if (isSystemInDark())
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
+                    "background: #2a2a2a; color: #ddd; }"
+                    "QLineEdit:focus { border-color: #FFD700; }");
+            else
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #aaa; border-radius: 3px; padding: 2px 6px; "
+                    "background: #f5f5f5; color: #333; }"
+                    "QLineEdit:focus { border-color: #2266cc; }");
+        };
+        auto exprStyleError = [&]() -> QString {
+            if (isSystemInDark())
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
+                    "background: #2a2a2a; color: #ddd; }"
+                    "QLineEdit:focus { border-color: #ff4444; }");
+            else
+                return QStringLiteral(
+                    "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
+                    "background: #f5f5f5; color: #333; }"
+                    "QLineEdit:focus { border-color: #ff4444; }");
+        };
+
         auto* exprLineEdit = new QLineEdit();
         exprLineEdit->setPlaceholderText("expression...");
-        exprLineEdit->setStyleSheet(
-            "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-            "background: #2a2a2a; color: #ddd; }"
-            "QLineEdit:focus { border-color: #FFD700; }");
+        exprLineEdit->setStyleSheet(exprStyleNormal());
         exprHBox->addWidget(exprLineEdit, 1);
 
         // ---- 容器 ----
@@ -582,7 +610,7 @@ void UI::bindPlotManagerCallbacks()
 
         // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
         connect(exprLineEdit, &QLineEdit::textChanged, this,
-            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole](const QString& text)
+            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole, exprStyleNormal, exprStyleError](const QString& text)
             {
                 QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
                 if (nameData.isEmpty()) return;
@@ -598,28 +626,19 @@ void UI::bindPlotManagerCallbacks()
                 std::string exprStr = text.toStdString();
                 if (exprStr.empty())
                 {
-                    exprLineEdit->setStyleSheet(
-                        "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-                        "background: #2a2a2a; color: #ddd; }"
-                        "QLineEdit:focus { border-color: #FFD700; }");
+                    exprLineEdit->setStyleSheet(exprStyleNormal());
                     return;
                 }
 
                 if (!exprMgr.validate(exprStr, dm))
                 {
                     // 不合法：红色边框提示
-                    exprLineEdit->setStyleSheet(
-                        "QLineEdit { border: 1px solid #cc3333; border-radius: 3px; padding: 2px 6px; "
-                        "background: #2a2a2a; color: #ddd; }"
-                        "QLineEdit:focus { border-color: #ff4444; }");
+                    exprLineEdit->setStyleSheet(exprStyleError());
                     return;
                 }
 
                 // 合法：恢复正常边框 + 计算
-                exprLineEdit->setStyleSheet(
-                    "QLineEdit { border: 1px solid #555; border-radius: 3px; padding: 2px 6px; "
-                    "background: #2a2a2a; color: #ddd; }"
-                    "QLineEdit:focus { border-color: #FFD700; }");
+                exprLineEdit->setStyleSheet(exprStyleNormal());
 
                 // 重新计算表达式值
                 if (exprMgr.recompute(selName, dm))
@@ -664,6 +683,9 @@ void UI::bindPlotManagerCallbacks()
                     }
                 }
             });
+
+        // 初始隐藏 plot，等首个数据项添加完成后再显示，避免先闪现空图窗
+        plot->setVisible(false);
 
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
@@ -784,7 +806,8 @@ void UI::bindPlotManagerCallbacks()
 
         size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
 
-        // 抑制中途重绘，所有 setup 完成后统一 replot
+        // 保存当前 updatesEnabled 状态，避免覆盖外层已设的 false
+        bool prevUpdatesEnabled = plot->updatesEnabled();
         plot->setUpdatesEnabled(false);
 
         // 创建 QCPColumnGraph（首次绑定原始 Y 列）
@@ -801,7 +824,7 @@ void UI::bindPlotManagerCallbacks()
             xCol = dm.GetColumn(xIdx);
             if (!xCol)
             {
-                plot->setUpdatesEnabled(true);
+                plot->setUpdatesEnabled(prevUpdatesEnabled);
                 return;
             }
             graph->setDataColumns(xCol, yCol);
@@ -820,15 +843,22 @@ void UI::bindPlotManagerCallbacks()
         // 创建表达式本地拷贝，切换到独立数据源
         auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
         viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
-        graph->setDataColumns(xCol, pe.computedData.get());
+        // 未编辑时 computedData 为 nullptr，直接从 DataManager 读取原始列
+        const viewer::Column* yDataSource = pe.computedData.get();
+        if (!yDataSource)
+            yDataSource = dm.GetColumn(yColName);
+        graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
 
-        // 首个数据项全量缩放，后续项仅扩大
+        // 首个数据项全量缩放，后续项仅扩大；首个数据项时使 plot 可见
+        if (plotCount == 1)
+            plot->setVisible(true);
         graph->rescaleAxes(plotCount > 1);
 
-        // 所有 setup 完成，统一重绘
-        plot->setUpdatesEnabled(true);
-        plot->replot();
+        // 恢复外层 updatesEnabled 状态，仅当外层未禁用时才 replot
+        plot->setUpdatesEnabled(prevUpdatesEnabled);
+        if (prevUpdatesEnabled)
+            plot->replot();
 
         // 向工具栏 ComboList 添加数据项名称
         auto* vbox = container->findChild<QVBoxLayout*>();

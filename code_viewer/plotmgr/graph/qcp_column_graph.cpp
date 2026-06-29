@@ -4,6 +4,12 @@
 namespace viewer
 {
 
+// 静态成员定义：默认启用自适应降采样
+bool QCPColumnGraph::s_adaptiveSamplingEnabled = true;
+
+// 静态成员定义：默认关闭抗锯齿（降采样开启时强制生效）
+bool QCPColumnGraph::s_antiAliasingEnabled = false;
+
 // ============================================================
 // 构造 / 析构
 // ============================================================
@@ -445,7 +451,10 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     ///< rescale ratio to account for span < width case
     double bucket_scale = std::max(1.0, xspan/xdatarange);
 
-    bool useDownsample = (ratio > 2.0 && mLineStyle == lsLine);
+    bool useDownsample = (s_adaptiveSamplingEnabled && ratio > 2.0 && mLineStyle == lsLine);
+
+    // 抗锯齿：降采样开启时强制生效，否则由用户设置控制
+    bool useAA = s_adaptiveSamplingEnabled || s_antiAliasingEnabled;
 
     int buckets = std::max(1, static_cast<int>(std::ceil(pixelsW * std::min(ratio, 1.0)/bucket_scale)));
     if (buckets > visibleCount / 2)
@@ -488,7 +497,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mLineStyle != lsNone)
     {
-        if (ratio > 1.0)
+        if (!useAA && ratio > 1.0)
             painter->setAntialiasing(false);
         else
             applyDefaultAntialiasingHint(painter);
@@ -499,7 +508,10 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
-        painter->setAntialiasing(false);
+        if (!useAA)
+            painter->setAntialiasing(false);
+        else
+            applyDefaultAntialiasingHint(painter);
         drawScatterPlot(painter, scatters);
     }
 }

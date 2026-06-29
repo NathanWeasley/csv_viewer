@@ -20,15 +20,17 @@ bool Viewer::detectHeader(const std::vector<std::string>& firstRow)
     if (firstRow.empty())
         return false;
 
-    // If ALL cells classify as String, treat as header
+    // 只有全部单元格都可解析为数字，才判定为非表头（数据行）
     for (const auto& cell : firstRow)
     {
-        CellType ct = classifyCell(cell);
-        if (ct != CellType::String)
-            return false;
+        if (cell.empty()) return true;  // 空单元格 → 表头
+        char* end = nullptr;
+        std::strtod(cell.c_str(), &end);
+        if (!(end != cell.c_str() && *end == '\0'))
+            return true;  // 不能解析为数字 → 表头
     }
 
-    return true;
+    return false;  // 全部可解析为数字 → 非表头
 }
 
 // ============================================================
@@ -50,7 +52,7 @@ static std::string sanitizeSingleName(std::string raw)
     // Replace special characters with '_'
     for (char& c : cleaned)
     {
-        if (c == ',' || c == '"' || c == '\'' || c == ';' || c == '|' ||
+        if (c == ' ' || c == ',' || c == '"' || c == '\'' || c == ';' || c == '|' ||
             c == '\\' || c == '/' || c == '(' || c == ')' || c == '[' ||
             c == ']' || c == '{' || c == '}' || c == '<' || c == '>' ||
             c == ':' || c == '*' || c == '?' || c == '#' || c == '@' ||
