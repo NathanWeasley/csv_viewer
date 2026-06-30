@@ -176,10 +176,17 @@ void UI::createMenu()
 
     auto* fileMenu = menuBar()->addMenu("文件");
     auto* openCSV = fileMenu->addAction("载入多个CSV文件");
+    connect(openCSV, &QAction::triggered, this, &UI::onLoadCSVClicked);
     auto* openFolder = fileMenu->addAction("载入多个文件夹下的全部CSV文件");
     auto* openBinary = fileMenu->addAction("载入JSON+二进制文件");
     fileMenu->addSeparator();
     auto* clearAll = fileMenu->addAction("清空全部数据");
+    connect(clearAll, &QAction::triggered, this, [this]()
+    {
+        m_viewer.Clear();
+        m_dataTree->clear();
+        m_xAxisLabel->setText("X: (none)");
+    });
 
     auto* settingsMenu = menuBar()->addMenu("设置");
     auto* aliasAction = settingsMenu->addAction("自动重命名数据");
