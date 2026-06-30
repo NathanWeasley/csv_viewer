@@ -111,7 +111,7 @@
       </Command>
     </PreBuildEvent>
     <PostBuildEvent>
-      <Command>xcopy /Y /D "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\..\deploy\"</Command>
+      <Command>xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\..\deploy\"</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">

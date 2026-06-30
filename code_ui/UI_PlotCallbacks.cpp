@@ -414,8 +414,8 @@ void UI::bindPlotManagerCallbacks()
         hbox->addStretch();
 
         // 10. 删除按钮（最右侧）
-        auto* btnDelete = new QPushButton("✕");
-        btnDelete->setFixedSize(24, 24);
+        auto* btnDelete = new QPushButton("删除曲线");
+        btnDelete->setFixedSize(72, 24);
         btnDelete->setEnabled(false);
         btnDelete->setToolTip("删除当前选中的数据曲线");
         hbox->addWidget(btnDelete);
