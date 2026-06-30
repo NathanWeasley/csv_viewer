@@ -684,9 +684,6 @@ void UI::bindPlotManagerCallbacks()
                 }
             });
 
-        // 初始隐藏 plot，等首个数据项添加完成后再显示，避免先闪现空图窗
-        plot->setVisible(false);
-
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
         m_plotTabs->insertTab(index, container, title);
@@ -850,9 +847,7 @@ void UI::bindPlotManagerCallbacks()
         graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
 
-        // 首个数据项全量缩放，后续项仅扩大；首个数据项时使 plot 可见
-        if (plotCount == 1)
-            plot->setVisible(true);
+        // 首个数据项全量缩放，后续项仅扩大
         graph->rescaleAxes(plotCount > 1);
 
         // 恢复外层 updatesEnabled 状态，仅当外层未禁用时才 replot
