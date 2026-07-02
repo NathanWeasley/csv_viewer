@@ -91,6 +91,13 @@ void AliasDialog::onDeleteEntry()
         m_table->removeRow(row);
 }
 
+void AliasDialog::setExistingNames(const std::vector<std::string>& names)
+{
+    m_existingNames.clear();
+    for (const auto& n : names)
+        m_existingNames.insert(n);
+}
+
 void AliasDialog::onAccept()
 {
     // 校验空值
@@ -115,35 +122,54 @@ void AliasDialog::onAccept()
         }
     }
 
-    // 校验原始数据名唯一
+    // 构建当前别名映射的临时集合（用于冲突检测）
+    std::unordered_map<std::string, std::string> curAliases;
+    std::unordered_set<std::string> fromSet;
+    for (int row = 0; row < m_table->rowCount(); ++row)
     {
-        std::unordered_set<std::string> seen;
-        for (int row = 0; row < m_table->rowCount(); ++row)
-        {
-            std::string from = m_table->item(row, 0)->text().trimmed().toStdString();
-            if (seen.count(from))
-            {
-                QMessageBox::warning(this, QStringLiteral("校验失败"),
-                                     QStringLiteral("「原始数据名」\"%1\" 重复").arg(QString::fromStdString(from)));
-                return;
-            }
-            seen.insert(from);
-        }
+        std::string from = m_table->item(row, 0)->text().trimmed().toStdString();
+        std::string to   = m_table->item(row, 1)->text().trimmed().toStdString();
+        curAliases[from] = to;
+        fromSet.insert(from);
     }
 
-    // 校验重命名唯一
+    // 校验1：原始数据名（from）不重复
+    if (fromSet.size() != curAliases.size())
     {
-        std::unordered_set<std::string> seen;
-        for (int row = 0; row < m_table->rowCount(); ++row)
+        QMessageBox::warning(this, QStringLiteral("校验失败"),
+                             QStringLiteral("「原始数据名」有重复项"));
+        return;
+    }
+
+    // 校验2：重命名目标（to）不重复
+    {
+        std::unordered_set<std::string> toSet;
+        for (const auto& [from, to] : curAliases)
         {
-            std::string to = m_table->item(row, 1)->text().trimmed().toStdString();
-            if (seen.count(to))
+            if (toSet.count(to))
             {
                 QMessageBox::warning(this, QStringLiteral("校验失败"),
                                      QStringLiteral("「重命名为」\"%1\" 重复").arg(QString::fromStdString(to)));
                 return;
             }
-            seen.insert(to);
+            toSet.insert(to);
+        }
+    }
+
+    // 校验3：重命名目标（to）不与已有列名冲突
+    // 如果某列的 from 不在别名表中（即它不会被重命名），则它的 to 不能与已有列名相同
+    if (!m_existingNames.empty())
+    {
+        for (const auto& [from, to] : curAliases)
+        {
+            // to 值在已有列名集合中，且该列名对应的 from 不在此次别名表中
+            if (m_existingNames.count(to) > 0 && fromSet.count(to) == 0)
+            {
+                QMessageBox::warning(this, QStringLiteral("校验失败"),
+                    QStringLiteral("「重命名为」\"%1\" 与已有列名冲突，请使用其他名称")
+                        .arg(QString::fromStdString(to)));
+                return;
+            }
         }
     }
 

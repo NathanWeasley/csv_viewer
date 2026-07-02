@@ -140,11 +140,13 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
     <ClCompile Include="..\..\..\code_ui\UI_Layout.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_PlotCallbacks.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Utils.cpp" />
+    <ClCompile Include="..\..\..\code_ui\XAxisDialog.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h" />
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="..\..\..\code_ui\XAxisDialog.h" />
     <QtMoc Include="..\..\..\code_ui\HighlightDialog.h" />
     <QtMoc Include="..\..\..\code_ui\AliasDialog.h" />
     <QtMoc Include="..\..\..\code_ui\FFTDialog.h" />

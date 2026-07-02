@@ -136,8 +136,9 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     const auto& dataItems = pm.pageInfo(pageIndex).dataItems;
     std::vector<std::string> itemList(dataItems.begin(), dataItems.end());
 
-    // 显示对话框
-    FFTDialog dlg(itemList, selItem, dataCount, this);
+    // 显示对话框（传入当前 X 轴单位作为采样间隔默认单位）
+    viewer::TimeUnit xUnit = dm.GetXAxisUnit();
+    FFTDialog dlg(itemList, selItem, dataCount, xUnit, this);
     if (dlg.exec() != QDialog::Accepted)
         return;
 

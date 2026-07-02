@@ -340,10 +340,14 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
             if (it != m_aliasMap.end())
                 m_columnNames[c] = it->second;
         }
-        // 重建 name index（列名已变更）
+        // 重建 name index（列名已变更），同时检查重名
         m_nameIndex.clear();
         for (size_t c = 0; c < m_columnNames.size(); ++c)
+        {
+            if (m_nameIndex.count(m_columnNames[c]) > 0)
+                return false;  // 别名导致列名重复
             m_nameIndex[m_columnNames[c]] = c;
+        }
     }
 
     if (config.hasHeader && !headerFields.empty())
@@ -751,6 +755,7 @@ void DataManager::Clear()
     m_indexColumn.reset();
     m_filePath.clear();
     m_xAxisColumn = npos;
+    m_xAxisUnit = TimeUnit::None;
 }
 
 // ---- 列访问 ----
@@ -827,24 +832,62 @@ double DataManager::GetValueAsDouble(const std::string& colName, size_t rowIdx) 
 
 // ---- 横轴检测 ----
 
-size_t DataManager::AutoDetectXAxis() const
+size_t DataManager::AutoDetectXAxis()
 {
-    // 关键词（不区分大小写）
-    static const std::vector<std::string> keywords =
-    {
-        "time", "timestamp", "datetime", "date", "t",
-        "time_ms", "time_s", "utc", "epoch",
-        "x", "index", "id"
-    };
-
     if (m_columnNames.empty())
         return npos;
 
-    // 对每列名计算匹配得分
-    struct Match {
-        size_t index;
-        int score;
+    // ---- 规则匹配（优先使用 user/xaxis.json 中的规则） ----
+    if (!m_xAxisRules.empty())
+    {
+        for (const auto& rule : m_xAxisRules)
+        {
+            // 构建小写 pattern
+            std::string lowerPattern;
+            lowerPattern.reserve(rule.pattern.size());
+            for (char c : rule.pattern)
+                lowerPattern += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+            for (size_t i = 0; i < m_columnNames.size(); ++i)
+            {
+                std::string lowerName;
+                lowerName.reserve(m_columnNames[i].size());
+                for (char c : m_columnNames[i])
+                    lowerName += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+
+                if (lowerName.find(lowerPattern) != std::string::npos)
+                {
+                    // 匹配成功：设置单位并返回
+                    m_xAxisUnit = rule.unit;
+                    return i;
+                }
+            }
+        }
+    }
+
+    // ---- 回退：内置硬编码关键词匹配 ----
+    static const std::vector<std::pair<std::string, TimeUnit>> keywordRules =
+    {
+        {"time_s",    TimeUnit::Second},
+        {"time_ms",   TimeUnit::Millisecond},
+        {"time_us",   TimeUnit::Microsecond},
+        {"time_ns",   TimeUnit::Nanosecond},
+        {"time_min",  TimeUnit::Minute},
+        {"time_h",    TimeUnit::Hour},
+        {"timestamp", TimeUnit::Second},
+        {"datetime",  TimeUnit::Day},
+        {"date",      TimeUnit::Day},
+        {"time",      TimeUnit::Second},
+        {"utc",       TimeUnit::Second},
+        {"epoch",     TimeUnit::Second},
+        {"t",         TimeUnit::Second},
+        {"x",         TimeUnit::None},
+        {"index",     TimeUnit::None},
+        {"id",        TimeUnit::None},
     };
+
+    // 对每列名计算匹配得分
+    struct Match { size_t index; int score; TimeUnit unit; };
     std::vector<Match> matches;
 
     for (size_t i = 0; i < m_columnNames.size(); ++i)
@@ -857,21 +900,23 @@ size_t DataManager::AutoDetectXAxis() const
             lowerName += static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
 
         int score = 0;
-        for (const auto& kw : keywords)
+        TimeUnit bestUnit = TimeUnit::None;
+        for (const auto& [kw, unit] : keywordRules)
         {
             if (lowerName == kw)
             {
-                score += 100;  // 完全匹配
+                score += 100;
+                bestUnit = unit;
             }
-            else if (lowerName.find(kw) != std::string::npos)
+            else if (lowerName.find(kw) != std::string::npos && score < 50)
             {
-                score += 50;   // 包含关键词
+                score = 50;
+                bestUnit = unit;
             }
         }
-        matches.push_back({i, score});
+        matches.push_back({i, score, bestUnit});
     }
 
-    // 找最高分
     size_t bestIdx = npos;
     int bestScore = 0;
     for (const auto& m : matches)
@@ -880,10 +925,154 @@ size_t DataManager::AutoDetectXAxis() const
         {
             bestScore = m.score;
             bestIdx = m.index;
+            m_xAxisUnit = m.unit;
         }
     }
 
     return bestIdx;
+}
+
+// ============================================================
+// X 轴规则 JSON 读写
+// ============================================================
+
+bool DataManager::LoadXAxisRules(const std::string& jsonPath)
+{
+    std::ifstream file(jsonPath);
+    if (!file.is_open())
+        return false;
+
+    std::string content((std::istreambuf_iterator<char>(file)),
+                         std::istreambuf_iterator<char>());
+    file.close();
+
+    // 简易 JSON 解析（避免引入第三方库依赖）
+    m_xAxisRules.clear();
+
+    // 查找数组起始
+    size_t pos = content.find('[');
+    if (pos == std::string::npos)
+        return false;
+    ++pos;
+
+    // 逐对象解析
+    while (pos < content.size())
+    {
+        // 跳过空白和逗号
+        while (pos < content.size() && (content[pos] == ' ' || content[pos] == '\t'
+               || content[pos] == '\n' || content[pos] == '\r' || content[pos] == ','))
+            ++pos;
+
+        if (pos >= content.size() || content[pos] == ']')
+            break;
+
+        // 查找对象起始 {
+        if (content[pos] != '{')
+        {
+            ++pos;
+            continue;
+        }
+        ++pos;
+
+        std::string pattern;
+        TimeUnit unit = TimeUnit::None;
+
+        // 解析对象内的键值对
+        while (pos < content.size() && content[pos] != '}')
+        {
+            // 跳过空白
+            while (pos < content.size() && (content[pos] == ' ' || content[pos] == '\t'
+                   || content[pos] == '\n' || content[pos] == '\r' || content[pos] == ','))
+                ++pos;
+
+            if (pos >= content.size() || content[pos] == '}')
+                break;
+
+            // 读取键（引号内）
+            if (content[pos] != '"')
+            {
+                ++pos;
+                continue;
+            }
+            ++pos;
+            size_t keyEnd = content.find('"', pos);
+            if (keyEnd == std::string::npos) break;
+            std::string key = content.substr(pos, keyEnd - pos);
+            pos = keyEnd + 1;
+
+            // 跳过冒号
+            while (pos < content.size() && (content[pos] == ' ' || content[pos] == '\t'
+                   || content[pos] == '\n' || content[pos] == '\r' || content[pos] == ':'))
+                ++pos;
+
+            if (pos >= content.size()) break;
+
+            // 读取值
+            if (content[pos] == '"')
+            {
+                // 字符串值
+                ++pos;
+                size_t valEnd = content.find('"', pos);
+                if (valEnd == std::string::npos) break;
+                std::string val = content.substr(pos, valEnd - pos);
+                pos = valEnd + 1;
+                if (key == "pattern")
+                    pattern = val;
+                else if (key == "unit")
+                    unit = timeUnitFromLabel(val);
+            }
+            else if (content[pos] == '-' || (content[pos] >= '0' && content[pos] <= '9'))
+            {
+                // 数值值
+                size_t valEnd = pos;
+                while (valEnd < content.size() && ((content[valEnd] >= '0' && content[valEnd] <= '9') || content[valEnd] == '-'))
+                    ++valEnd;
+                int val = std::stoi(content.substr(pos, valEnd - pos));
+                pos = valEnd;
+                if (key == "unit")
+                    unit = static_cast<TimeUnit>(val);
+            }
+            else
+            {
+                ++pos;
+            }
+        }
+
+        // 跳过闭合 }
+        if (pos < content.size() && content[pos] == '}')
+            ++pos;
+
+        if (!pattern.empty())
+            m_xAxisRules.push_back({pattern, unit});
+    }
+
+    return true;
+}
+
+bool DataManager::SaveXAxisRules(const std::string& jsonPath) const
+{
+    // 确保目录存在
+    std::filesystem::path filePath(jsonPath);
+    auto parentDir = filePath.parent_path();
+    if (!parentDir.empty() && !std::filesystem::exists(parentDir))
+        std::filesystem::create_directories(parentDir);
+
+    std::ofstream file(jsonPath);
+    if (!file.is_open())
+        return false;
+
+    file << "[\n";
+    for (size_t i = 0; i < m_xAxisRules.size(); ++i)
+    {
+        file << "    {\"pattern\": \"" << m_xAxisRules[i].pattern
+             << "\", \"unit\": " << static_cast<int>(m_xAxisRules[i].unit) << "}";
+        if (i + 1 < m_xAxisRules.size())
+            file << ",";
+        file << "\n";
+    }
+    file << "]\n";
+    file.close();
+    return true;
 }
 
 } // namespace viewer

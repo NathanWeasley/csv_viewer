@@ -24,6 +24,7 @@
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
+#include "XAxisDialog.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>
@@ -188,9 +189,25 @@ void UI::createMenu()
         m_xAxisLabel->setText("X: (none)");
     });
 
-    auto* settingsMenu = menuBar()->addMenu("设置");
-    auto* aliasAction = settingsMenu->addAction("自动重命名数据");
+    auto* settingsMenu = menuBar()->addMenu(QString::fromUtf8("设置"));
+    auto* aliasAction = settingsMenu->addAction(QString::fromUtf8("自动重命名数据"));
     connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
+
+    auto* xAxisSettingAction = settingsMenu->addAction(QString::fromUtf8("默认X轴设置"));
+    connect(xAxisSettingAction, &QAction::triggered, this, [this]()
+    {
+        auto& dm = m_viewer.GetDataManager();
+        auto rulesCopy = dm.GetXAxisRules();
+        XAxisDialog dlg(rulesCopy, this);
+        if (dlg.exec() == QDialog::Accepted)
+        {
+            auto newRules = dlg.rules();
+            dm.SetXAxisRules(newRules);
+            // 保存到 user/xaxis.json
+            QString jsonPath = QCoreApplication::applicationDirPath() + "/user/xaxis.json";
+            dm.SaveXAxisRules(jsonPath.toStdString());
+        }
+    });
 
     settingsMenu->addSeparator();
 

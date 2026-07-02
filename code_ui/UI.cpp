@@ -100,6 +100,12 @@ void UI::init()
     createMenu();
     createMain();
 
+    // ---- 加载 X 轴规则 ----
+    {
+        QString jsonPath = QCoreApplication::applicationDirPath() + "/user/xaxis.json";
+        m_viewer.GetDataManager().LoadXAxisRules(jsonPath.toStdString());
+    }
+
     // ---- 加载书签 ----
     loadBookmarkFile();
 

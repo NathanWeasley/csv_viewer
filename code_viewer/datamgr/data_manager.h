@@ -13,9 +13,85 @@
 #include <fstream>
 #include <algorithm>
 #include <cctype>
+#include <cstdint>
 
 namespace viewer
 {
+
+// ============================================================
+// X轴时间单位（编译期常量枚举 + constexpr 映射）
+// ============================================================
+enum class TimeUnit : uint8_t
+{
+    None = 0,       // 无单位 / 数据索引
+    Second,         // s
+    Millisecond,    // ms
+    Microsecond,    // us
+    Nanosecond,     // ns
+    Minute,         // min
+    Hour,           // h
+    Day,            // day
+    Count           // 哨兵值，等于有效枚举数
+};
+
+// constexpr 转换因子 → 秒
+constexpr double timeUnitToSeconds(TimeUnit u) noexcept
+{
+    switch (u)
+    {
+        case TimeUnit::Second:      return 1.0;
+        case TimeUnit::Millisecond: return 1e-3;
+        case TimeUnit::Microsecond: return 1e-6;
+        case TimeUnit::Nanosecond:  return 1e-9;
+        case TimeUnit::Minute:      return 60.0;
+        case TimeUnit::Hour:        return 3600.0;
+        case TimeUnit::Day:         return 86400.0;
+        default:                    return 1.0;
+    }
+}
+
+// constexpr 显示标签（仅用于 UI 下拉框填充）
+constexpr const char* timeUnitLabel(TimeUnit u) noexcept
+{
+    switch (u)
+    {
+        case TimeUnit::None:        return "\u65e0\u5355\u4f4d";   // 无单位
+        case TimeUnit::Second:      return "s";
+        case TimeUnit::Millisecond: return "ms";
+        case TimeUnit::Microsecond: return "\u03bcs";              // μs
+        case TimeUnit::Nanosecond:  return "ns";
+        case TimeUnit::Minute:      return "min";
+        case TimeUnit::Hour:        return "h";
+        case TimeUnit::Day:         return "day";
+        default:                    return "?";
+    }
+}
+
+// 所有单位标签数组（用于 UI 填充下拉框）
+constexpr const char* g_timeUnitLabels[] = {
+    "\u65e0\u5355\u4f4d", "s", "ms", "\u03bcs", "ns", "min", "h", "day"
+};
+constexpr size_t g_timeUnitLabelCount = sizeof(g_timeUnitLabels) / sizeof(g_timeUnitLabels[0]);
+
+// 从字符串标签查找 TimeUnit 枚举值（用于 JSON 反序列化）
+inline TimeUnit timeUnitFromLabel(const std::string& label)
+{
+    for (size_t i = 0; i < g_timeUnitLabelCount; ++i)
+    {
+        if (label == g_timeUnitLabels[i])
+            return static_cast<TimeUnit>(i);
+    }
+    return TimeUnit::None;
+}
+
+// ============================================================
+// X轴匹配规则
+// ============================================================
+struct XAxisRule
+{
+    std::string pattern;    // 列名匹配模式（子串，不区分大小写）
+    TimeUnit    unit;       // 时间单位（编译期枚举）
+};
 
 // ============================================================
 // 进度回调类型
@@ -120,15 +196,34 @@ public:
     // 横轴检测
     // ============================================================
 
-    // 自动检测最适合作为 X 轴的列（匹配时间戳/时间相关列名）
-    // 返回列索引，未找到返回 npos
-    size_t AutoDetectXAxis() const;
+    // 基于规则检测最适合作为 X 轴的列（优先使用 xaxis.json 规则）
+    // 返回列索引，未找到返回 npos。会同时设置 m_xAxisUnit
+    size_t AutoDetectXAxis();
 
     // 获取当前横轴列索引
     size_t GetXAxisColumn() const noexcept { return m_xAxisColumn; }
 
     // 设置横轴列
     void SetXAxisColumn(size_t colIdx) { m_xAxisColumn = colIdx; }
+
+    // ============================================================
+    // X 轴规则管理
+    // ============================================================
+
+    // 加载 X 轴检测规则（从 JSON 文件）
+    bool LoadXAxisRules(const std::string& jsonPath);
+
+    // 保存 X 轴检测规则到 JSON 文件
+    bool SaveXAxisRules(const std::string& jsonPath) const;
+
+    // 获取当前规则列表
+    const std::vector<XAxisRule>& GetXAxisRules() const noexcept { return m_xAxisRules; }
+
+    // 设置规则列表（并保存）
+    void SetXAxisRules(const std::vector<XAxisRule>& rules) { m_xAxisRules = rules; }
+
+    // 获取当前 X 轴单位
+    TimeUnit GetXAxisUnit() const noexcept { return m_xAxisUnit; }
 
     // ============================================================
     // 隐含索引列（内部使用，不暴露在 UI 数据树中）
@@ -170,6 +265,10 @@ private:
 
     std::string m_filePath;     // 已加载的文件路径
     size_t      m_xAxisColumn = npos;  // 当前横轴列
+    TimeUnit    m_xAxisUnit = TimeUnit::None;   // 当前横轴单位
+
+    // X 轴检测规则（从 user/xaxis.json 加载）
+    std::vector<XAxisRule> m_xAxisRules;
 
     // 隐含索引列（0.0, 1.0, 2.0, ...），不加入 m_columns/m_columnNames
     std::unique_ptr<Column> m_indexColumn;

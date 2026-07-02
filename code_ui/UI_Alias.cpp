@@ -97,6 +97,14 @@ void UI::showAliasDialog()
     AliasDialog dlg(this);
     dlg.setAliases(m_aliasMap);
 
+    // 传入已加载的原始列名列表（用于防重名校验）
+    const auto& rawNames = m_viewer.GetDataManager().GetRawColumnNames();
+    if (!rawNames.empty())
+    {
+        std::vector<std::string> rawVec(rawNames.begin(), rawNames.end());
+        dlg.setExistingNames(rawVec);
+    }
+
     if (dlg.exec() != QDialog::Accepted)
         return;
 
