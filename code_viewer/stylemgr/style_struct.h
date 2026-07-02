@@ -99,7 +99,7 @@ struct VIEWER_API PlotTheme
 struct VIEWER_API DataBoxStyleDef
 {
     // 文字
-    std::string fontFamily = "Consolas";
+    std::string fontFamily;  // 空字符串 = 系统默认字体（原值: "Consolas"）
     int fontSize = 9;
     Color textColor;           // 文字颜色
 
@@ -121,6 +121,8 @@ struct VIEWER_API DataBoxStyleDef
 
     QFont toQFont() const
     {
+        if (fontFamily.empty())
+            return QFont();  // 系统默认字体（原: QFont("Consolas", fontSize) + Monospace hint）
         QFont f(QString::fromStdString(fontFamily), fontSize);
         f.setStyleHint(QFont::Monospace);
         return f;

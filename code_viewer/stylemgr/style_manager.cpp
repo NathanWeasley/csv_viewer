@@ -499,7 +499,7 @@ void StyleManager::initializeDefaults(bool isDarkMode)
     // ========================================
     {
         DataBoxStyleDef db;
-        db.fontFamily  = "Consolas";
+        db.fontFamily.clear();  // 系统默认字体（原值: "Consolas"）
         db.fontSize    = 9;
 
         if (isDarkMode)

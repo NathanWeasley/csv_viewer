@@ -147,7 +147,7 @@ void UI::renderHighlights(int pageIndex)
                 yUpper
             );
             textItem->setText(QString::fromStdString(interval.label));
-            textItem->setFont(QFont("sans-serif", 9));
+            // textItem->setFont(QFont("sans-serif", 9));  // 已注释：统一使用系统默认字体
             textItem->setColor(QColor(0x66, 0x66, 0x66));
             textItem->setPen(Qt::NoPen);
             textItem->setBrush(Qt::NoBrush);

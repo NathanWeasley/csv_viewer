@@ -164,7 +164,7 @@ void HighlightDialog::buildUI()
     leftLayout->addRow(QString::fromUtf8("标注："), m_txtLabel);
 
     // 添加按钮
-    m_btnAdd = new QPushButton(QString::fromUtf8("添加规则 →"));
+    m_btnAdd = new QPushButton(QString::fromUtf8("添加规则 ->"));
     m_btnAdd->setFixedHeight(32);
     connect(m_btnAdd, &QPushButton::clicked, this, &HighlightDialog::onAddRule);
     leftLayout->addRow(m_btnAdd);
@@ -341,7 +341,7 @@ QString HighlightDialog::ruleToString(const viewer::HighlightRule& rule) const
     return QString::fromStdString(rule.dataColumn)
         + " " + condStr + " " + valueStr
         + " | " + colorName
-        + " α=" + QString::number(rule.alpha)
+        + " alpha=" + QString::number(rule.alpha)
         + labelPart;
 }
 

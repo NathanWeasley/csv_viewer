@@ -238,7 +238,7 @@ void UI::bindCursorManagerCallbacks()
         label->setText(QString("X: %1\nY: %2")
                            .arg(x, 0, 'g', 8)
                            .arg(y, 0, 'g', 8));
-        label->setFont(QFont("Consolas, Courier New, monospace", 9));
+        // label->setFont(QFont("Consolas, Courier New, monospace", 9));  // 已注释：统一使用系统默认字体
         label->setSelectable(false);
         label->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
         label->setPadding(QMargins(6, 3, 6, 3));

@@ -111,13 +111,13 @@ void AliasDialog::onAccept()
         if (from.isEmpty())
         {
             QMessageBox::warning(this, QStringLiteral("校验失败"),
-                                 QStringLiteral("第 %1 行「原始数据名」不能为空").arg(row + 1));
+                                 QStringLiteral("第 %1 行\"原始数据名\"不能为空").arg(row + 1));
             return;
         }
         if (to.isEmpty())
         {
             QMessageBox::warning(this, QStringLiteral("校验失败"),
-                                 QStringLiteral("第 %1 行「重命名为」不能为空").arg(row + 1));
+                                 QStringLiteral("第 %1 行\"重命名为\"不能为空").arg(row + 1));
             return;
         }
     }
@@ -137,7 +137,7 @@ void AliasDialog::onAccept()
     if (fromSet.size() != curAliases.size())
     {
         QMessageBox::warning(this, QStringLiteral("校验失败"),
-                             QStringLiteral("「原始数据名」有重复项"));
+                             QStringLiteral("\"原始数据名\" 有重复项"));
         return;
     }
 
@@ -149,7 +149,7 @@ void AliasDialog::onAccept()
             if (toSet.count(to))
             {
                 QMessageBox::warning(this, QStringLiteral("校验失败"),
-                                     QStringLiteral("「重命名为」\"%1\" 重复").arg(QString::fromStdString(to)));
+                                     QStringLiteral("\"重命名为\" \"%1\" 重复").arg(QString::fromStdString(to)));
                 return;
             }
             toSet.insert(to);
@@ -166,7 +166,7 @@ void AliasDialog::onAccept()
             if (m_existingNames.count(to) > 0 && fromSet.count(to) == 0)
             {
                 QMessageBox::warning(this, QStringLiteral("校验失败"),
-                    QStringLiteral("「重命名为」\"%1\" 与已有列名冲突，请使用其他名称")
+                    QStringLiteral("\"重命名为\" \"%1\" 与已有列名冲突，请使用其他名称")
                         .arg(QString::fromStdString(to)));
                 return;
             }
