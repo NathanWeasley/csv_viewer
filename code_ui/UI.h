@@ -66,11 +66,9 @@ private Q_SLOTS:
     // ---- Cursor Manager helpers ----
 
     // 查找鼠标最近的数据点，返回 (graph, dataIndex) pair；未找到返回 (nullptr, 0)
+    // 内部使用二分查找 O(log N)，不受自适应降采样影响，始终返回原始全量数据中的最近点
     QPair<viewer::QCPColumnGraph*, size_t> findNearestDataPoint(
         QCustomPlot* plot, const QPoint& mousePos, double pixelThreshold = 10.0) const;
-
-    // 检查数据密度是否过高（dataCount / plotWidth > 1.0 时跳过预选）
-    bool isDataTooDense(QCustomPlot* plot) const;
 
     void refreshCursorLabelStyle(int cursorIdx, bool active);
 

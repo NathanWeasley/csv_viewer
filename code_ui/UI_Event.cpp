@@ -205,15 +205,10 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     auto& cm = m_viewer.GetCursorManager();
 
     // ---- MouseMove: 预选检测 ----
+    // 使用二分查找 O(log N) 定位最近数据点，不受自适应降采样影响
     if (event->type() == QEvent::MouseMove)
     {
         QMouseEvent* me = static_cast<QMouseEvent*>(event);
-
-        if (isDataTooDense(plot))
-        {
-            cm.clearPreSelection();
-            return QMainWindow::eventFilter(obj, event);
-        }
 
         auto result = findNearestDataPoint(plot, me->pos(), 10.0);
         viewer::QCPColumnGraph* graph = result.first;
