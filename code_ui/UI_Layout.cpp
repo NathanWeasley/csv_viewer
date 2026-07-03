@@ -240,84 +240,191 @@ void UI::createMenu()
     auto* aboutMenu = menuBar()->addMenu("关于");
 }
 
+// ============================================================
+// 统一图标加载管线
+// ============================================================
+
+/// 根据 IconIdx 从 g_iconTable 加载原始 SVG 文本（支持 Base64 / SvgFile 两种来源）
+static QString loadIconRaw(IconIdx id)
+{
+	for (int i = 0; i < g_iconTableCount; ++i)
+	{
+		if (g_iconTable[i].id != id)
+			continue;
+
+		const IconEntry& entry = g_iconTable[i];
+
+		if (entry.source == IconSource::Base64)
+		{
+			// 解码 base64 data URI → SVG 文本
+			QString dataUri = QString::fromUtf8(entry.data);
+			QString base64Part = dataUri.section(',', 1);
+			QByteArray svgBytes = QByteArray::fromBase64(base64Part.toUtf8());
+			return QString::fromUtf8(svgBytes);
+		}
+		else // IconSource::SvgFile
+		{
+			// 从 Qt 资源系统或文件系统读取 .svg 文件（QFile 支持 :/ 资源路径）
+			QString path = QString::fromUtf8(entry.data);
+			QFile file(path);
+			if (file.open(QIODevice::ReadOnly))
+			{
+				QByteArray data = file.readAll();
+				file.close();
+				return QString::fromUtf8(data);
+			}
+		}
+		break;
+	}
+	return QString();
+}
+
+/// 三色标记系统：根据 stroke/fill 颜色值分类处理
+///   kColorStroke → 描边反差色（深主题→浅灰, 浅主题→深色）
+///   kColorFill   → 填充相容色（深主题→深底, 浅主题→浅底）
+///   其余颜色     → 保持不变（彩色强调色）
+static QString normalizeSvgColors(const QString& svgText, bool darkMode)
+{
+	// 主题色映射表
+	const QString strokeColor = darkMode ? "#D0D0D0" : "#1A1A1A";  // 反差
+	const QString fillColor   = darkMode ? "#2D2D2D" : "#F0F0F0";  // 相容
+
+	// 归一化 #RGB → #RRGGBB，用于兼容短十六进制比较
+	auto expandHex = [](const QString& hex) -> QString {
+		if (hex.length() == 7) return hex;             // #RRGGBB
+		if (hex.length() == 4 && hex[0] == '#') {      // #RGB → #RRGGBB
+			return QString("#%1%1%2%2%3%3").arg(hex[1]).arg(hex[2]).arg(hex[3]);
+		}
+		return hex;
+	};
+	const QString expandedStroke = expandHex(QLatin1String(kColorStroke));
+	const QString expandedFill   = expandHex(QLatin1String(kColorFill));
+
+	QString result = svgText;
+
+	/// 匹配所有 stroke / fill 颜色值
+	///   支持两种语法：HTML属性 stroke="#000" 和 CSS样式 stroke:#000;
+	QRegularExpression regex(R"((stroke|fill)[\s]*[=:][\s]*\"?(#[0-9a-fA-F]{3,6})\"?[\s;]?)");
+	QRegularExpressionMatchIterator it = regex.globalMatch(result);
+
+	// 收集所有匹配 (位置, 原始长度, 颜色值)，统一从后往前替换
+	struct Match {
+		int pos;
+		int len;
+		QString color;
+	};
+	QList<Match> matches;
+	while (it.hasNext())
+	{
+		QRegularExpressionMatch m = it.next();
+		Match match;
+		match.pos   = m.capturedStart(2);
+		match.len   = m.capturedLength(2);
+		match.color = m.captured(2);
+		matches.append(match);
+	}
+
+	// 按位置从后往前排序，避免替换后位置偏移
+	std::sort(matches.begin(), matches.end(), [](const Match& a, const Match& b) {
+		return a.pos > b.pos;  // 降序
+	});
+
+	for (const Match& m : matches)
+	{
+		QString hexExpanded = expandHex(m.color);
+		QString replacement;
+		if (hexExpanded.compare(expandedStroke, Qt::CaseInsensitive) == 0)
+			replacement = strokeColor;
+		else if (hexExpanded.compare(expandedFill, Qt::CaseInsensitive) == 0)
+			replacement = fillColor;
+		else
+			continue;  // 彩色或其他颜色，保持不变
+
+		result.replace(m.pos, m.len, replacement);
+	}
+
+	return result;
+}
+
+/// 将 SVG 文本渲染为 DPI 感知的 QPixmap → QIcon
+static QIcon renderSvgToIcon(const QString& svgText, int logicalSize = 24)
+{
+	QByteArray svgBytes = svgText.toUtf8();
+
+	qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
+	int physicalSize = qRound(logicalSize * dpr);
+
+	QPixmap pixmap(physicalSize, physicalSize);
+	pixmap.fill(Qt::transparent);
+
+	QSvgRenderer renderer(svgBytes);
+	QPainter painter(&pixmap);
+	renderer.render(&painter);
+	painter.end();
+
+	pixmap.setDevicePixelRatio(dpr);
+	return QIcon(pixmap);
+}
+
+/// 统一入口：根据 IconIdx 加载图标（自动查表 → 颜色标准化 → DPI 渲染）
+static QIcon createIcon(IconIdx id, int logicalSize = 36)
+{
+	QString svgText = loadIconRaw(id);
+	if (svgText.isEmpty())
+		return QIcon();
+
+	bool dark = isSystemInDark();
+	QString normalized = normalizeSvgColors(svgText, dark);
+	return renderSvgToIcon(normalized, logicalSize);
+}
+
+// ============================================================
+// 工具栏创建（表驱动 + group 自动分隔）
+// ============================================================
+
 void UI::createToolbar()
 {
-    ///< Load icons and create buttons
-    QIcon loadcsv = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADCSV)]);
-    auto* action_loadcsv = new QAction(loadcsv, "Load CSVs", this);
+	ui.mainToolBar->setIconSize(QSize(36, 36));  // 1.5x 默认 24px
 
-    QIcon loadfolder = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::LOADFOLDER)]);
-    auto* action_loadfolder = new QAction(loadfolder, "Load Folders", this);
+	QAction* action_loadcsv  = nullptr;
+	QAction* action_clearall = nullptr;
 
-    QIcon clearall = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::CLEAR)]);
-    auto* action_clearall = new QAction(clearall, "Clear All", this);
+	uint8_t lastGroup = 0xFF;  // 跟踪上一个图标的 group，换组时自动插入分隔符
+	bool   firstItem  = true;
 
-    QIcon dofft = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::FFT)]);
-    auto* action_dofft = new QAction(dofft, "FFT", this);
+	for (int i = 0; i < g_iconTableCount; ++i)
+	{
+		const IconEntry& entry = g_iconTable[i];
 
-    QIcon addfx = createDpiAwareIcon(g_iconBase64[ENUM2IDX(IconIdx::EXPR)]);
-    auto* action_addfx = new QAction(addfx, "Expression", this);
+		// 换组时插入分隔符（第一个图标前不插入）
+		if (!firstItem && entry.group != lastGroup)
+			ui.mainToolBar->addSeparator();
 
-    ///< Add buttons to toolbar
-    ui.mainToolBar->addAction(action_loadcsv);
-    ui.mainToolBar->addAction(action_loadfolder);
-    ui.mainToolBar->addAction(action_clearall);
-    ui.mainToolBar->addSeparator();
-    ui.mainToolBar->addAction(action_dofft);
-    ui.mainToolBar->addAction(action_addfx);
+		QIcon icon = createIcon(entry.id);
+		auto* action = new QAction(icon, entry.tooltip, this);
 
-    ///< Connect buttons to slots
-    connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
-    connect(action_clearall, &QAction::triggered, this, [this]()
-    {
-        m_viewer.Clear();
-        m_dataTree->clear();
-        m_xAxisLabel->setText("X: (none)");
-    });
-}
+		// 记录需要连接信号的 action
+		switch (entry.id)
+		{
+		case IconIdx::LOADCSV:  action_loadcsv  = action; break;
+		case IconIdx::CLEAR:    action_clearall = action; break;
+		default: break;
+		}
 
-QIcon UI::createDpiAwareIcon(const QString& fullstr, int logicalsize)
-{
-    // 1. Strip prefix and decode text
-    QString base64Data = fullstr.section(',', 1);
-    QByteArray svgBytes = QByteArray::fromBase64(base64Data.toUtf8());
-    QString svgText = QString::fromUtf8(svgBytes);
+		ui.mainToolBar->addAction(action);
 
-    if (isSystemInDark())
-    {
-        //svgText.replace("#323544", "#7F7F7F", Qt::CaseInsensitive);
-        forceStrokeColor(svgText, "#AFAFAF");
-    }
-    else
-    {
-        forceStrokeColor(svgText, "#222222");
-    }
-    svgBytes = svgText.toUtf8();
+		lastGroup = entry.group;
+		firstItem = false;
+	}
 
-    // 2. Query the primary screen's current device pixel ratio (e.g., 1.5, 2.0)
-    qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
-
-    // 3. Compute actual physical pixel size needed for this display scale
-    int physicalSize = qRound(logicalsize * dpr);
-
-    // 4. Render the vector graphic onto a physical-sized canvas
-    QPixmap pixmap(physicalSize, physicalSize);
-    pixmap.fill(Qt::transparent);
-
-    QSvgRenderer renderer(svgBytes);
-    QPainter painter(&pixmap);
-    renderer.render(&painter);
-    painter.end();
-
-    // 5. CRITICAL: Inform Qt of the scale factor so it shrinks it down crisply
-    pixmap.setDevicePixelRatio(dpr);
-
-    return QIcon(pixmap);
-}
-
-void UI::forceStrokeColor(QString& str, const QString& color)
-{
-    QRegularExpression strokeAttrRegex("stroke=\"[^\"]*\"");
-    QString newStrokeAttr = QString("stroke=\"%1\"").arg(color);
-    str.replace(strokeAttrRegex, newStrokeAttr);
+	///< Connect buttons to slots
+	if (action_loadcsv)
+		connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
+	if (action_clearall)
+		connect(action_clearall, &QAction::triggered, this, [this]()
+		{
+			m_viewer.Clear();
+			m_dataTree->clear();
+			m_xAxisLabel->setText("X: (none)");
+		});
 }

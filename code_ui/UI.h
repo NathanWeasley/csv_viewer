@@ -60,8 +60,7 @@ private Q_SLOTS:
     /** Data tree item double-clicked → add to active plot */
     void onDataItemDoubleClicked(QTreeWidgetItem* item, int column);
 
-    QIcon createDpiAwareIcon(const QString& fullstr, int logicalsize = 24);
-    void forceStrokeColor(QString& str, const QString& color);
+    // (图标加载已迁移至 UI_Layout.cpp 中的统一管线: loadIconRaw / normalizeSvgColors / createIcon)
 
     // ---- Cursor Manager helpers ----
 

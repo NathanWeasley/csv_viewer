@@ -1,4 +1,11 @@
 <RCC>
-    <qresource prefix="UI">
+    <qresource prefix="icons">
+        <file alias="SVG/loadcsv.svg">../data/icons/SVG/loadcsv.svg</file>
+        <file alias="SVG/loadfolder.svg">../data/icons/SVG/loadfolder.svg</file>
+        <file alias="SVG/loadcfg.svg">../data/icons/SVG/loadcfg.svg</file>
+        <file alias="SVG/loadhiklog.svg">../data/icons/SVG/loadhiklog.svg</file>
+        <file alias="SVG/clear.svg">../data/icons/SVG/clear.svg</file>
+        <file alias="SVG/addexpr.svg">../data/icons/SVG/addexpr.svg</file>
+        <file alias="SVG/varrename.svg">../data/icons/SVG/varrename.svg</file>
     </qresource>
 </RCC>

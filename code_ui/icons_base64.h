@@ -5,23 +5,117 @@
 
 #define ENUM2IDX(item)		(static_cast<int>(item))
 
-enum class IconIdx
-	: uint8_t
+// ============================================================
+// 图标资源源类型
+// ============================================================
+enum class IconSource : uint8_t
+{
+	Base64,   // 内嵌 base64 数据 URI
+	SvgFile,  // 外部 .svg 文件（通过 Qt 资源系统或文件路径加载）
+};
+
+// ============================================================
+// 图标索引枚举（与工具栏按钮一一对应）
+// ============================================================
+enum class IconIdx : uint8_t
 {
 	LOADCSV = 0,
 	LOADFOLDER,
+	LOADDJIBIN,
+	LOADHIKLOG,
 	CLEAR,
-	FFT,
-	EXPR,
+	ADDEXPR,
+	VARRENAME,
 };
 
-///< Icons in base64 format (defaults to 0x222222 colors)
-static const QString g_iconBase64[] =
+// ============================================================
+// IconEntry: 图标资源的统一描述
+//   - 单一真相源：添加新图标只需在此表中加一行
+//   - 支持两种加载方式：Base64 内嵌 或 SVG 文件
+// ============================================================
+struct IconEntry
 {
-	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4NCjxwYXRoIGQ9Ik0xNSAxNi42MjQ5SDE4LjI1MDJNMTYuNjI1MSAxNC45OTk5VjE4LjI1MDFNMTAuNTYyNSAyMS4yNUg2Ljc1QzUuOTIxNTcgMjEuMjUgNS4yNSAyMC41Nzg0IDUuMjUgMTkuNzVWOS42MjEwNUM1LjI1IDkuNDA0OTkgNS4yOTY2MSA5LjE5Mzc0IDUuMzg0MjcgOS4wMDA3M00xOC43NSA5LjMwNDY5VjQuMjVDMTguNzUgMy40MjE1NyAxOC4wNzg0IDIuNzUgMTcuMjUgMi43NUgxMi4xMTc3QzExLjkwMTcgMi43NSAxMS42OTA1IDIuNzk2NTggMTEuNDk3NiAyLjg4NDE3TTUuMzg0MjcgOS4wMDA3M0M1LjQ1Nzk1IDguODM4NSA1LjU2MDY0IDguNjg5MTcgNS42ODkwMSA4LjU2MDcyTDExLjA1NjcgMy4xODk2N0MxMS4xODU0IDMuMDYwOTMgMTEuMzM1IDIuOTU3OTkgMTEuNDk3NiAyLjg4NDE3TTUuMzg0MjcgOS4wMDA3M0gxMC4wMDA5QzEwLjgyOTcgOS4wMDA3MyAxMS41MDE1IDguMzI4NTEgMTEuNTAwOSA3LjQ5OTY2TDExLjQ5NzYgMi44ODQxN00yMS4yNSAxNi42MjVDMjEuMjUgMTkuMTc5MyAxOS4xNzkzIDIxLjI1IDE2LjYyNSAyMS4yNUMxNC4wNzA3IDIxLjI1IDEyIDE5LjE3OTMgMTIgMTYuNjI1QzEyIDE0LjA3MDcgMTQuMDcwNyAxMiAxNi42MjUgMTJDMTkuMTc5MyAxMiAyMS4yNSAxNC4wNzA3IDIxLjI1IDE2LjYyNVoiIHN0cm9rZT0iIzMyMzU0NCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPg0KPC9zdmc+DQo=",
-	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjUiIHZpZXdCb3g9IjAgMCAyNCAyNSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4NCjxwYXRoIGQ9Ik05LjcgNS44NUM5LjQxNjcyIDUuNDcyMjkgOC45NzIxNCA1LjI1IDguNSA1LjI1SDQuMjVDMy40MjE1NyA1LjI1IDIuNzUgNS45MjE1NyAyLjc1IDYuNzVWMTguNzVDMi43NSAxOS41Nzg0IDMuNDIxNTcgMjAuMjUgNC4yNSAyMC4yNUgxOS43NUMyMC41Nzg0IDIwLjI1IDIxLjI1IDE5LjU3ODQgMjEuMjUgMTguNzVWOS43NUMyMS4yNSA4LjkyMTU3IDIwLjU3ODQgOC4yNSAxOS43NSA4LjI1SDEyLjI1QzExLjc3NzkgOC4yNSAxMS4zMzMzIDguMDI3NzEgMTEuMDUgNy42NUw5LjcgNS44NVoiIHN0cm9rZT0iIzMyMzU0NCIgc3Ryb2tlLXdpZHRoPSIxLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPg0KPC9zdmc+DQo=",
-	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE0LjcyMjMgMTIuNzU4NUMxNC43NDI2IDEyLjM0NDggMTQuNDIzNyAxMS45OTI5IDE0LjAxIDExLjk3MjZDMTMuNTk2MyAxMS45NTIyIDEzLjI0NDQgMTIuMjcxMSAxMy4yMjQxIDEyLjY4NDhMMTIuOTk5OSAxNy4yNDE1QzEyLjk3OTYgMTcuNjU1MiAxMy4yOTg1IDE4LjAwNzEgMTMuNzEyMiAxOC4wMjc0QzE0LjEyNTkgMTguMDQ3OCAxNC40Nzc4IDE3LjcyODkgMTQuNDk4MSAxNy4zMTUyTDE0LjcyMjMgMTIuNzU4NVoiIGZpbGw9IiMzMjM1NDQiLz4KPHBhdGggZD0iTTkuOTg4MDIgMTEuOTcyNkM5LjU3NDMgMTEuOTkyOSA5LjI1NTQyIDEyLjM0NDggOS4yNzU3NyAxMi43NTg1TDkuNDk5OTMgMTcuMzE1MkM5LjUyMDI4IDE3LjcyODkgOS44NzIxNiAxOC4wNDc4IDEwLjI4NTkgMTguMDI3NEMxMC42OTk2IDE4LjAwNzEgMTEuMDE4NSAxNy42NTUyIDEwLjk5ODEgMTcuMjQxNUwxMC43NzQgMTIuNjg0OEMxMC43NTM2IDEyLjI3MTEgMTAuNDAxNyAxMS45NTIyIDkuOTg4MDIgMTEuOTcyNloiIGZpbGw9IiMzMjM1NDQiLz4KPHBhdGggZmlsbC1ydWxlPSJldmVub2RkIiBjbGlwLXJ1bGU9ImV2ZW5vZGQiIGQ9Ik0xMC4yNDkgMkM5LjAwNjM4IDIgNy45OTkwMiAzLjAwNzM2IDcuOTk5MDIgNC4yNVY1SDUuNUM0LjI1NzM2IDUgMy4yNSA2LjAwNzM2IDMuMjUgNy4yNUMzLjI1IDguMjg5NTggMy45NTUwMyA5LjE2NDQ5IDQuOTEzMDMgOS40MjI2N0w1LjU0MDc2IDE5Ljg4NDhDNS42MTIwNSAyMS4wNzI5IDYuNTk2NDIgMjIgNy43ODY3MiAyMkgxNi4yMTEzQzE3LjQwMTYgMjIgMTguMzg2IDIxLjA3MjkgMTguNDU3MyAxOS44ODQ4TDE5LjA4NSA5LjQyMjY3QzIwLjA0MyA5LjE2NDQ5IDIwLjc0OCA4LjI4OTU4IDIwLjc0OCA3LjI1QzIwLjc0OCA2LjAwNzM2IDE5Ljc0MDcgNSAxOC40OTggNUgxNS45OTlWNC4yNUMxNS45OTkgMy4wMDczNiAxNC45OTE3IDIgMTMuNzQ5IDJIMTAuMjQ5Wk0xNC40OTkgNVY0LjI1QzE0LjQ5OSAzLjgzNTc5IDE0LjE2MzIgMy41IDEzLjc0OSAzLjVIMTAuMjQ5QzkuODM0ODEgMy41IDkuNDk5MDIgMy44MzU3OSA5LjQ5OTAyIDQuMjVWNUgxNC40OTlaTTUuNSA2LjVDNS4wODU3OSA2LjUgNC43NSA2LjgzNTc5IDQuNzUgNy4yNUM0Ljc1IDcuNjY0MjEgNS4wODU3OSA4IDUuNSA4SDE4LjQ5OEMxOC45MTIzIDggMTkuMjQ4IDcuNjY0MjEgMTkuMjQ4IDcuMjVDMTkuMjQ4IDYuODM1NzkgMTguOTEyMyA2LjUgMTguNDk4IDYuNUg1LjVaTTYuNDIwMzcgOS41SDE3LjU3NzdMMTYuOTYgMTkuNzk0OUMxNi45MzYyIDIwLjE5MSAxNi42MDgxIDIwLjUgMTYuMjExMyAyMC41SDcuNzg2NzJDNy4zODk5NSAyMC41IDcuMDYxODMgMjAuMTkxIDcuMDM4MDcgMTkuNzk0OUw2LjQyMDM3IDkuNVoiIGZpbGw9IiMzMjM1NDQiLz4KPC9zdmc+Cg==",
-	"data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9IjAgMCA0OCA0OCIgd2lkdGg9IjQ4IiBoZWlnaHQ9IjQ4Ij4KICA8cGF0aCBkPSJNIDMuMCwzOS40IEwgMy40LDM4LjggTCAzLjgsMzguMiBMIDQuMywzNy40IEwgNC43LDM2LjcgTCA1LjEsMzYuMCBMIDUuNSwzNS4yIEwgNS45LDM0LjYgTCA2LjQsMzQuMCBMIDYuOCwzMy42IEwgNy4yLDMzLjMgTCA3LjYsMzMuMSBMIDguMCwzMy4xIEwgOC41LDMzLjMgTCA4LjksMzMuNyBMIDkuMywzNC4zIEwgOS43LDM1LjAgTCAxMC4xLDM1LjkgTCAxMC42LDM2LjkgTCAxMS4wLDM4LjAgTCAxMS40LDM5LjEgTCAxMS44LDQwLjMgTCAxMi4yLDQxLjQgTCAxMi43LDQyLjUgTCAxMy4xLDQzLjQgTCAxMy41LDQ0LjIgTCAxMy45LDQ0LjcgTCAxNC4zLDQ1LjAgTCAxNC44LDQ1LjAgTCAxNS4yLDQ0LjcgTCAxNS42LDQ0LjEgTCAxNi4wLDQzLjEgTCAxNi40LDQxLjggTCAxNi45LDQwLjEgTCAxNy4zLDM4LjIgTCAxNy43LDM1LjkgTCAxOC4xLDMzLjQgTCAxOC41LDMwLjcgTCAxOS4wLDI3LjggTCAxOS40LDI0LjggTCAxOS44LDIxLjggTCAyMC4yLDE4LjggTCAyMC42LDE2LjAgTCAyMS4xLDEzLjIgTCAyMS41LDEwLjcgTCAyMS45LDguNSBMIDIyLjMsNi42IEwgMjIuNyw1LjAgTCAyMy4yLDMuOSBMIDIzLjYsMy4yIEwgMjQuMCwzLjAgTCAyNC40LDMuMiBMIDI0LjgsMy45IEwgMjUuMyw1LjAgTCAyNS43LDYuNiBMIDI2LjEsOC41IEwgMjYuNSwxMC43IEwgMjYuOSwxMy4yIEwgMjcuNCwxNi4wIEwgMjcuOCwxOC44IEwgMjguMiwyMS44IEwgMjguNiwyNC44IEwgMjkuMCwyNy44IEwgMjkuNSwzMC43IEwgMjkuOSwzMy40IEwgMzAuMywzNS45IEwgMzAuNywzOC4yIEwgMzEuMSw0MC4xIEwgMzEuNiw0MS44IEwgMzIuMCw0My4xIEwgMzIuNCw0NC4xIEwgMzIuOCw0NC43IEwgMzMuMiw0NS4wIEwgMzMuNyw0NS4wIEwgMzQuMSw0NC43IEwgMzQuNSw0NC4yIEwgMzQuOSw0My40IEwgMzUuMyw0Mi41IEwgMzUuOCw0MS40IEwgMzYuMiw0MC4zIEwgMzYuNiwzOS4xIEwgMzcuMCwzOC4wIEwgMzcuNCwzNi45IEwgMzcuOSwzNS45IEwgMzguMywzNS4wIEwgMzguNywzNC4zIEwgMzkuMSwzMy43IEwgMzkuNSwzMy4zIEwgNDAuMCwzMy4xIEwgNDAuNCwzMy4xIEwgNDAuOCwzMy4zIEwgNDEuMiwzMy42IEwgNDEuNiwzNC4wIEwgNDIuMSwzNC42IEwgNDIuNSwzNS4yIEwgNDIuOSwzNi4wIEwgNDMuMywzNi43IEwgNDMuNywzNy40IEwgNDQuMiwzOC4yIEwgNDQuNiwzOC44IEwgNDUuMCwzOS40IiBmaWxsPSJub25lIiBzdHJva2U9IiMyNTYzZWIiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiAvPgo8L3N2Zz4=",
-	"data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDhweCIgaGVpZ2h0PSI0OHB4IiB2aWV3Qm94PSIwIDAgMS40NCAxLjQ0IiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxwYXRoIGQ9Ik0wLjgxIDAuMjdjLTAuMTggLTAuMDYgLTAuMjQgMC4xNSAtMC4yNCAwLjE1TDAuNDIgMC45NnMtMC4wOSAwLjI0IC0wLjI3IDAuMThtMC4xOCAtMC42SDAuODRsMC4xMiAwLjM2czAuMDYgMC4xMiAwLjE1IDAuMDNtLTAuNDUgMGMwLjE1IDAuMDYgMC4zMyAtMC40MiAwLjQ4IC0wLjM5IiBzdHJva2U9IiMwMDAwMDAiIHN0cm9rZS13aWR0aD0iMC4xMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PC9zdmc+"
+	IconIdx      id;
+	uint8_t      group;         // 分组编号：同组图标连续排列，换组时自动插入分隔符
+	const char*  tooltip;       // 按钮提示文字
+	IconSource   source;        // Base64 或 SvgFile
+	const char*  data;          // Base64 data URI 或 Qt 资源路径（如 ":/data/icons/xxx.svg"）
 };
 
+// ============================================================
+// 图标常量表
+//   - 中性色 #323544 会在加载时自动被主题色替换（stroke + fill 均处理）
+//   - 其他颜色（如 FFT 图标的 #2563eb、EXPR 的 #000000）保持不变
+// ============================================================
+static const IconEntry g_iconTable[] =
+{
+	// Group 0: 文件操作
+	{
+		IconIdx::LOADCSV,
+		0,
+		"Load CSVs",
+		IconSource::SvgFile,
+		":/icons/SVG/loadcsv.svg"
+	},
+	{
+		IconIdx::LOADFOLDER,
+		0,
+		"Load Folders",
+		IconSource::SvgFile,
+		":/icons/SVG/loadfolder.svg"
+	},
+	{
+		IconIdx::LOADDJIBIN,
+		0,
+		"Load Marked Binary",
+		IconSource::SvgFile,
+		":/icons/SVG/loadcfg.svg"
+	},
+	{
+		IconIdx::LOADHIKLOG,
+		0,
+		"Load HikRobot Logs",
+		IconSource::SvgFile,
+		":/icons/SVG/loadhiklog.svg"
+	},
+	{
+		IconIdx::CLEAR,
+		0,
+		"Clear All",
+		IconSource::SvgFile,
+		":/icons/SVG/clear.svg"
+	},
+
+	// Group 1: 
+	{
+		IconIdx::ADDEXPR,
+		1,
+		"Add Global Expression",
+		IconSource::SvgFile,
+		":/icons/SVG/addexpr.svg"
+	},
+
+	// Group 2:
+	{
+		IconIdx::VARRENAME,
+		2,
+		"Rename Variable",
+		IconSource::SvgFile,
+		":/icons/SVG/varrename.svg"
+	},
+};
+
+// 图标表项数
+static constexpr int g_iconTableCount = sizeof(g_iconTable) / sizeof(g_iconTable[0]);
+
+// ============================================================
+// 中性色常量：SVG 中以此为标记的颜色会在加载时按主题替换
+// ============================================================
+// ============================================================
+// 三色标记系统：设计 SVG 图标时使用以下标记色，运行时按主题自动替换
+//   kColorStroke (#000000): 描边反差色 — 深色主题→浅灰, 浅色主题→深色
+//   kColorFill   (#FFFFFF): 填充相容色 — 深色主题→深底, 浅色主题→浅底
+//   其余颜色（如 #2563eb 等彩色）: 跨主题保持不变
+// ============================================================
+static constexpr const char* kColorStroke = "#000000";
+static constexpr const char* kColorFill   = "#FFFFFF";
