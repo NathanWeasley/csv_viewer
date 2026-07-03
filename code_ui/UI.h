@@ -19,6 +19,7 @@
 #include <map>
 #include <unordered_map>
 #include "ui_UI.h"
+#include "AboutDialog.h"
 #include "DockManager.h"
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"

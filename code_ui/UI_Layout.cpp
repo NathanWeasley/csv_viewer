@@ -237,7 +237,12 @@ void UI::createMenu()
         viewer::QCPColumnGraph::s_antiAliasingEnabled = checked;
     });
 
-    auto* aboutMenu = menuBar()->addMenu("关于");
+    auto* aboutAction = menuBar()->addAction("关于");
+    connect(aboutAction, &QAction::triggered, this, [this]()
+    {
+        AboutDialog dlg(this);
+        dlg.exec();
+    });
 }
 
 // ============================================================

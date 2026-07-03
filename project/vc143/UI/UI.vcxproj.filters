@@ -72,6 +72,9 @@
     <ClCompile Include="..\..\..\code_ui\XAxisDialog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_ui\AboutDialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h">
@@ -87,6 +90,9 @@
       <Filter>Source Files</Filter>
     </QtMoc>
     <QtMoc Include="..\..\..\code_ui\XAxisDialog.h">
+      <Filter>Source Files</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_ui\AboutDialog.h">
       <Filter>Source Files</Filter>
     </QtMoc>
   </ItemGroup>

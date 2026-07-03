@@ -125,6 +125,7 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
     <QtRcc Include="..\..\..\code_ui\UI.qrc" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_ui\AboutDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\AliasDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\FFTDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\HighlightDialog.cpp" />
@@ -148,6 +149,7 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\XAxisDialog.h" />
     <QtMoc Include="..\..\..\code_ui\HighlightDialog.h" />
+    <QtMoc Include="..\..\..\code_ui\AboutDialog.h" />
     <QtMoc Include="..\..\..\code_ui\AliasDialog.h" />
     <QtMoc Include="..\..\..\code_ui\FFTDialog.h" />
     <ClInclude Include="..\..\..\code_ui\icons_base64.h" />
