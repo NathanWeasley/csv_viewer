@@ -37,6 +37,17 @@ UI::UI(QWidget *parent)
 {
     ui.setupUi(this);
 
+    // ---- QADS 全局配置（必须在任何 CDockManager 创建之前设置） ----
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasCloseButton, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasUndockButton, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DockAreaHasTabsMenuButton, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::OpaqueSplitterResize, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::AllTabsHaveCloseButton, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::RetainTabSizeWhenCloseButtonHidden, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DragPreviewIsDynamic, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::DragPreviewShowsContentPixmap, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::FocusHighlighting, true);
+
     m_dockManager = new ads::CDockManager(ui.centralWidget);
 
     /** 先读取 Settings 状态（init/createMenu 中需要用到） */

@@ -65,9 +65,9 @@ void UI::bindPlotManagerCallbacks()
     auto rebuildAllColorCombos = [this, populateColorCombo]()
     {
         auto& styleMgr = m_viewer.GetStyleManager();
-        for (int pi = 0; pi < m_plotTabs->count(); ++pi)
+        for (int pi = 0; pi < plotPageCount(); ++pi)
         {
-            auto* container = m_plotTabs->widget(pi);
+            auto* container = getPlotContainer(pi);
             if (!container) continue;
             auto* vbox = container->findChild<QVBoxLayout*>();
             if (!vbox || vbox->count() < 1) continue;
@@ -201,7 +201,7 @@ void UI::bindPlotManagerCallbacks()
                     }
 
                     // ---- 抑制批量 addDataItem 导致的中间重绘 ----
-                    auto* dstContainer = m_plotTabs->widget(newIdx);
+                    auto* dstContainer = getPlotContainer(newIdx);
                     auto* dstPlot = dstContainer ? dstContainer->findChild<QCustomPlot*>() : nullptr;
                     if (dstPlot) dstPlot->setUpdatesEnabled(false);
 
@@ -686,36 +686,39 @@ void UI::bindPlotManagerCallbacks()
 
         QString title = QString::fromStdString(
             m_viewer.GetPlotManager().pageInfo(index).title);
-        m_plotTabs->insertTab(index, container, title);
-        m_plotTabs->setCurrentIndex(index);
+        addPlotPageDock(index, container, title);
+
+        // 聚焦新页面（dock widget 就绪后激活）
+        m_pendingActivation = index;
     };
 
     // 页面即将移除
     pm.onPageAboutToRemove = [this](int index)
     {
-        if (index >= 0 && index < m_plotTabs->count())
+        if (index >= 0 && index < plotPageCount())
         {
-            QWidget* w = m_plotTabs->widget(index);
-            m_plotTabs->removeTab(index);
-            delete w;
+            // removePlotPageDock 会通过 dock->deleteLater() 销毁整个 widget 层级
+            removePlotPageDock(index);
         }
     };
 
     // 页面移除后
     pm.onPageRemoved = [this](int activeIdx, int /*remainingCount*/)
     {
-        if (activeIdx >= 0 && activeIdx < m_plotTabs->count())
-            m_plotTabs->setCurrentIndex(activeIdx);
+        if (activeIdx >= 0 && activeIdx < plotPageCount())
+        {
+            auto& pm = m_viewer.GetPlotManager();
+            pm.setActivePage(activeIdx);
+        }
     };
 
     // 激活页面变更
     pm.onActivePageChanged = [this](int index)
     {
-        if (index >= 0 && index < m_plotTabs->count()
-            && m_plotTabs->currentIndex() != index)
-        {
-            m_plotTabs->setCurrentIndex(index);
-        }
+        // 同步内层 dock 聚焦（UI → 数据层方向）
+        auto* dock = m_pageDocks.value(index, nullptr);
+        if (dock && m_plotDockManager)
+            m_plotDockManager->setDockWidgetFocused(dock);
 
         // 更新状态栏 X 轴标签
         size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
@@ -739,9 +742,9 @@ void UI::bindPlotManagerCallbacks()
             m_xAxisLabel->setText("X: (none)");
 
         // 重新绑定当前图窗所有 graph 的 X 列数据
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -784,10 +787,10 @@ void UI::bindPlotManagerCallbacks()
     // 数据项添加 → 创建 QCPColumnGraph 并绑定到对应 QCustomPlot
     pm.onDataItemAdded = [this](int pageIndex, const std::string& yColName)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -897,10 +900,10 @@ void UI::bindPlotManagerCallbacks()
     // 数据项移除
     pm.onDataItemRemoved = [this](int pageIndex, const std::string& yColName)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -1004,10 +1007,10 @@ void UI::bindPlotManagerCallbacks()
     // 图例可见性变更
     pm.onLegendVisibilityChanged = [this](int pageIndex, bool visible)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -1020,10 +1023,10 @@ void UI::bindPlotManagerCallbacks()
     // 曲线样式变更（UI 层只需 replot 刷新图例）
     pm.onLegendNeedReplot = [this](int pageIndex)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -1034,10 +1037,10 @@ void UI::bindPlotManagerCallbacks()
     // 框选缩放状态变更
     pm.onRectZoomStateChanged = [this](int pageIndex, bool active)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -1057,10 +1060,10 @@ void UI::bindPlotManagerCallbacks()
     // 还原缩放请求
     pm.onRescaleRequested = [this](int pageIndex)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -1072,10 +1075,10 @@ void UI::bindPlotManagerCallbacks()
     // 选中数据项变更 → 刷新工具栏控件
     pm.onSelectedDataItemChanged = [this](int pageIndex, const std::string& yColName)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         if (!container)
             return;
 
@@ -1243,16 +1246,21 @@ void UI::bindPlotManagerCallbacks()
         });
     };
 
-    // 清空全部图窗 → 清理 QTabWidget
+    // 清空全部图窗 → 清理内层 DockManager 中所有页面
     pm.onCleared = [this]()
     {
         m_exprLineEdits.clear();
         m_toolbarCombos.clear();
-        while (m_plotTabs->count() > 0)
+
+        // 先拷贝 QADS 内部 map 的 entries，再逐个移除。
+        // removeDockWidget 会修改原 map，必须先拷贝避免迭代器失效。
+        const auto dwMap = m_plotDockManager->dockWidgetsMap();
+        for (auto it = dwMap.begin(); it != dwMap.end(); ++it)
         {
-            QWidget* w = m_plotTabs->widget(0);
-            m_plotTabs->removeTab(0);
-            delete w;
+            auto* dw = it.value();
+            int idx = m_pageDocks.key(dw, -1);
+            if (idx >= 0)
+                removePlotPageDock(idx);
         }
     };
 }

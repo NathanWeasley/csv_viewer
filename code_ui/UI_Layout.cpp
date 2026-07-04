@@ -21,6 +21,7 @@
 #include <qinputdialog.h>
 
 #include "icons_base64.h"
+#include "DockAreaWidget.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
@@ -35,23 +36,15 @@ extern bool isSystemInDark();
 
 void UI::createMain()
 {
-    ///< Center plot area — QTabWidget for multiple plot pages
-    m_plotTabs = new QTabWidget();
-    m_plotTabs->setTabsClosable(true);
-    m_plotTabs->setMovable(true);
-    connect(m_plotTabs, &QTabWidget::currentChanged, this,
-        [this](int index)
-        {
-            m_viewer.GetPlotManager().setActivePage(index);
-        });
-    connect(m_plotTabs, &QTabWidget::tabCloseRequested, this,
-        [this](int index)
-        {
-            m_viewer.GetPlotManager().removePage(index);
-        });
+    ///< Center plot area — 内层 QADS DockManager 管理多个图窗页面
+    // QADS 全局标志已在 UI::UI() 构造函数中设置（在任何 CDockManager 创建之前）
+    m_plotDockManager = new ads::CDockManager();
+
+    // 连接内层 dock widget 聚焦信号到 PlotManager 激活
+    connectInnerDockSignals();
 
     m_plotDock = new ads::CDockWidget("Plot");
-    m_plotDock->setWidget(m_plotTabs);
+    m_plotDock->setWidget(m_plotDockManager);
     m_plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
     m_dockManager->addDockWidget(ads::CenterDockWidgetArea, m_plotDock);
 
@@ -431,5 +424,154 @@ void UI::createToolbar()
 			m_viewer.Clear();
 			m_dataTree->clear();
 			m_xAxisLabel->setText("X: (none)");
+		});
+}
+
+// ============================================================
+// 内层 DockManager 辅助方法实现
+// ============================================================
+
+QCustomPlot* UI::getPlot(int pageIndex) const
+{
+	auto* dock = m_pageDocks.value(pageIndex, nullptr);
+	if (!dock) return nullptr;
+	auto* container = dock->widget();
+	return container ? container->findChild<QCustomPlot*>() : nullptr;
+}
+
+QWidget* UI::getPlotContainer(int pageIndex) const
+{
+	auto* dock = m_pageDocks.value(pageIndex, nullptr);
+	return dock ? dock->widget() : nullptr;
+}
+
+int UI::plotPageCount() const
+{
+	return m_pageDocks.size();
+}
+
+int UI::activePlotPage() const
+{
+	if (!m_plotDockManager) return -1;
+	auto* focused = m_plotDockManager->focusedDockWidget();
+	if (!focused) return -1;
+	return m_pageDocks.key(focused, -1);
+}
+
+ads::CDockWidget* UI::addPlotPageDock(int pageIndex, QWidget* container, const QString& title)
+{
+	auto* dock = new ads::CDockWidget(title);
+	dock->setFeature(ads::CDockWidget::DockWidgetDeleteOnClose, true);
+	dock->setFeature(ads::CDockWidget::DockWidgetClosable, true);
+	dock->setWidget(container);
+
+	m_pageDocks[pageIndex] = dock;
+
+	// 当 dock widget 以任何方式被销毁时，同步清理映射表
+	connect(dock, &QObject::destroyed, this, [this, pageIndex]()
+	{
+		m_pageDocks.remove(pageIndex);
+	});
+
+	// 从 QADS 内部 map 查找已存在的目标区域。必须拷贝 map 再迭代：
+	// removeDockWidget 会异步析构 dock，若持有引用迭代可能遇到残留悬空条目。
+	ads::CDockAreaWidget* targetArea = nullptr;
+	const auto dwMap = m_plotDockManager->dockWidgetsMap();
+	for (auto it = dwMap.begin(); it != dwMap.end(); ++it)
+	{
+		if (it.value() != dock && it.value()->dockAreaWidget())
+		{
+			targetArea = it.value()->dockAreaWidget();
+			break;
+		}
+	}
+
+	if (targetArea)
+		m_plotDockManager->addDockWidgetTabToArea(dock, targetArea);
+	else
+		m_plotDockManager->addDockWidget(ads::CenterDockWidgetArea, dock);
+
+	m_pendingActivation = pageIndex;
+	return dock;
+}
+
+void UI::removePlotPageDock(int pageIndex)
+{
+	auto* dock = m_pageDocks.take(pageIndex);
+	if (dock)
+	{
+		// 直接通过 dock widget 获取 plot，清理 cursor tracer 映射
+		auto* container = dock->widget();
+		auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+		if (plot)
+		{
+			m_plotToPageIndex.remove(plot);
+			m_preSelTracers.remove(plot);
+		}
+		m_plotDockManager->removeDockWidget(dock);
+	}
+}
+
+void UI::connectInnerDockSignals()
+{
+	if (m_innerDockSignalsConnected) return;
+	m_innerDockSignalsConnected = true;
+
+	// QADS 关闭 dock widget 时：先从映射表清除，再通知 PlotManager。
+	// 先 remove 确保 removePlotPageDock 的 take() 返回 nullptr → 不重复调用 removeDockWidget。
+	connect(m_plotDockManager, &ads::CDockManager::dockWidgetAboutToBeRemoved, this,
+		[this](ads::CDockWidget* dw)
+		{
+			int pageIndex = m_pageDocks.key(dw, -1);
+			if (pageIndex >= 0)
+			{
+				// 在清除映射表前直接通过 dw 获取 plot，清理 cursor tracer
+				auto* container = dw->widget();
+				auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+				if (plot)
+				{
+					m_plotToPageIndex.remove(plot);
+					m_preSelTracers.remove(plot);
+				}
+
+				m_pageDocks.remove(pageIndex);
+				auto& pm = m_viewer.GetPlotManager();
+				pm.removePage(pageIndex);
+			}
+		});
+
+	// 连接内层 dock widget 聚焦变更信号
+	connect(m_plotDockManager, &ads::CDockManager::focusedDockWidgetChanged, this,
+		[this](ads::CDockWidget* old, ads::CDockWidget* now)
+		{
+			Q_UNUSED(old);
+			if (!now) return;
+			int pageIndex = m_pageDocks.key(now, -1);
+			if (pageIndex >= 0)
+			{
+				auto& pm = m_viewer.GetPlotManager();
+				if (pm.activePageIndex() != pageIndex)
+					pm.setActivePage(pageIndex);
+			}
+		});
+
+	// Fallback: 连接每个新 DockArea 的 currentChanged 信号
+	// 确保在 drag-reorder / programmatic tab switch 等场景下也能同步
+	connect(m_plotDockManager, &ads::CDockManager::dockAreaCreated, this,
+		[this](ads::CDockAreaWidget* area)
+		{
+			connect(area, &ads::CDockAreaWidget::currentChanged, this,
+				[this, area](int tabIndex)
+				{
+					auto* dw = area->dockWidget(tabIndex);
+					if (!dw) return;
+					int pageIndex = m_pageDocks.key(dw, -1);
+					if (pageIndex >= 0)
+					{
+						auto& pm = m_viewer.GetPlotManager();
+						if (pm.activePageIndex() != pageIndex)
+							pm.setActivePage(pageIndex);
+					}
+				});
 		});
 }

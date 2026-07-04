@@ -47,10 +47,10 @@ void UI::bindCursorManagerCallbacks()
         if (originalOnPageAdded)
             originalOnPageAdded(index);
 
-        if (index < 0 || index >= m_plotTabs->count())
+        if (index < 0 || index >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(index);
+        auto* container = getPlotContainer(index);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -80,9 +80,9 @@ void UI::bindCursorManagerCallbacks()
     pm.onPageAboutToRemove = [this, originalOnPageAboutToRemove](int index)
     {
         // 获取即将被移除的 plot，清理 m_preSelTracers
-        if (index >= 0 && index < m_plotTabs->count())
+        if (index >= 0 && index < plotPageCount())
         {
-            auto* container = m_plotTabs->widget(index);
+            auto* container = getPlotContainer(index);
             auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
             if (plot)
             {
@@ -139,10 +139,10 @@ void UI::bindCursorManagerCallbacks()
     // ---- 预选设置 → 显示 tracer + 更新状态栏 ----
     cm.onPreSelectionSet = [this](int pageIndex, const std::string& dataItemName, size_t dataIndex)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -206,10 +206,10 @@ void UI::bindCursorManagerCallbacks()
     cm.onCursorAdded = [this](int cursorIdx, int pageIndex,
                                 const std::string& dataItemName, size_t dataIndex)
     {
-        if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+        if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
-        auto* container = m_plotTabs->widget(pageIndex);
+        auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             return;
@@ -367,9 +367,9 @@ void UI::bindCursorManagerCallbacks()
             if (cursorIdx < static_cast<int>(cm.cursors().size()))
             {
                 const auto& cursor = cm.cursors()[cursorIdx];
-                if (cursor.pageIndex >= 0 && cursor.pageIndex < m_plotTabs->count())
+                if (cursor.pageIndex >= 0 && cursor.pageIndex < plotPageCount())
                 {
-                    auto* container = m_plotTabs->widget(cursor.pageIndex);
+                    auto* container = getPlotContainer(cursor.pageIndex);
                     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
                     if (plot)
                     {

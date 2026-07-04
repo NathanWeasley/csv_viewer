@@ -180,7 +180,7 @@ void UI::addBookmark(int pageIndex)
         return;
     }
 
-    auto* container = m_plotTabs->widget(pageIndex);
+    auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
     if (!plot) return;
 
@@ -250,7 +250,7 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
     int newIdx = pm.addPage(entry.name);
     pm.setXAxisColumn(newIdx, entry.xAxisColumn);
 
-    auto* cw = m_plotTabs->widget(newIdx);
+    auto* cw = getPlotContainer(newIdx);
     auto* plot = cw ? cw->findChild<QCustomPlot*>() : nullptr;
 
     // 抑制中间重绘，全部设置完成后统一 replot

@@ -48,7 +48,7 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             // FFT 框选模式中，右键取消框选
             if (m_fftSelecting && m_fftPageIndex >= 0)
             {
-                auto* container = m_plotTabs->widget(m_fftPageIndex);
+                auto* container = getPlotContainer(m_fftPageIndex);
                 auto* fftPlot = container ? container->findChild<QCustomPlot*>() : nullptr;
                 if (fftPlot == plot)
                 {
@@ -102,7 +102,7 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     // ============================================================
     if (plot && m_fftSelecting && m_fftPageIndex >= 0)
     {
-        auto* container = m_plotTabs->widget(m_fftPageIndex);
+        auto* container = getPlotContainer(m_fftPageIndex);
         auto* fftPlot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (fftPlot == plot)
         {

@@ -51,10 +51,10 @@ void UI::onLoadCSVClicked()
 
 void UI::exportPlotImage(int pageIndex)
 {
-    if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+    if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
 
-    auto* container = m_plotTabs->widget(pageIndex);
+    auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
     if (!plot)
         return;

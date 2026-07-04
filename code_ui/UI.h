@@ -29,6 +29,7 @@
 #include "code_qcp/qcustomplot.h"
 
 class HighlightDialog;
+namespace ads { class CDockWidget; }
 class UI
     : public QMainWindow
 {
@@ -50,6 +51,29 @@ private:
     void createStatusbar();
     void bindPlotManagerCallbacks();
     void bindCursorManagerCallbacks();
+
+    // ---- 内层 DockManager 页面辅助方法 ----
+
+    /// 根据 pageIndex 获取 QCustomPlot*，若无效返回 nullptr
+    QCustomPlot* getPlot(int pageIndex) const;
+
+    /// 根据 pageIndex 获取容器 widget（含工具栏+plot+表达式栏），若无效返回 nullptr
+    QWidget* getPlotContainer(int pageIndex) const;
+
+    /// 返回当前图窗页面总数
+    int plotPageCount() const;
+
+    /// 返回当前活跃页面索引，若无页面返回 -1
+    int activePlotPage() const;
+
+    /// 设置页面容器的初始位置，调用此方法添加新页面 dock widget
+    ads::CDockWidget* addPlotPageDock(int pageIndex, QWidget* container, const QString& title);
+
+    /// 移除页面 dock widget
+    void removePlotPageDock(int pageIndex);
+
+    /// 将内层 dock widget 聚焦变更同步到 PlotManager
+    void connectInnerDockSignals();
 
     void closeEvent(QCloseEvent* event);
     void saveState();
@@ -117,8 +141,11 @@ private:
 
     QLabel* m_xAxisLabel = nullptr;
 
-    // Plot management (Qt widgets, logic state in Viewer::m_plots)
-    QTabWidget* m_plotTabs = nullptr;
+    // ---- 内层 QADS Plot 区域管理 ----
+    ads::CDockManager* m_plotDockManager = nullptr;   // Plot 区域内部的独立 DockManager
+    QHash<int, ads::CDockWidget*> m_pageDocks;        // pageIndex → inner CDockWidget 映射
+    bool m_innerDockSignalsConnected = false;          // 内层信号是否已连接
+    int m_pendingActivation = -1;                      // 待激活的页面索引（-1 表示无）
 
     // ---- Cursor state ----
 

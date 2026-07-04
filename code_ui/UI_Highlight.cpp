@@ -36,7 +36,7 @@
 
 void UI::showHighlightDialog(int pageIndex)
 {
-    if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+    if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
 
     auto& pm = m_viewer.GetPlotManager();
@@ -72,10 +72,10 @@ void UI::showHighlightDialog(int pageIndex)
 
 void UI::renderHighlights(int pageIndex)
 {
-    if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+    if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
 
-    auto* container = m_plotTabs->widget(pageIndex);
+    auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
     if (!plot)
         return;
@@ -163,7 +163,7 @@ void UI::renderHighlights(int pageIndex)
     auto conn = connect(plot->yAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
         this, [this, pageIndex](const QCPRange& newRange)
         {
-            if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+            if (pageIndex < 0 || pageIndex >= plotPageCount())
                 return;
 
             double yUpper = newRange.upper;

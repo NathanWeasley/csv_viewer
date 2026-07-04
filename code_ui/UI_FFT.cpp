@@ -11,10 +11,10 @@ void UI::onFFTRequested(int pageIndex)
 {
     auto& pm = m_viewer.GetPlotManager();
 
-    if (pageIndex < 0 || pageIndex >= m_plotTabs->count())
+    if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
 
-    auto* container = m_plotTabs->widget(pageIndex);
+    auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
     if (!plot)
         return;
@@ -50,9 +50,9 @@ void UI::cancelFFTSelection()
 {
     m_fftSelecting = false;
 
-    if (m_fftPageIndex >= 0 && m_fftPageIndex < m_plotTabs->count())
+    if (m_fftPageIndex >= 0 && m_fftPageIndex < plotPageCount())
     {
-        auto* container = m_plotTabs->widget(m_fftPageIndex);
+        auto* container = getPlotContainer(m_fftPageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (plot && m_fftSelectRect)
         {
@@ -191,13 +191,13 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         {
             m_progressBar->setVisible(false);
 
-            if (fftPageIdx < 0 || fftPageIdx >= m_plotTabs->count())
+            if (fftPageIdx < 0 || fftPageIdx >= plotPageCount())
             {
                 fftMgr->deleteLater();
                 return;
             }
 
-            auto* container = m_plotTabs->widget(fftPageIdx);
+            auto* container = getPlotContainer(fftPageIdx);
             auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
             if (!plot)
             {
