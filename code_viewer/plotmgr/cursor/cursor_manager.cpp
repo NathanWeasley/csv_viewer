@@ -144,6 +144,19 @@ void CursorManager::setActiveCursor(int index)
         onActiveCursorChanged(index);
 }
 
+void CursorManager::shiftPageIndicesAfterRemoval(int removedPageIndex)
+{
+    for (auto& cursor : m_cursors)
+    {
+        if (cursor.pageIndex > removedPageIndex)
+            --cursor.pageIndex;
+    }
+
+    if (m_preSelPage > removedPageIndex)
+        --m_preSelPage;
+    else if (m_preSelPage == removedPageIndex)
+        clearPreSelection();
+}
 void CursorManager::clearAll()
 {
     // 先逐个通知移除

@@ -84,6 +84,8 @@ public:
     // 清除所有游标
     void clearAll();
 
+    void shiftPageIndicesAfterRemoval(int removedPageIndex);
+
     // ============================================================
     // 查询
     // ============================================================

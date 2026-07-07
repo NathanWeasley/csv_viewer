@@ -163,10 +163,13 @@ void UI::bindPlotManagerCallbacks()
         // 右键上下文菜单
         plot->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(plot, &QCustomPlot::customContextMenuRequested, this,
-            [this, plot, index](const QPoint& pos)
+            [this, plot](const QPoint& pos)
             {
                 auto& pm = m_viewer.GetPlotManager();
-                bool isFFT = pm.isFFTPage(index);
+                int pageIndex = m_plotToPageIndex.value(plot, -1);
+                if (pageIndex < 0 || pageIndex >= pm.pageCount())
+                    return;
+                bool isFFT = pm.isFFTPage(pageIndex);
 
                 QMenu menu;
 
@@ -178,24 +181,24 @@ void UI::bindPlotManagerCallbacks()
 
                 QAction* dupPageAction = menu.addAction("复制图窗");
                 dupPageAction->setEnabled(!isFFT);
-                connect(dupPageAction, &QAction::triggered, this, [this, plot, index]()
+                connect(dupPageAction, &QAction::triggered, this, [this, plot, pageIndex]()
                 {
                     auto& pm = m_viewer.GetPlotManager();
 
                     // 在 addPage() 之前复制数据项列表（避免 vector 扩容使引用失效）
-                    const auto& srcDataItems = pm.pageInfo(index).dataItems;
+                    const auto& srcDataItems = pm.pageInfo(pageIndex).dataItems;
                     std::vector<std::string> itemsToCopy(srcDataItems.begin(), srcDataItems.end());
-                    bool legendOn = pm.pageInfo(index).legendVisible;
+                    bool legendOn = pm.pageInfo(pageIndex).legendVisible;
 
                     // 创建新图窗
                     int newIdx = pm.addPage();
 
                     // ---- 复制 X 轴配置 ----
-                    pm.setXAxisColumn(newIdx, pm.pageInfo(index).xAxisColumn);
+                    pm.setXAxisColumn(newIdx, pm.pageInfo(pageIndex).xAxisColumn);
 
                     // ---- 先复制表达式数据（在 addDataItem 之前，避免 getOrCreate 创建的本地拷贝被替换）----
                     {
-                        auto& srcExprMgr = pm.pageInfo(index).exprMgr;
+                        auto& srcExprMgr = pm.pageInfo(pageIndex).exprMgr;
                         auto& dstExprMgr = pm.pageInfo(newIdx).exprMgr;
                         dstExprMgr.insertAll(srcExprMgr.copyAll());
                     }
@@ -215,7 +218,7 @@ void UI::bindPlotManagerCallbacks()
 
                     // ---- 复制高亮规则 ----
                     {
-                        auto& srcHL = pm.pageInfo(index).highlightMgr;
+                        auto& srcHL = pm.pageInfo(pageIndex).highlightMgr;
                         auto& dstHL = pm.pageInfo(newIdx).highlightMgr;
                         dstHL.insertAllRules(srcHL.copyAllRules());
                     }
@@ -254,7 +257,7 @@ void UI::bindPlotManagerCallbacks()
                             const auto& cursors = cm.cursors();
                             for (size_t ci = 0; ci < cursors.size(); ++ci)
                             {
-                                if (cursors[ci].pageIndex == index)
+                                if (cursors[ci].pageIndex == pageIndex)
                                     cm.addCursor(newIdx, cursors[ci].dataItemName, cursors[ci].dataIndex);
                             }
                         }
@@ -292,45 +295,45 @@ void UI::bindPlotManagerCallbacks()
                 menu.addSeparator();
 
                 QAction* rescaleAction = menu.addAction("还原缩放");
-                connect(rescaleAction, &QAction::triggered, this, [this, index]()
+                connect(rescaleAction, &QAction::triggered, this, [this, pageIndex]()
                 {
                     if (auto& cb = m_viewer.GetPlotManager().onRescaleRequested)
-                        cb(index);
+                        cb(pageIndex);
                 });
 
                 QAction* rectZoomAction = menu.addAction("框选缩放");
                 rectZoomAction->setCheckable(true);
-                rectZoomAction->setChecked(pm.isRectZoomActive(index));
-                connect(rectZoomAction, &QAction::toggled, this, [this, index](bool checked)
+                rectZoomAction->setChecked(pm.isRectZoomActive(pageIndex));
+                connect(rectZoomAction, &QAction::toggled, this, [this, pageIndex](bool checked)
                 {
-                    m_viewer.GetPlotManager().setRectZoomActive(index, checked);
+                    m_viewer.GetPlotManager().setRectZoomActive(pageIndex, checked);
                 });
 
                 menu.addSeparator();
 
                 QAction* legendAction = menu.addAction("显示图例");
                 legendAction->setCheckable(true);
-                legendAction->setChecked(pm.isLegendVisible(index));
-                connect(legendAction, &QAction::toggled, this, [this, index](bool checked)
+                legendAction->setChecked(pm.isLegendVisible(pageIndex));
+                connect(legendAction, &QAction::toggled, this, [this, pageIndex](bool checked)
                 {
-                    m_viewer.GetPlotManager().setLegendVisible(index, checked);
+                    m_viewer.GetPlotManager().setLegendVisible(pageIndex, checked);
                 });
 
                 QAction* highlightAction = menu.addAction("高亮规则");
-                connect(highlightAction, &QAction::triggered, this, [this, index]()
+                connect(highlightAction, &QAction::triggered, this, [this, pageIndex]()
                 {
-                    showHighlightDialog(index);
+                    showHighlightDialog(pageIndex);
                 });
 
                 menu.addSeparator();
 
-                bool hasData = !pm.pageInfo(index).dataItems.empty();
+                bool hasData = !pm.pageInfo(pageIndex).dataItems.empty();
 
                 QAction* fftAction = menu.addAction("计算FFT");
                 fftAction->setEnabled(hasData && !isFFT);
-                connect(fftAction, &QAction::triggered, this, [this, index]()
+                connect(fftAction, &QAction::triggered, this, [this, pageIndex]()
                 {
-                    onFFTRequested(index);
+                    onFFTRequested(pageIndex);
                 });
 
                 QAction* stftAction = menu.addAction("计算STFT");
@@ -338,16 +341,16 @@ void UI::bindPlotManagerCallbacks()
                 menu.addSeparator();
 
                 QAction* exportAction = menu.addAction("导出图片");
-                connect(exportAction, &QAction::triggered, this, [this, index]()
+                connect(exportAction, &QAction::triggered, this, [this, pageIndex]()
                 {
-                    exportPlotImage(index);
+                    exportPlotImage(pageIndex);
                 });
 
                 QAction* bookmarkAction = menu.addAction("加入收藏夹");
                 bookmarkAction->setEnabled(hasData && !isFFT);
-                connect(bookmarkAction, &QAction::triggered, this, [this, index]()
+                connect(bookmarkAction, &QAction::triggered, this, [this, pageIndex]()
                 {
-                    addBookmark(index);
+                    addBookmark(pageIndex);
                 });
 
                 menu.exec(plot->mapToGlobal(pos));
@@ -473,24 +476,28 @@ void UI::bindPlotManagerCallbacks()
 
         // ---- ComboList 选择变化 → 加载样式 + 更新选中状态 ----
         connect(cmbDataItem, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, [this, plot, index, cmbDataItem](int /*idx*/)
+            this, [this, plot, cmbDataItem](int /*idx*/)
             {
                 QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
                 if (nameData.isEmpty()) return;
                 std::string yColName = nameData.toStdString();
                 auto& pm = m_viewer.GetPlotManager();
-                pm.setSelectedDataItem(index, yColName);
+                int pageIndex = m_plotToPageIndex.value(plot, -1);
+                if (pageIndex < 0 || pageIndex >= pm.pageCount()) return;
+                pm.setSelectedDataItem(pageIndex, yColName);
             });
 
         // ---- 删除按钮 → 从图窗移除数据曲线 ----
         connect(btnDelete, &QPushButton::clicked, this,
-            [this, index, cmbDataItem]()
+            [this, plot, cmbDataItem]()
             {
                 QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
                 if (nameData.isEmpty()) return;
                 std::string selName = nameData.toStdString();
                 auto& pm = m_viewer.GetPlotManager();
-                pm.removeDataItem(index, selName);
+                int pageIndex = m_plotToPageIndex.value(plot, -1);
+                if (pageIndex < 0 || pageIndex >= pm.pageCount()) return;
+                pm.removeDataItem(pageIndex, selName);
             });
 
         // ---- 工具栏控件→graph 回写辅助 ----
@@ -610,14 +617,17 @@ void UI::bindPlotManagerCallbacks()
 
         // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
         connect(exprLineEdit, &QLineEdit::textChanged, this,
-            [this, plot, index, cmbDataItem, exprLineEdit, findComboIndexByUserRole, exprStyleNormal, exprStyleError](const QString& text)
+            [this, plot, cmbDataItem, exprLineEdit, findComboIndexByUserRole, exprStyleNormal, exprStyleError](const QString& text)
             {
                 QString nameData = cmbDataItem->currentData(Qt::UserRole).toString();
                 if (nameData.isEmpty()) return;
                 std::string selName = nameData.toStdString();
 
                 auto& dm = m_viewer.GetDataManager();
-                auto& exprMgr = m_viewer.GetPlotManager().pageInfo(index).exprMgr;
+                auto& pm = m_viewer.GetPlotManager();
+                int pageIndex = m_plotToPageIndex.value(plot, -1);
+                if (pageIndex < 0 || pageIndex >= pm.pageCount()) return;
+                auto& exprMgr = pm.pageInfo(pageIndex).exprMgr;
 
                 // 更新表达式文本
                 exprMgr.setExpressionText(selName, text.toStdString());
@@ -660,7 +670,7 @@ void UI::bindPlotManagerCallbacks()
                         viewer::PlotExpression* pe = exprMgr.get(selName);
                         if (pe && pe->computedData)
                         {
-                            size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
+                            size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(pageIndex);
                             const viewer::Column* xCol = (xIdx != static_cast<size_t>(-1))
                                 ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
                             graph->setDataColumns(xCol, pe->computedData.get());
@@ -705,6 +715,9 @@ void UI::bindPlotManagerCallbacks()
     // 页面移除后
     pm.onPageRemoved = [this](int activeIdx, int /*remainingCount*/)
     {
+        reindexPlotPageStateAfterRemoval(m_lastRemovedPageIndex);
+        m_lastRemovedPageIndex = -1;
+
         if (activeIdx >= 0 && activeIdx < plotPageCount())
         {
             auto& pm = m_viewer.GetPlotManager();
@@ -824,6 +837,7 @@ void UI::bindPlotManagerCallbacks()
             xCol = dm.GetColumn(xIdx);
             if (!xCol)
             {
+                plot->removePlottable(graph);
                 plot->setUpdatesEnabled(prevUpdatesEnabled);
                 return;
             }

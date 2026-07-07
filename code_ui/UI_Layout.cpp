@@ -19,6 +19,7 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <utility>
 
 #include "icons_base64.h"
 #include "DockAreaWidget.h"
@@ -468,9 +469,11 @@ ads::CDockWidget* UI::addPlotPageDock(int pageIndex, QWidget* container, const Q
 	m_pageDocks[pageIndex] = dock;
 
 	// 当 dock widget 以任何方式被销毁时，同步清理映射表
-	connect(dock, &QObject::destroyed, this, [this, pageIndex]()
+	connect(dock, &QObject::destroyed, this, [this, dock]()
 	{
-		m_pageDocks.remove(pageIndex);
+		int pageIndex = m_pageDocks.key(dock, -1);
+		if (pageIndex >= 0)
+			 m_pageDocks.remove(pageIndex);
 	});
 
 	// 从 QADS 内部 map 查找已存在的目标区域。必须拷贝 map 再迭代：
@@ -495,21 +498,141 @@ ads::CDockWidget* UI::addPlotPageDock(int pageIndex, QWidget* container, const Q
 	return dock;
 }
 
+void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
+{
+    QWidget* container = dock ? dock->widget() : getPlotContainer(pageIndex);
+    auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+
+    if (plot)
+    {
+        if (m_fftSelectRect && m_fftSelectRect->parentPlot() == plot)
+        {
+            plot->removeItem(m_fftSelectRect);
+            m_fftSelectRect = nullptr;
+            m_fftSelecting = false;
+            m_fftPageIndex = -1;
+        }
+
+        m_plotToPageIndex.remove(plot);
+        m_preSelTracers.remove(plot);
+    }
+
+    if (m_fftPageIndex == pageIndex)
+    {
+        m_fftSelecting = false;
+        m_fftPageIndex = -1;
+        m_fftSelectRect = nullptr;
+    }
+
+    auto rects = m_highlightRects.take(pageIndex);
+    for (auto* rect : rects)
+    {
+        if (rect && rect->parentPlot())
+            rect->parentPlot()->removeItem(rect);
+    }
+
+    auto labels = m_highlightLabels.take(pageIndex);
+    for (auto* label : labels)
+    {
+        if (label && label->parentPlot())
+            label->parentPlot()->removeItem(label);
+    }
+
+    auto connIt = m_highlightReplotConns.find(pageIndex);
+    if (connIt != m_highlightReplotConns.end())
+    {
+        disconnect(connIt.value());
+        m_highlightReplotConns.erase(connIt);
+    }
+
+    m_exprLineEdits.remove(pageIndex);
+    m_toolbarCombos.remove(pageIndex);
+    m_fftMagCols.erase(pageIndex);
+    m_fftFreqCols.erase(pageIndex);
+}
+
+template <typename T>
+static void reindexQHashAfterRemoval(QHash<int, T>& map, int removedPageIndex)
+{
+    QHash<int, T> shifted;
+    for (auto it = map.begin(); it != map.end(); ++it)
+    {
+        int key = it.key();
+        if (key == removedPageIndex)
+            continue;
+        if (key > removedPageIndex)
+            --key;
+        shifted.insert(key, it.value());
+    }
+    map = std::move(shifted);
+}
+
+template <typename T>
+static void reindexStdMapAfterRemoval(std::unordered_map<int, T>& map, int removedPageIndex)
+{
+    std::unordered_map<int, T> shifted;
+    for (auto& entry : map)
+    {
+        int key = entry.first;
+        if (key == removedPageIndex)
+            continue;
+        if (key > removedPageIndex)
+            --key;
+        shifted.emplace(key, std::move(entry.second));
+    }
+    map = std::move(shifted);
+}
+
+void UI::reindexPlotPageStateAfterRemoval(int removedPageIndex)
+{
+    if (removedPageIndex < 0)
+        return;
+
+    reindexQHashAfterRemoval(m_pageDocks, removedPageIndex);
+    reindexQHashAfterRemoval(m_exprLineEdits, removedPageIndex);
+    reindexQHashAfterRemoval(m_toolbarCombos, removedPageIndex);
+    reindexQHashAfterRemoval(m_highlightRects, removedPageIndex);
+    reindexQHashAfterRemoval(m_highlightLabels, removedPageIndex);
+    for (auto it = m_highlightReplotConns.begin(); it != m_highlightReplotConns.end(); ++it)
+        disconnect(it.value());
+    m_highlightReplotConns.clear();
+    reindexStdMapAfterRemoval(m_fftMagCols, removedPageIndex);
+    reindexStdMapAfterRemoval(m_fftFreqCols, removedPageIndex);
+
+    const auto highlightPages = m_highlightRects.keys();
+    for (int pageIndex : highlightPages)
+    {
+        if (pageIndex >= 0 && pageIndex < plotPageCount())
+            renderHighlights(pageIndex);
+    }
+
+    for (auto it = m_plotToPageIndex.begin(); it != m_plotToPageIndex.end(); ++it)
+    {
+        if (it.value() > removedPageIndex)
+            it.value() = it.value() - 1;
+    }
+
+    m_viewer.GetCursorManager().shiftPageIndicesAfterRemoval(removedPageIndex);
+
+    if (m_fftPageIndex > removedPageIndex)
+        --m_fftPageIndex;
+    else if (m_fftPageIndex == removedPageIndex)
+        m_fftPageIndex = -1;
+
+    if (m_pendingActivation > removedPageIndex)
+        --m_pendingActivation;
+    else if (m_pendingActivation == removedPageIndex)
+        m_pendingActivation = -1;
+}
 void UI::removePlotPageDock(int pageIndex)
 {
-	auto* dock = m_pageDocks.take(pageIndex);
-	if (dock)
-	{
-		// 直接通过 dock widget 获取 plot，清理 cursor tracer 映射
-		auto* container = dock->widget();
-		auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-		if (plot)
-		{
-			m_plotToPageIndex.remove(plot);
-			m_preSelTracers.remove(plot);
-		}
-		m_plotDockManager->removeDockWidget(dock);
-	}
+    auto* dock = m_pageDocks.take(pageIndex);
+    if (dock)
+    {
+        m_lastRemovedPageIndex = pageIndex;
+        cleanupPlotPageState(pageIndex, dock);
+        m_plotDockManager->removeDockWidget(dock);
+    }
 }
 
 void UI::connectInnerDockSignals()
@@ -525,17 +648,10 @@ void UI::connectInnerDockSignals()
 			int pageIndex = m_pageDocks.key(dw, -1);
 			if (pageIndex >= 0)
 			{
-				// 在清除映射表前直接通过 dw 获取 plot，清理 cursor tracer
-				auto* container = dw->widget();
-				auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-				if (plot)
-				{
-					m_plotToPageIndex.remove(plot);
-					m_preSelTracers.remove(plot);
-				}
-
-				m_pageDocks.remove(pageIndex);
-				auto& pm = m_viewer.GetPlotManager();
+				 m_lastRemovedPageIndex = pageIndex;
+				cleanupPlotPageState(pageIndex, dw);
+				 m_pageDocks.remove(pageIndex);
+				 auto& pm = m_viewer.GetPlotManager();
 				pm.removePage(pageIndex);
 			}
 		});

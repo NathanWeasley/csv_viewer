@@ -72,6 +72,9 @@ private:
     /// 移除页面 dock widget
     void removePlotPageDock(int pageIndex);
 
+    void cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock = nullptr);
+    void reindexPlotPageStateAfterRemoval(int removedPageIndex);
+
     /// 将内层 dock widget 聚焦变更同步到 PlotManager
     void connectInnerDockSignals();
 
@@ -146,6 +149,7 @@ private:
     QHash<int, ads::CDockWidget*> m_pageDocks;        // pageIndex → inner CDockWidget 映射
     bool m_innerDockSignalsConnected = false;          // 内层信号是否已连接
     int m_pendingActivation = -1;                      // 待激活的页面索引（-1 表示无）
+    int m_lastRemovedPageIndex = -1;
 
     // ---- Cursor state ----
 

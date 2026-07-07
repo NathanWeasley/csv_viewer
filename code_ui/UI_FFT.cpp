@@ -3,6 +3,7 @@
 #include "code_viewer/datamgr/math/fft_core.h"
 
 #include <QMessageBox>
+#include <QPointer>
 
 // ============================================================
 // 用户点击右键菜单"计算FFT" → 进入框选模式
@@ -154,6 +155,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 
     // ---- 创建 FFT 图窗 ----
     int fftPageIdx = pm.addFFTPage("FFT: " + chosenItem);
+    QPointer<QWidget> fftContainer = getPlotContainer(fftPageIdx);
 
     // ---- 准备两列数据 ----
     auto realCol = std::make_unique<viewer::Column>();
@@ -186,18 +188,33 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         });
 
     connect(fftMgr, &viewer::FFTManager::finished, this,
-        [this, fftMgr, fftPageIdx,
+        [this, fftMgr, fftContainer,
          realCol = std::move(realCol), imagCol = std::move(imagCol)]() mutable
         {
             m_progressBar->setVisible(false);
 
+            if (!fftContainer)
+            {
+                fftMgr->deleteLater();
+                return;
+            }
+
+            int fftPageIdx = -1;
+            for (auto it = m_pageDocks.begin(); it != m_pageDocks.end(); ++it)
+            {
+                if (it.value() && it.value()->widget() == fftContainer.data())
+                {
+                    fftPageIdx = it.key();
+                    break;
+                }
+            }
             if (fftPageIdx < 0 || fftPageIdx >= plotPageCount())
             {
                 fftMgr->deleteLater();
                 return;
             }
 
-            auto* container = getPlotContainer(fftPageIdx);
+            auto* container = fftContainer.data();
             auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
             if (!plot)
             {
