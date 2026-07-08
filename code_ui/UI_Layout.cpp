@@ -19,10 +19,12 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <qtimer.h>
 #include <utility>
 
 #include "icons_base64.h"
 #include "DockAreaWidget.h"
+#include "DockAreaTitleBar.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
@@ -46,7 +48,7 @@ void UI::createMain()
 
     m_plotDock = new ads::CDockWidget("Plot");
     m_plotDock->setWidget(m_plotDockManager);
-    m_plotDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_plotDock->setFeatures(ads::CDockWidget::NoDockWidgetFeatures);
     m_dockManager->addDockWidget(ads::CenterDockWidgetArea, m_plotDock);
 
     ///< Left DateTree
@@ -72,7 +74,7 @@ void UI::createMain()
 
     m_dataDock = new ads::CDockWidget("Data");
     m_dataDock->setWidget(m_dataTree);
-    m_dataDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_dataDock->setFeatures(ads::CDockWidget::NoDockWidgetFeatures);
     m_dockManager->addDockWidget(ads::LeftDockWidgetArea, m_dataDock, m_plotDock->dockAreaWidget());
 
     ///< Right Bookmark Tree
@@ -81,8 +83,19 @@ void UI::createMain()
     m_bookmarkTree->setContextMenuPolicy(Qt::CustomContextMenu);
     m_bookmarkDock = new ads::CDockWidget("Bookmarks");
     m_bookmarkDock->setWidget(m_bookmarkTree);
-    m_bookmarkDock->setFeatures(ads::CDockWidget::DockWidgetDeleteOnClose);
+    m_bookmarkDock->setFeatures(ads::CDockWidget::NoDockWidgetFeatures);
     m_dockManager->addDockWidget(ads::RightDockWidgetArea, m_bookmarkDock, m_plotDock->dockAreaWidget());
+    hideFixedDockTitleBars();
+
+    connect(m_dockManager, &ads::CDockManager::dockAreaCreated, this,
+        [this](ads::CDockAreaWidget* /*area*/)
+        {
+            hideFixedDockTitleBars();
+            QTimer::singleShot(0, this, [this]()
+            {
+                hideFixedDockTitleBars();
+            });
+        });
 
     connect(m_bookmarkTree, &QTreeWidget::itemDoubleClicked, this, &UI::onBookmarkDoubleClicked);
     connect(m_bookmarkTree, &QTreeWidget::customContextMenuRequested,
@@ -387,6 +400,7 @@ void UI::createToolbar()
 
 	QAction* action_loadcsv  = nullptr;
 	QAction* action_clearall = nullptr;
+	QAction* action_varrename = nullptr;
 
 	uint8_t lastGroup = 0xFF;  // 跟踪上一个图标的 group，换组时自动插入分隔符
 	bool   firstItem  = true;
@@ -407,6 +421,7 @@ void UI::createToolbar()
 		{
 		case IconIdx::LOADCSV:  action_loadcsv  = action; break;
 		case IconIdx::CLEAR:    action_clearall = action; break;
+		case IconIdx::VARRENAME: action_varrename = action; break;
 		default: break;
 		}
 
@@ -426,11 +441,35 @@ void UI::createToolbar()
 			m_dataTree->clear();
 			m_xAxisLabel->setText("X: (none)");
 		});
+	if (action_varrename)
+		connect(action_varrename, &QAction::triggered, this, &UI::showAliasDialog);
 }
 
 // ============================================================
 // 内层 DockManager 辅助方法实现
 // ============================================================
+
+void UI::hideDockAreaTitleBar(ads::CDockWidget* dock)
+{
+    if (m_isShuttingDown)
+        return;
+
+    auto* area = dock ? dock->dockAreaWidget() : nullptr;
+    auto* titleBar = area ? area->titleBar() : nullptr;
+    if (!area || !titleBar)
+        return;
+
+    area->setDockAreaFlag(ads::CDockAreaWidget::HideSingleWidgetTitleBar, true);
+    titleBar->hide();
+    titleBar->setFixedHeight(0);
+}
+
+void UI::hideFixedDockTitleBars()
+{
+    hideDockAreaTitleBar(m_plotDock);
+    hideDockAreaTitleBar(m_dataDock);
+    hideDockAreaTitleBar(m_bookmarkDock);
+}
 
 QCustomPlot* UI::getPlot(int pageIndex) const
 {

@@ -19,6 +19,7 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <limits>
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -129,6 +130,7 @@ void UI::bindCursorManagerCallbacks()
         m_preSelTracers.clear();
         m_cursorTracers.clear();
         m_cursorLabels.clear();
+        m_cursorConnectorLines.clear();
         m_highlightRects.clear();
         m_highlightLabels.clear();
 
@@ -231,21 +233,6 @@ void UI::bindCursorManagerCallbacks()
         double x = graph->dataMainKey(static_cast<int>(dataIndex));
         double y = graph->dataMainValue(static_cast<int>(dataIndex));
 
-        // 创建 QCPItemText 数据标签（锚定在 plot 坐标系）
-        auto* label = new QCPItemText(plot);
-        label->position->setType(QCPItemPosition::ptPlotCoords);
-        label->position->setCoords(x, y);
-        label->setText(QString("X: %1\nY: %2")
-                           .arg(x, 0, 'g', 8)
-                           .arg(y, 0, 'g', 8));
-        // label->setFont(QFont("Consolas, Courier New, monospace", 9));  // 已注释：统一使用系统默认字体
-        label->setSelectable(false);
-        label->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
-        label->setPadding(QMargins(6, 3, 6, 3));
-        label->setLayer("overlay");
-        m_cursorLabels[cursorIdx] = label;
-        refreshCursorLabelStyle(cursorIdx, true);  // 新游标 → 激活态
-
         // 创建常驻 tracer 标记（从 StyleManager 读取 permanent 游标样式）
         auto* tracer = new QCPItemTracer(plot);
         tracer->setInterpolating(false);
@@ -263,12 +250,54 @@ void UI::bindCursorManagerCallbacks()
         tracer->setVisible(true);
         m_cursorTracers[cursorIdx] = tracer;
 
+        // 创建 QCPItemText 数据标签，位置以 tracer 为父锚点，坐标表示相对 cursor 的像素偏移
+        auto* label = new QCPItemText(plot);
+        label->position->setType(QCPItemPosition::ptAbsolute);
+        label->position->setParentAnchor(tracer->position);
+        label->position->setCoords(0, 0);
+        label->setText(QString("X: %1\nY: %2")
+                           .arg(x, 0, 'g', 8)
+                           .arg(y, 0, 'g', 8));
+        // label->setFont(QFont("Consolas, Courier New, monospace", 9));  // 已注释：统一使用系统默认字体
+        label->setSelectable(false);
+        label->setPositionAlignment(Qt::AlignLeft | Qt::AlignBottom);
+        label->setPadding(QMargins(6, 3, 6, 3));
+        label->setLayer("overlay");
+        m_cursorLabels[cursorIdx] = label;
+        refreshCursorLabelStyle(cursorIdx, true);  // 新游标 → 激活态
+
+        auto* connector = new QCPItemLine(plot);
+        connector->start->setType(QCPItemPosition::ptAbsolute);
+        connector->start->setParentAnchor(tracer->position);
+        connector->start->setCoords(0, 0);
+        connector->end->setType(QCPItemPosition::ptAbsolute);
+        connector->setLayer("overlay");
+        QPen connectorPen(label->pen().color(), 1.0, Qt::DashLine);
+        QColor connectorColor = connectorPen.color();
+        connectorColor.setAlpha(180);
+        connectorPen.setColor(connectorColor);
+        connector->setPen(connectorPen);
+        m_cursorConnectorLines[cursorIdx] = connector;
+        updateCursorConnectorLine(cursorIdx);
+
         plot->replot();
     };
 
     // ---- 游标移除 → 删除 QCPItemText 标签 + tracer ----
     cm.onCursorRemoved = [this](int cursorIdx)
     {
+        auto lineIt = m_cursorConnectorLines.find(cursorIdx);
+        if (lineIt != m_cursorConnectorLines.end())
+        {
+            QCPItemLine* line = lineIt.value();
+            QCustomPlot* linePlot = line ? line->parentPlot() : nullptr;
+            if (linePlot)
+                linePlot->removeItem(line);
+            m_cursorConnectorLines.erase(lineIt);
+            if (linePlot)
+                linePlot->replot();
+        }
+
         // 删除 QCPItemText 标签
         auto lit = m_cursorLabels.find(cursorIdx);
         if (lit != m_cursorLabels.end())
@@ -316,6 +345,18 @@ void UI::bindCursorManagerCallbacks()
             {
                 int newIdx = (oit.key() > cursorIdx) ? (oit.key() - 1) : oit.key();
                 m_cursorTracers[newIdx] = oit.value();
+            }
+        }
+
+        if (!m_cursorConnectorLines.empty())
+        {
+            QHash<int, QCPItemLine*> oldLines = m_cursorConnectorLines;
+            m_cursorConnectorLines.clear();
+            for (auto oit = oldLines.begin(); oit != oldLines.end(); ++oit)
+            {
+                int newIdx = (oit.key() > cursorIdx) ? (oit.key() - 1) : oit.key();
+                m_cursorConnectorLines[newIdx] = oit.value();
+                updateCursorConnectorLine(newIdx);
             }
         }
     };
@@ -392,9 +433,9 @@ void UI::bindCursorManagerCallbacks()
                             auto lbIt = m_cursorLabels.find(cursorIdx);
                             if (lbIt != m_cursorLabels.end() && lbIt.value())
                             {
-                                lbIt.value()->position->setCoords(x, y);
                                 lbIt.value()->setText(QString("X: %1\nY: %2").arg(x, 0, 'g', 8).arg(y, 0, 'g', 8));
                             }
+                            updateCursorConnectorLine(cursorIdx);
                             plot->replot();
                         }
                     }
@@ -434,6 +475,148 @@ void UI::refreshCursorLabelStyle(int cursorIdx, bool active)
         QColor bd = ds.borderInactive.toQColor();
         label->setPen(QPen(bd, ds.borderWidthInactive));
     }
+
+    auto lineIt = m_cursorConnectorLines.find(cursorIdx);
+    if (lineIt != m_cursorConnectorLines.end() && lineIt.value())
+    {
+        QPen connectorPen(label->pen().color(), active ? 1.4 : 1.0, Qt::DashLine);
+        QColor connectorColor = connectorPen.color();
+        connectorColor.setAlpha(active ? 210 : 150);
+        connectorPen.setColor(connectorColor);
+        lineIt.value()->setPen(connectorPen);
+        updateCursorConnectorLine(cursorIdx);
+    }
+
     if (label->parentPlot())
         label->parentPlot()->replot();
+}
+
+void UI::updateCursorConnectorLine(int cursorIdx)
+{
+    auto lineIt = m_cursorConnectorLines.find(cursorIdx);
+    auto labelIt = m_cursorLabels.find(cursorIdx);
+    auto tracerIt = m_cursorTracers.find(cursorIdx);
+    if (lineIt == m_cursorConnectorLines.end() || labelIt == m_cursorLabels.end()
+        || tracerIt == m_cursorTracers.end())
+        return;
+
+    QCPItemLine* line = lineIt.value();
+    QCPItemText* label = labelIt.value();
+    QCPItemTracer* tracer = tracerIt.value();
+    if (!line || !label || !tracer)
+        return;
+
+    QCPItemAnchor* corners[] = {
+        label->topLeft,
+        label->topRight,
+        label->bottomLeft,
+        label->bottomRight
+    };
+
+    const QPointF cursorPos = tracer->position->pixelPosition();
+    QCPItemAnchor* nearest = corners[0];
+    double nearestDistance = std::numeric_limits<double>::max();
+
+    for (auto* corner : corners)
+    {
+        if (!corner)
+            continue;
+
+        const QPointF delta = corner->pixelPosition() - cursorPos;
+        const double distSq = delta.x() * delta.x() + delta.y() * delta.y();
+        if (distSq < nearestDistance)
+        {
+            nearestDistance = distSq;
+            nearest = corner;
+        }
+    }
+
+    line->end->setParentAnchor(nearest);
+    line->end->setCoords(0, 0);
+}
+
+QCPItemText* UI::hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx) const
+{
+    const auto& cursors = m_viewer.GetCursorManager().cursors();
+
+    for (auto it = m_cursorLabels.constBegin(); it != m_cursorLabels.constEnd(); ++it)
+    {
+        int idx = it.key();
+        if (idx < 0 || idx >= static_cast<int>(cursors.size()))
+            continue;
+        if (cursors[idx].pageIndex != pageIndex)
+            continue;
+
+        QCPItemText* label = it.value();
+        if (!label || !label->visible())
+            continue;
+
+        QCustomPlot* plot = label->parentPlot();
+        const double tolerance = plot ? plot->selectionTolerance() : 5.0;
+        if (label->selectTest(pos, false, nullptr) <= tolerance)
+        {
+            if (cursorIdx)
+                *cursorIdx = idx;
+            return label;
+        }
+    }
+
+    if (cursorIdx)
+        *cursorIdx = -1;
+    return nullptr;
+}
+
+void UI::cleanupPlotOverlaysBeforeShutdown()
+{
+    auto removeItem = [](QCPAbstractItem* item)
+    {
+        if (item && item->parentPlot())
+            item->parentPlot()->removeItem(item);
+    };
+
+    // Connector lines depend on label/tracer anchors, so remove them first.
+    for (auto* line : m_cursorConnectorLines)
+        removeItem(line);
+    m_cursorConnectorLines.clear();
+
+    for (auto* label : m_cursorLabels)
+        removeItem(label);
+    m_cursorLabels.clear();
+
+    for (auto* tracer : m_cursorTracers)
+        removeItem(tracer);
+    m_cursorTracers.clear();
+
+    for (auto* tracer : m_preSelTracers)
+        removeItem(tracer);
+    m_preSelTracers.clear();
+
+    if (m_fftSelectRect)
+    {
+        removeItem(m_fftSelectRect);
+        m_fftSelectRect = nullptr;
+    }
+
+    for (auto it = m_highlightRects.begin(); it != m_highlightRects.end(); ++it)
+    {
+        for (auto* rect : it.value())
+            removeItem(rect);
+    }
+    m_highlightRects.clear();
+
+    for (auto it = m_highlightLabels.begin(); it != m_highlightLabels.end(); ++it)
+    {
+        for (auto* label : it.value())
+            removeItem(label);
+    }
+    m_highlightLabels.clear();
+
+    for (auto it = m_highlightReplotConns.begin(); it != m_highlightReplotConns.end(); ++it)
+        disconnect(it.value());
+    m_highlightReplotConns.clear();
+
+    m_plotToPageIndex.clear();
+    m_draggingCursorLabelIdx = -1;
+    m_fftSelecting = false;
+    m_fftPageIndex = -1;
 }

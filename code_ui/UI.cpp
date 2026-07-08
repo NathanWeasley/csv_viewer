@@ -19,6 +19,7 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <qtimer.h>
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -82,12 +83,20 @@ UI::UI(QWidget *parent)
         if (settings.contains("dockingState"))
         {
             m_dockManager->restoreState(settings.value("dockingState").toByteArray());
+            hideFixedDockTitleBars();
+            QTimer::singleShot(0, this, [this]()
+            {
+                hideFixedDockTitleBars();
+            });
         }
     }
 }
 
 UI::~UI()
 {
+    m_isShuttingDown = true;
+    disconnectViewerCallbacks();
+    cleanupPlotOverlaysBeforeShutdown();
     saveState();
 }
 
@@ -133,8 +142,37 @@ void UI::saveState()
     sm.save(stylePath.toStdString());
 }
 
+void UI::disconnectViewerCallbacks()
+{
+    auto& pm = m_viewer.GetPlotManager();
+    pm.onXAxisChanged = nullptr;
+    pm.onPageAdded = nullptr;
+    pm.onPageAboutToRemove = nullptr;
+    pm.onPageRemoved = nullptr;
+    pm.onActivePageChanged = nullptr;
+    pm.onDataItemAdded = nullptr;
+    pm.onDataItemRemoved = nullptr;
+    pm.onCleared = nullptr;
+    pm.onLegendVisibilityChanged = nullptr;
+    pm.onLegendNeedReplot = nullptr;
+    pm.onRectZoomStateChanged = nullptr;
+    pm.onRescaleRequested = nullptr;
+    pm.onSelectedDataItemChanged = nullptr;
+
+    auto& cm = m_viewer.GetCursorManager();
+    cm.onPreSelectionSet = nullptr;
+    cm.onPreSelectionCleared = nullptr;
+    cm.onCursorAdded = nullptr;
+    cm.onCursorRemoved = nullptr;
+    cm.onActiveCursorChanged = nullptr;
+
+    m_viewer.GetStyleManager().onPaletteChanged = nullptr;
+}
+
 void UI::closeEvent(QCloseEvent* event)
 {
+    m_isShuttingDown = true;
+
     QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
     QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
     QSettings settings(configPath, QSettings::IniFormat);
@@ -148,6 +186,9 @@ void UI::closeEvent(QCloseEvent* event)
     settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
     settings.setValue("openglEnabled", m_openglEnabled);
     settings.setValue("antiAliasing", m_antiAliasingEnabled);
+
+    disconnectViewerCallbacks();
+    cleanupPlotOverlaysBeforeShutdown();
 
     QMainWindow::closeEvent(event);
 }

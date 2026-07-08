@@ -77,9 +77,13 @@ private:
 
     /// 将内层 dock widget 聚焦变更同步到 PlotManager
     void connectInnerDockSignals();
+    void hideDockAreaTitleBar(ads::CDockWidget* dock);
+    void hideFixedDockTitleBars();
 
     void closeEvent(QCloseEvent* event);
     void saveState();
+    void cleanupPlotOverlaysBeforeShutdown();
+    void disconnectViewerCallbacks();
 
 private Q_SLOTS:
     /** Open file dialog for selecting CSV files */
@@ -98,6 +102,8 @@ private Q_SLOTS:
         QCustomPlot* plot, const QPoint& mousePos, double pixelThreshold = 10.0) const;
 
     void refreshCursorLabelStyle(int cursorIdx, bool active);
+    QCPItemText* hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx = nullptr) const;
+    void updateCursorConnectorLine(int cursorIdx);
 
     // ---- Highlight Manager helpers ----
 
@@ -150,6 +156,7 @@ private:
     bool m_innerDockSignalsConnected = false;          // 内层信号是否已连接
     int m_pendingActivation = -1;                      // 待激活的页面索引（-1 表示无）
     int m_lastRemovedPageIndex = -1;
+    bool m_isShuttingDown = false;
 
     // ---- Cursor state ----
 
@@ -168,10 +175,13 @@ private:
 
     // 游标 tracer 标记（cursorIndex → QCPItemTracer），常驻 plot 上
     QHash<int, QCPItemTracer*> m_cursorTracers;
+    QHash<int, QCPItemLine*> m_cursorConnectorLines;
 
     // 鼠标按下位置（用于区分拖拽和点击）
     QPoint m_mousePressPos;
     bool   m_mousePressOnPlot = false;
+    int    m_draggingCursorLabelIdx = -1;
+    QPointF m_cursorLabelDragOffset;
 
     // ---- Expression bar state ----
     // pageIndex → expression QLineEdit widget

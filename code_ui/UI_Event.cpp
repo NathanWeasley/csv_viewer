@@ -36,6 +36,9 @@
 
 bool UI::eventFilter(QObject* obj, QEvent* event)
 {
+    if (m_isShuttingDown)
+        return QMainWindow::eventFilter(obj, event);
+
     QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
 
     // ============================================================
@@ -203,6 +206,50 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         return QMainWindow::eventFilter(obj, event);
 
     auto& cm = m_viewer.GetCursorManager();
+
+    if (event->type() == QEvent::MouseButtonPress)
+    {
+        QMouseEvent* me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton)
+        {
+            int labelCursorIdx = -1;
+            if (auto* label = hitCursorLabel(pageIndex, me->pos(), &labelCursorIdx))
+            {
+                m_draggingCursorLabelIdx = labelCursorIdx;
+                m_cursorLabelDragOffset = QPointF(me->pos()) - label->position->pixelPosition();
+                cm.setActiveCursor(labelCursorIdx);
+                plot->setCursor(Qt::ClosedHandCursor);
+                return true;
+            }
+        }
+    }
+
+    if (event->type() == QEvent::MouseMove && m_draggingCursorLabelIdx >= 0)
+    {
+        QMouseEvent* me = static_cast<QMouseEvent*>(event);
+        auto it = m_cursorLabels.find(m_draggingCursorLabelIdx);
+        if ((me->buttons() & Qt::LeftButton) && it != m_cursorLabels.end() && it.value())
+        {
+            it.value()->position->setPixelPosition(QPointF(me->pos()) - m_cursorLabelDragOffset);
+            updateCursorConnectorLine(m_draggingCursorLabelIdx);
+            plot->replot();
+            return true;
+        }
+
+        m_draggingCursorLabelIdx = -1;
+        plot->setCursor(Qt::ArrowCursor);
+    }
+
+    if (event->type() == QEvent::MouseButtonRelease && m_draggingCursorLabelIdx >= 0)
+    {
+        QMouseEvent* me = static_cast<QMouseEvent*>(event);
+        if (me->button() == Qt::LeftButton)
+        {
+            m_draggingCursorLabelIdx = -1;
+            plot->setCursor(Qt::ArrowCursor);
+            return true;
+        }
+    }
 
     // ---- MouseMove: 预选检测 ----
     // 使用二分查找 O(log N) 定位最近数据点，不受自适应降采样影响
