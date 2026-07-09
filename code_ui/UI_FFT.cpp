@@ -75,6 +75,18 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     auto& dm = m_viewer.GetDataManager();
     auto& pm = m_viewer.GetPlotManager();
 
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+        return;
+
+    auto resolveFFTSourceColumn = [&dm, &pm, pageIndex](const std::string& itemName) -> const viewer::Column*
+    {
+        viewer::PlotExpression* pe = pm.pageInfo(pageIndex).exprMgr.get(itemName);
+        if (pe && pe->computedData)
+            return pe->computedData.get();
+
+        return dm.GetColumn(itemName);
+    };
+
     // 获取当前选中的数据项
     std::string selItem = pm.selectedDataItem(pageIndex);
     if (selItem.empty())
@@ -88,7 +100,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         selItem = *items.begin();
     }
 
-    const viewer::Column* srcCol = dm.GetColumn(selItem);
+    const viewer::Column* srcCol = resolveFFTSourceColumn(selItem);
     if (!srcCol)
     {
         QMessageBox::warning(this, "错误",
@@ -149,7 +161,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 
     if (chosenItem != selItem)
     {
-        srcCol = dm.GetColumn(chosenItem);
+        srcCol = resolveFFTSourceColumn(chosenItem);
         if (!srcCol) return;
     }
 
