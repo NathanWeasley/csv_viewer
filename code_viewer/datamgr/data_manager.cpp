@@ -242,8 +242,30 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     // preSanitizedNames 由 Viewer::LoadCSV/OnLoadCSV 始终传入
     newSanitizedNames = config.preSanitizedNames;
-    for (size_t i = 0; i < newSanitizedNames.size(); ++i)
-        newNameIndex[newSanitizedNames[i]] = i;
+    std::vector<std::string> displayNames = newSanitizedNames;
+    if (!m_aliasMap.empty())
+    {
+        for (size_t c = 0; c < displayNames.size(); ++c)
+        {
+            auto rawIt = (c < headerFields.size()) ? m_aliasMap.find(headerFields[c]) : m_aliasMap.end();
+            if (rawIt != m_aliasMap.end())
+            {
+                displayNames[c] = rawIt->second;
+                continue;
+            }
+
+            auto cleanIt = m_aliasMap.find(newSanitizedNames[c]);
+            if (cleanIt != m_aliasMap.end())
+                displayNames[c] = cleanIt->second;
+        }
+    }
+
+    for (size_t i = 0; i < displayNames.size(); ++i)
+    {
+        if (newNameIndex.count(displayNames[i]) > 0)
+            return false;
+        newNameIndex[displayNames[i]] = i;
+    }
 
     if (!isFirstLoad)
     {
@@ -255,7 +277,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         {
             if (i >= newSanitizedNames.size())
                 return false;
-            if (newSanitizedNames[i] != m_columnNames[i])
+            if (displayNames[i] != m_columnNames[i])
                 return false;
         }
 
@@ -328,27 +350,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     // ================================================================
 
     m_filePath = config.filePath.string();
-    m_columnNames = newSanitizedNames;
+    m_columnNames = displayNames;
     m_nameIndex = newNameIndex;
-
-    // ---- 应用别名映射（原始列名 → 重命名）----
-    if (!m_aliasMap.empty())
-    {
-        for (size_t c = 0; c < m_columnNames.size(); ++c)
-        {
-            auto it = m_aliasMap.find(m_columnNames[c]);
-            if (it != m_aliasMap.end())
-                m_columnNames[c] = it->second;
-        }
-        // 重建 name index（列名已变更），同时检查重名
-        m_nameIndex.clear();
-        for (size_t c = 0; c < m_columnNames.size(); ++c)
-        {
-            if (m_nameIndex.count(m_columnNames[c]) > 0)
-                return false;  // 别名导致列名重复
-            m_nameIndex[m_columnNames[c]] = c;
-        }
-    }
 
     if (config.hasHeader && !headerFields.empty())
         m_rawColumnNames = headerFields;

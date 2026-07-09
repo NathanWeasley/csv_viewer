@@ -19,6 +19,17 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <qabstractitemview.h>
+#include <qdiriterator.h>
+#include <qlistview.h>
+#include <qtreeview.h>
+
+#ifdef Q_OS_WIN
+#define NOMINMAX
+#include <windows.h>
+#include <shobjidl.h>
+#pragma comment(lib, "ole32.lib")
+#endif
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -29,6 +40,69 @@
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
+
+#ifdef Q_OS_WIN
+static QStringList selectFoldersNativeWin32(QWidget* parent, const QString& title)
+{
+    QStringList folders;
+
+    HRESULT coInit = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
+    const bool shouldUninit = SUCCEEDED(coInit);
+    if (FAILED(coInit) && coInit != RPC_E_CHANGED_MODE)
+        return folders;
+
+    IFileOpenDialog* dialog = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&dialog));
+    if (SUCCEEDED(hr) && dialog)
+    {
+        DWORD options = 0;
+        if (SUCCEEDED(dialog->GetOptions(&options)))
+        {
+            dialog->SetOptions(options | FOS_PICKFOLDERS | FOS_ALLOWMULTISELECT |
+                               FOS_FORCEFILESYSTEM | FOS_PATHMUSTEXIST);
+        }
+
+        const std::wstring titleText = title.toStdWString();
+        dialog->SetTitle(titleText.c_str());
+
+        HWND hwnd = parent ? reinterpret_cast<HWND>(parent->winId()) : nullptr;
+        hr = dialog->Show(hwnd);
+        if (SUCCEEDED(hr))
+        {
+            IShellItemArray* items = nullptr;
+            hr = dialog->GetResults(&items);
+            if (SUCCEEDED(hr) && items)
+            {
+                DWORD count = 0;
+                items->GetCount(&count);
+                for (DWORD i = 0; i < count; ++i)
+                {
+                    IShellItem* item = nullptr;
+                    if (SUCCEEDED(items->GetItemAt(i, &item)) && item)
+                    {
+                        PWSTR path = nullptr;
+                        if (SUCCEEDED(item->GetDisplayName(SIGDN_FILESYSPATH, &path)) && path)
+                        {
+                            folders << QDir::cleanPath(QString::fromWCharArray(path));
+                            CoTaskMemFree(path);
+                        }
+                        item->Release();
+                    }
+                }
+                items->Release();
+            }
+        }
+        dialog->Release();
+    }
+
+    if (shouldUninit)
+        CoUninitialize();
+
+    folders.removeDuplicates();
+    return folders;
+}
+#endif
 
 void UI::onLoadCSVClicked()
 {
@@ -43,6 +117,58 @@ void UI::onLoadCSVClicked()
 
     // Forward the file list to the Viewer's slot for loading
     m_viewer.OnLoadCSV(files);
+}
+
+void UI::onLoadFolderClicked()
+{
+    QStringList folders;
+
+#ifdef Q_OS_WIN
+    folders = selectFoldersNativeWin32(this, QString::fromUtf8("Select CSV folders"));
+#else
+    QFileDialog dlg(this, QString::fromUtf8("Select CSV folders"));
+    dlg.setFileMode(QFileDialog::Directory);
+    dlg.setOption(QFileDialog::ShowDirsOnly, true);
+    dlg.setOption(QFileDialog::DontUseNativeDialog, true);
+
+    for (auto* view : dlg.findChildren<QAbstractItemView*>())
+        view->setSelectionMode(QAbstractItemView::ExtendedSelection);
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    folders = dlg.selectedFiles();
+#endif
+
+    if (folders.isEmpty())
+        return;
+
+    QStringList csvFiles;
+    for (const QString& folder : folders)
+    {
+        QDirIterator it(folder,
+                        QStringList() << QStringLiteral("*.csv"),
+                        QDir::Files,
+                        QDirIterator::Subdirectories);
+        while (it.hasNext())
+        {
+            const QString filePath = QDir::cleanPath(it.next());
+            if (!csvFiles.contains(filePath, Qt::CaseInsensitive))
+                csvFiles << filePath;
+        }
+    }
+
+    csvFiles.sort(Qt::CaseInsensitive);
+
+    if (csvFiles.isEmpty())
+    {
+        QMessageBox::information(this,
+                                 QString::fromUtf8("No CSV files"),
+                                 QString::fromUtf8("No CSV files were found in the selected folders."));
+        return;
+    }
+
+    m_viewer.OnLoadCSV(csvFiles, true);
 }
 
 // ============================================================

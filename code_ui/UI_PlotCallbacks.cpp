@@ -705,16 +705,25 @@ void UI::bindPlotManagerCallbacks()
     // 页面即将移除
     pm.onPageAboutToRemove = [this](int index)
     {
+        logShutdownTrace(QString("pm.onPageAboutToRemove enter index=%1 pageCount=%2")
+                             .arg(index)
+                             .arg(plotPageCount()));
         if (index >= 0 && index < plotPageCount())
         {
             // removePlotPageDock 会通过 dock->deleteLater() 销毁整个 widget 层级
+            m_syncingPlotRemoval = true;
             removePlotPageDock(index);
+            m_syncingPlotRemoval = false;
         }
+        logShutdownTrace(QString("pm.onPageAboutToRemove leave index=%1").arg(index));
     };
 
     // 页面移除后
     pm.onPageRemoved = [this](int activeIdx, int /*remainingCount*/)
     {
+        logShutdownTrace(QString("pm.onPageRemoved activeIdx=%1 lastRemoved=%2")
+                             .arg(activeIdx)
+                             .arg(m_lastRemovedPageIndex));
         reindexPlotPageStateAfterRemoval(m_lastRemovedPageIndex);
         m_lastRemovedPageIndex = -1;
 
@@ -1263,8 +1272,12 @@ void UI::bindPlotManagerCallbacks()
     // 清空全部图窗 → 清理内层 DockManager 中所有页面
     pm.onCleared = [this]()
     {
+        logShutdownTrace(QString("pm.onCleared enter dockWidgets=%1 pageDocks=%2")
+                             .arg(m_plotDockManager ? m_plotDockManager->dockWidgetsMap().size() : 0)
+                             .arg(m_pageDocks.size()));
         m_exprLineEdits.clear();
         m_toolbarCombos.clear();
+        m_syncingPlotRemoval = true;
 
         // 先拷贝 QADS 内部 map 的 entries，再逐个移除。
         // removeDockWidget 会修改原 map，必须先拷贝避免迭代器失效。
@@ -1274,7 +1287,15 @@ void UI::bindPlotManagerCallbacks()
             auto* dw = it.value();
             int idx = m_pageDocks.key(dw, -1);
             if (idx >= 0)
+            {
+                logShutdownTrace(QString("pm.onCleared removePlotPageDock idx=%1 dock=%2")
+                                     .arg(idx)
+                                     .arg(reinterpret_cast<quintptr>(dw), 0, 16));
                 removePlotPageDock(idx);
+            }
         }
+
+        m_syncingPlotRemoval = false;
+        logShutdownTrace("pm.onCleared leave");
     };
 }

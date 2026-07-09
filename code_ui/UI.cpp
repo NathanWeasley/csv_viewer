@@ -30,8 +30,20 @@
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
+#include <qdatetime.h>
+#include <qtextstream.h>
 
 extern bool isSystemInDark();
+
+namespace
+{
+QString shutdownTracePath()
+{
+    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
+    QDir().mkpath(userDir);
+    return userDir + "/shutdown_trace.txt";
+}
+}
 
 UI::UI(QWidget *parent)
     : QMainWindow(parent)
@@ -94,10 +106,9 @@ UI::UI(QWidget *parent)
 
 UI::~UI()
 {
-    m_isShuttingDown = true;
-    disconnectViewerCallbacks();
-    cleanupPlotOverlaysBeforeShutdown();
-    saveState();
+    logShutdownTrace("~UI enter");
+    beginShutdownCleanup(true);
+    logShutdownTrace("~UI leave");
 }
 
 void UI::init()
@@ -126,6 +137,9 @@ void UI::init()
         m_viewer.GetDataManager().LoadXAxisRules(jsonPath.toStdString());
     }
 
+    // ---- 加载变量自动重命名规则 ----
+    loadAliasFile();
+
     // ---- 加载书签 ----
     loadBookmarkFile();
 
@@ -142,8 +156,62 @@ void UI::saveState()
     sm.save(stylePath.toStdString());
 }
 
+void UI::beginShutdownCleanup(bool persistUiState)
+{
+    if (m_shutdownCleanupDone)
+    {
+        logShutdownTrace(QString("beginShutdownCleanup skipped persist=%1").arg(persistUiState));
+        return;
+    }
+
+    m_shutdownCleanupDone = true;
+    m_isShuttingDown = true;
+    logShutdownTrace(QString("beginShutdownCleanup enter persist=%1 pageDocks=%2 plotDockMgr=%3 dockMgr=%4")
+                         .arg(persistUiState)
+                         .arg(m_pageDocks.size())
+                         .arg(reinterpret_cast<quintptr>(m_plotDockManager), 0, 16)
+                         .arg(reinterpret_cast<quintptr>(m_dockManager), 0, 16));
+
+    if (persistUiState)
+    {
+        QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
+        QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
+        QSettings settings(configPath, QSettings::IniFormat);
+
+        settings.setValue("geometry", saveGeometry());
+        if (m_dockManager)
+            settings.setValue("dockingState", m_dockManager->saveState());
+
+        settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
+        settings.setValue("openglEnabled", m_openglEnabled);
+        settings.setValue("antiAliasing", m_antiAliasingEnabled);
+
+        saveState();
+        logShutdownTrace("beginShutdownCleanup saved UI state");
+    }
+
+    disconnectViewerCallbacks();
+    logShutdownTrace("beginShutdownCleanup disconnected viewer callbacks");
+    cleanupPlotOverlaysBeforeShutdown();
+    logShutdownTrace("beginShutdownCleanup finished overlay cleanup");
+    removeAllPlotDocksForShutdown();
+    logShutdownTrace("beginShutdownCleanup finished plot dock removal");
+
+    if (m_plotDockManager)
+    {
+        disconnect(m_plotDockManager, nullptr, this, nullptr);
+        logShutdownTrace("beginShutdownCleanup disconnected m_plotDockManager signals");
+    }
+    if (m_dockManager)
+    {
+        disconnect(m_dockManager, nullptr, this, nullptr);
+        logShutdownTrace("beginShutdownCleanup disconnected m_dockManager signals");
+    }
+}
+
 void UI::disconnectViewerCallbacks()
 {
+    logShutdownTrace("disconnectViewerCallbacks enter");
     auto& pm = m_viewer.GetPlotManager();
     pm.onXAxisChanged = nullptr;
     pm.onPageAdded = nullptr;
@@ -167,30 +235,27 @@ void UI::disconnectViewerCallbacks()
     cm.onActiveCursorChanged = nullptr;
 
     m_viewer.GetStyleManager().onPaletteChanged = nullptr;
+    logShutdownTrace("disconnectViewerCallbacks leave");
 }
 
 void UI::closeEvent(QCloseEvent* event)
 {
-    m_isShuttingDown = true;
-
-    QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
-    QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
-    QSettings settings(configPath, QSettings::IniFormat);
-
-    settings.setValue("geometry", saveGeometry());
-    if (m_dockManager)
-    {
-        settings.setValue("dockingState", m_dockManager->saveState());
-    }
-
-    settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
-    settings.setValue("openglEnabled", m_openglEnabled);
-    settings.setValue("antiAliasing", m_antiAliasingEnabled);
-
-    disconnectViewerCallbacks();
-    cleanupPlotOverlaysBeforeShutdown();
-
+    logShutdownTrace("closeEvent enter");
+    beginShutdownCleanup(true);
     QMainWindow::closeEvent(event);
+    logShutdownTrace("closeEvent leave");
+}
+
+void UI::logShutdownTrace(const QString& message) const
+{
+    QFile file(shutdownTracePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
+        << " | " << message << "\n";
+    out.flush();
 }
 // ============================================================
 // 双击数据树项 → 添加到激活图窗

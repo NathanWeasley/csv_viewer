@@ -53,12 +53,15 @@ Q_SIGNALS:
     /// Emitted when column validation fails across files. UI should show error and clear.
     void LoadError(const QString& message);
 
+    void LoadSkippedFiles(const QStringList& files);
+
 public Q_SLOTS:
     /// Clear all loaded data.
     void Clear();
 
     /// Slot: receive a list of CSV file paths and load each one
     void OnLoadCSV(const QStringList& files);
+    void OnLoadCSV(const QStringList& files, bool skipInvalidFiles);
 
 private:
     // Auto-detect whether row 0 is a header

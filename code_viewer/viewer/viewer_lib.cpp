@@ -192,6 +192,11 @@ void Viewer::Clear()
 // ============================================================
 void Viewer::OnLoadCSV(const QStringList& files)
 {
+    OnLoadCSV(files, false);
+}
+
+void Viewer::OnLoadCSV(const QStringList& files, bool skipInvalidFiles)
+{
     if (files.isEmpty())
     {
         emit LoadFinished();
@@ -208,6 +213,7 @@ void Viewer::OnLoadCSV(const QStringList& files)
     // Stored after the first file is loaded, for cross-file validation
     size_t expectedColCount = 0;
     const std::vector<std::string>* expectedColNames = nullptr;
+    QStringList skippedFiles;
 
     for (int i = 0; i < total; ++i)
     {
@@ -217,6 +223,7 @@ void Viewer::OnLoadCSV(const QStringList& files)
         const float fileWeight = 1.0f / static_cast<float>(total);
 
         std::vector<std::string> sanitizedNames;
+        bool hasHeader = true;
 
         // Detect header and sanitize column names
         {
@@ -224,7 +231,18 @@ void Viewer::OnLoadCSV(const QStringList& files)
             if (!scanner.open())
             {
                 m_lastError = "Failed to open file: " + path.string();
-                continue;
+                if (skipInvalidFiles)
+                {
+                    skippedFiles << filename;
+                    emit BusyProgressChanged(static_cast<float>(i + 1) / static_cast<float>(total));
+                    continue;
+                }
+
+                QString msg = QString("Failed to open \"%1\".").arg(filename);
+                Clear();
+                emit LoadError(msg);
+                emit LoadFinished();
+                return;
             }
 
             std::vector<std::string> firstRow;
@@ -232,11 +250,22 @@ void Viewer::OnLoadCSV(const QStringList& files)
             {
                 m_lastError = "File is empty or unreadable: " + path.string();
                 scanner.close();
-                continue;
+                if (skipInvalidFiles)
+                {
+                    skippedFiles << filename;
+                    emit BusyProgressChanged(static_cast<float>(i + 1) / static_cast<float>(total));
+                    continue;
+                }
+
+                QString msg = QString("File is empty or unreadable: \"%1\".").arg(filename);
+                Clear();
+                emit LoadError(msg);
+                emit LoadFinished();
+                return;
             }
             scanner.close();
 
-            bool hasHeader = detectHeader(firstRow);
+            hasHeader = detectHeader(firstRow);
             std::vector<std::string> rawColumnNames;
 
             if (hasHeader)
@@ -260,27 +289,19 @@ void Viewer::OnLoadCSV(const QStringList& files)
 
             if (thisColCount != expectedColCount)
             {
-                QString msg = QString("Column count mismatch in \"%1\":\n"
-                                      "Expected %2 columns but got %3.")
-                    .arg(filename)
-                    .arg(expectedColCount)
-                    .arg(thisColCount);
-                Clear();
-                emit LoadError(msg);
-                emit LoadFinished();
-                return;
-            }
-
-            for (size_t c = 0; c < expectedColCount; ++c)
-            {
-                if (sanitizedNames[c] != (*expectedColNames)[c])
+                if (skipInvalidFiles)
                 {
-                    QString msg = QString("Column name mismatch in \"%1\" at position %2:\n"
-                                          "Expected \"%3\" but got \"%4\".")
+                    skippedFiles << filename;
+                    emit BusyProgressChanged(static_cast<float>(i + 1) / static_cast<float>(total));
+                    continue;
+                }
+                else
+                {
+                    QString msg = QString("Column count mismatch in \"%1\":\n"
+                                          "Expected %2 columns but got %3.")
                         .arg(filename)
-                        .arg(c + 1)
-                        .arg(QString::fromStdString((*expectedColNames)[c]))
-                        .arg(QString::fromStdString(sanitizedNames[c]));
+                        .arg(expectedColCount)
+                        .arg(thisColCount);
                     Clear();
                     emit LoadError(msg);
                     emit LoadFinished();
@@ -293,7 +314,7 @@ void Viewer::OnLoadCSV(const QStringList& files)
         LoadConfig config;
         config.filePath  = path;
         config.headerRow = 0;
-        config.hasHeader = true;  // hasHeader was detected above
+        config.hasHeader = hasHeader;
         config.delimiter = ',';
         config.quoteChar = '"';
         config.preSanitizedNames = sanitizedNames;
@@ -303,15 +324,35 @@ void Viewer::OnLoadCSV(const QStringList& files)
             emit BusyProgressChanged(global);
         };
 
-        m_data.LoadFromCSV(config);
+        bool loaded = m_data.LoadFromCSV(config);
+        if (!loaded)
+        {
+            if (skipInvalidFiles)
+            {
+                skippedFiles << filename;
+                emit BusyProgressChanged(static_cast<float>(i + 1) / static_cast<float>(total));
+                continue;
+            }
+            else
+            {
+                QString msg = QString("Failed to load \"%1\".").arg(filename);
+                Clear();
+                emit LoadError(msg);
+                emit LoadFinished();
+                return;
+            }
+        }
 
         // After first file: capture the expected schema
-        if (i == 0)
+        if (!expectedColNames)
         {
             expectedColCount = m_data.GetColumnCount();
             expectedColNames = &m_data.GetColumnNames();
         }
     }
+
+    if (skipInvalidFiles && !skippedFiles.isEmpty())
+        emit LoadSkippedFiles(skippedFiles);
 
     emit LoadFinished();
 }

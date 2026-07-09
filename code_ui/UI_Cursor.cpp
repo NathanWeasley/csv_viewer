@@ -80,6 +80,9 @@ void UI::bindCursorManagerCallbacks()
 
     pm.onPageAboutToRemove = [this, originalOnPageAboutToRemove](int index)
     {
+        logShutdownTrace(QString("cursor-wrapper onPageAboutToRemove enter index=%1 cursorCount=%2")
+                             .arg(index)
+                             .arg(static_cast<int>(m_viewer.GetCursorManager().cursors().size())));
         // 获取即将被移除的 plot，清理 m_preSelTracers
         if (index >= 0 && index < plotPageCount())
         {
@@ -118,12 +121,15 @@ void UI::bindCursorManagerCallbacks()
         // 执行原有逻辑（删除 widget）
         if (originalOnPageAboutToRemove)
             originalOnPageAboutToRemove(index);
+        logShutdownTrace(QString("cursor-wrapper onPageAboutToRemove leave index=%1").arg(index));
     };
 
     // ---- 扩展 onCleared：清理所有 cursor 状态 ----
     auto originalOnCleared = pm.onCleared;
     pm.onCleared = [this, originalOnCleared]()
     {
+        logShutdownTrace(QString("cursor-wrapper onCleared enter cursorCount=%1")
+                             .arg(static_cast<int>(m_viewer.GetCursorManager().cursors().size())));
         auto& cm = m_viewer.GetCursorManager();
         cm.clearAll();
         m_plotToPageIndex.clear();
@@ -136,6 +142,7 @@ void UI::bindCursorManagerCallbacks()
 
         if (originalOnCleared)
             originalOnCleared();
+        logShutdownTrace("cursor-wrapper onCleared leave");
     };
 
     // ---- 预选设置 → 显示 tracer + 更新状态栏 ----
@@ -568,47 +575,26 @@ QCPItemText* UI::hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx
 
 void UI::cleanupPlotOverlaysBeforeShutdown()
 {
-    auto removeItem = [](QCPAbstractItem* item)
-    {
-        if (item && item->parentPlot())
-            item->parentPlot()->removeItem(item);
-    };
+    logShutdownTrace(QString("cleanupPlotOverlaysBeforeShutdown enter labels=%1 tracers=%2 preSel=%3 lines=%4 highlightRects=%5 highlightLabels=%6")
+                         .arg(m_cursorLabels.size())
+                         .arg(m_cursorTracers.size())
+                         .arg(m_preSelTracers.size())
+                         .arg(m_cursorConnectorLines.size())
+                         .arg(m_highlightRects.size())
+                         .arg(m_highlightLabels.size()));
 
-    // Connector lines depend on label/tracer anchors, so remove them first.
-    for (auto* line : m_cursorConnectorLines)
-        removeItem(line);
     m_cursorConnectorLines.clear();
 
-    for (auto* label : m_cursorLabels)
-        removeItem(label);
     m_cursorLabels.clear();
 
-    for (auto* tracer : m_cursorTracers)
-        removeItem(tracer);
     m_cursorTracers.clear();
 
-    for (auto* tracer : m_preSelTracers)
-        removeItem(tracer);
     m_preSelTracers.clear();
 
-    if (m_fftSelectRect)
-    {
-        removeItem(m_fftSelectRect);
-        m_fftSelectRect = nullptr;
-    }
+    m_fftSelectRect = nullptr;
 
-    for (auto it = m_highlightRects.begin(); it != m_highlightRects.end(); ++it)
-    {
-        for (auto* rect : it.value())
-            removeItem(rect);
-    }
     m_highlightRects.clear();
 
-    for (auto it = m_highlightLabels.begin(); it != m_highlightLabels.end(); ++it)
-    {
-        for (auto* label : it.value())
-            removeItem(label);
-    }
     m_highlightLabels.clear();
 
     for (auto it = m_highlightReplotConns.begin(); it != m_highlightReplotConns.end(); ++it)
@@ -619,4 +605,5 @@ void UI::cleanupPlotOverlaysBeforeShutdown()
     m_draggingCursorLabelIdx = -1;
     m_fftSelecting = false;
     m_fftPageIndex = -1;
+    logShutdownTrace("cleanupPlotOverlaysBeforeShutdown leave");
 }

@@ -81,13 +81,17 @@ private:
     void hideFixedDockTitleBars();
 
     void closeEvent(QCloseEvent* event);
+    void beginShutdownCleanup(bool persistUiState);
     void saveState();
     void cleanupPlotOverlaysBeforeShutdown();
     void disconnectViewerCallbacks();
+    void removeAllPlotDocksForShutdown();
+    void logShutdownTrace(const QString& message) const;
 
 private Q_SLOTS:
     /** Open file dialog for selecting CSV files */
     void onLoadCSVClicked();
+    void onLoadFolderClicked();
 
     /** Data tree item double-clicked → add to active plot */
     void onDataItemDoubleClicked(QTreeWidgetItem* item, int column);
@@ -156,7 +160,9 @@ private:
     bool m_innerDockSignalsConnected = false;          // 内层信号是否已连接
     int m_pendingActivation = -1;                      // 待激活的页面索引（-1 表示无）
     int m_lastRemovedPageIndex = -1;
+    bool m_syncingPlotRemoval = false;
     bool m_isShuttingDown = false;
+    bool m_shutdownCleanupDone = false;
 
     // ---- Cursor state ----
 
@@ -191,6 +197,7 @@ private:
 
     // ---- Alias state ----
     std::unordered_map<std::string, std::string> m_aliasMap;
+    QStringList m_pendingSkippedFiles;
 
     // ---- Highlight state ----
     // pageIndex → 高亮色块列表

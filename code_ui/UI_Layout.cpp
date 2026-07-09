@@ -20,11 +20,14 @@
 #include <qpushbutton.h>
 #include <qinputdialog.h>
 #include <qtimer.h>
+#include <qwindow.h>
 #include <utility>
+#include <cmath>
 
 #include "icons_base64.h"
 #include "DockAreaWidget.h"
 #include "DockAreaTitleBar.h"
+#include "FloatingDockContainer.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
@@ -37,11 +40,92 @@
 
 extern bool isSystemInDark();
 
+#ifdef Q_OS_WIN
+#include <windows.h>
+#endif
+
+static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
+{
+    const size_t xIdx = dm.GetXAxisColumn();
+    const auto& colNames = dm.GetColumnNames();
+    const size_t rowCount = dm.GetRowCount();
+
+    if (xIdx == static_cast<size_t>(-1) || xIdx >= colNames.size() || rowCount < 2)
+        return QString();
+
+    double previous = dm.GetValueAsDouble(xIdx, 0);
+    if (!std::isfinite(previous))
+    {
+        return QString("The auto-selected X axis \"%1\" contains a non-numeric value at row 1.")
+            .arg(QString::fromStdString(colNames[xIdx]));
+    }
+
+    for (size_t row = 1; row < rowCount; ++row)
+    {
+        const double value = dm.GetValueAsDouble(xIdx, row);
+        if (!std::isfinite(value))
+        {
+            return QString("The auto-selected X axis \"%1\" contains a non-numeric value at row %2.")
+                .arg(QString::fromStdString(colNames[xIdx]))
+                .arg(row + 1);
+        }
+        if (value < previous)
+        {
+            return QString("The auto-selected X axis \"%1\" is not monotonically increasing at row %2.")
+                .arg(QString::fromStdString(colNames[xIdx]))
+                .arg(row + 1);
+        }
+        previous = value;
+    }
+
+    return QString();
+}
+
+#ifdef Q_OS_WIN
+static void detachFloatingDockNativeOwner(ads::CFloatingDockContainer* floating)
+{
+    if (!floating)
+        return;
+
+    floating->winId();
+    HWND hwnd = reinterpret_cast<HWND>(floating->windowHandle() ? floating->windowHandle()->winId()
+                                                                : floating->winId());
+    if (!hwnd)
+        return;
+
+    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, 0);
+
+    const LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    if (exStyle & WS_EX_TOPMOST)
+    {
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
+    else
+    {
+        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
+                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+    }
+}
+#endif
+
 void UI::createMain()
 {
     ///< Center plot area — 内层 QADS DockManager 管理多个图窗页面
     // QADS 全局标志已在 UI::UI() 构造函数中设置（在任何 CDockManager 创建之前）
     m_plotDockManager = new ads::CDockManager();
+
+#ifdef Q_OS_WIN
+    connect(m_plotDockManager, &ads::CDockManager::floatingWidgetCreated, this,
+        [this](ads::CFloatingDockContainer* floating)
+        {
+            Q_UNUSED(this);
+            QTimer::singleShot(0, floating, [floating]()
+            {
+                detachFloatingDockNativeOwner(floating);
+            });
+        });
+#endif
 
     // 连接内层 dock widget 聚焦信号到 PlotManager 激活
     connectInnerDockSignals();
@@ -135,6 +219,7 @@ void UI::createStatusbar()
     // Connect Viewer signals to progress bar
     connect(&m_viewer, &viewer::Viewer::LoadStarted, this, [this](int /*totalFiles*/)
     {
+        m_pendingSkippedFiles.clear();
         m_progressBar->setValue(0);
         m_progressBar->show();
     });
@@ -142,6 +227,11 @@ void UI::createStatusbar()
     connect(&m_viewer, &viewer::Viewer::BusyProgressChanged, this, [this](float globalProgress)
     {
         m_progressBar->setValue(static_cast<int>(globalProgress * 1000.0f));
+    });
+
+    connect(&m_viewer, &viewer::Viewer::LoadSkippedFiles, this, [this](const QStringList& files)
+    {
+        m_pendingSkippedFiles = files;
     });
 
     connect(&m_viewer, &viewer::Viewer::LoadFinished, this, [this]()
@@ -164,7 +254,26 @@ void UI::createStatusbar()
             size_t xIdx = m_viewer.GetDataManager().GetXAxisColumn();
             if (xIdx < colNames.size())
                 m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[xIdx])));
+            else
+                m_xAxisLabel->setText("X: (none)");
         }
+        else
+        {
+            m_xAxisLabel->setText("X: (none)");
+        }
+
+        if (!m_pendingSkippedFiles.isEmpty())
+        {
+            QMessageBox::information(this,
+                                     QString::fromUtf8("Ignored CSV files"),
+                                     QString::fromUtf8("The following CSV files were ignored because their column count, column names, or content did not match the loaded data:\n\n%1")
+                                         .arg(m_pendingSkippedFiles.join("\n")));
+            m_pendingSkippedFiles.clear();
+        }
+
+        const QString monotonicWarning = xAxisMonotonicWarning(m_viewer.GetDataManager());
+        if (!monotonicWarning.isEmpty())
+            QMessageBox::warning(this, QString::fromUtf8("X axis warning"), monotonicWarning);
     });
 
     // Handle cross-file column validation errors
@@ -187,6 +296,7 @@ void UI::createMenu()
     connect(openCSV, &QAction::triggered, this, &UI::onLoadCSVClicked);
     auto* openFolder = fileMenu->addAction("载入多个文件夹下的全部CSV文件");
     auto* openBinary = fileMenu->addAction("载入JSON+二进制文件");
+    connect(openFolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
     fileMenu->addSeparator();
     auto* clearAll = fileMenu->addAction("清空全部数据");
     connect(clearAll, &QAction::triggered, this, [this]()
@@ -399,6 +509,7 @@ void UI::createToolbar()
 	ui.mainToolBar->setIconSize(QSize(36, 36));  // 1.5x 默认 24px
 
 	QAction* action_loadcsv  = nullptr;
+    QAction* action_loadfolder = nullptr;
 	QAction* action_clearall = nullptr;
 	QAction* action_varrename = nullptr;
 
@@ -420,6 +531,7 @@ void UI::createToolbar()
 		switch (entry.id)
 		{
 		case IconIdx::LOADCSV:  action_loadcsv  = action; break;
+        case IconIdx::LOADFOLDER: action_loadfolder = action; break;
 		case IconIdx::CLEAR:    action_clearall = action; break;
 		case IconIdx::VARRENAME: action_varrename = action; break;
 		default: break;
@@ -434,6 +546,8 @@ void UI::createToolbar()
 	///< Connect buttons to slots
 	if (action_loadcsv)
 		connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
+    if (action_loadfolder)
+        connect(action_loadfolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
 	if (action_clearall)
 		connect(action_clearall, &QAction::triggered, this, [this]()
 		{
@@ -539,12 +653,20 @@ ads::CDockWidget* UI::addPlotPageDock(int pageIndex, QWidget* container, const Q
 
 void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
 {
+    logShutdownTrace(QString("cleanupPlotPageState enter page=%1 dock=%2 shuttingDown=%3")
+                         .arg(pageIndex)
+                         .arg(reinterpret_cast<quintptr>(dock), 0, 16)
+                         .arg(m_isShuttingDown));
     QWidget* container = dock ? dock->widget() : getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+    logShutdownTrace(QString("cleanupPlotPageState objects page=%1 container=%2 plot=%3")
+                         .arg(pageIndex)
+                         .arg(reinterpret_cast<quintptr>(container), 0, 16)
+                         .arg(reinterpret_cast<quintptr>(plot), 0, 16));
 
     if (plot)
     {
-        if (m_fftSelectRect && m_fftSelectRect->parentPlot() == plot)
+        if (!m_isShuttingDown && m_fftSelectRect && m_fftSelectRect->parentPlot() == plot)
         {
             plot->removeItem(m_fftSelectRect);
             m_fftSelectRect = nullptr;
@@ -566,14 +688,14 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
     auto rects = m_highlightRects.take(pageIndex);
     for (auto* rect : rects)
     {
-        if (rect && rect->parentPlot())
+        if (!m_isShuttingDown && rect && rect->parentPlot())
             rect->parentPlot()->removeItem(rect);
     }
 
     auto labels = m_highlightLabels.take(pageIndex);
     for (auto* label : labels)
     {
-        if (label && label->parentPlot())
+        if (!m_isShuttingDown && label && label->parentPlot())
             label->parentPlot()->removeItem(label);
     }
 
@@ -588,6 +710,31 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
     m_toolbarCombos.remove(pageIndex);
     m_fftMagCols.erase(pageIndex);
     m_fftFreqCols.erase(pageIndex);
+    logShutdownTrace(QString("cleanupPlotPageState leave page=%1").arg(pageIndex));
+}
+
+void UI::removeAllPlotDocksForShutdown()
+{
+    logShutdownTrace(QString("removeAllPlotDocksForShutdown enter pageDocks=%1 plotDockMgr=%2")
+                         .arg(m_pageDocks.size())
+                         .arg(reinterpret_cast<quintptr>(m_plotDockManager), 0, 16));
+
+    if (!m_plotDockManager)
+    {
+        logShutdownTrace("removeAllPlotDocksForShutdown no plot dock manager");
+        return;
+    }
+
+    m_syncingPlotRemoval = true;
+    const auto pageIndices = m_pageDocks.keys();
+    for (int pageIndex : pageIndices)
+    {
+        logShutdownTrace(QString("removeAllPlotDocksForShutdown remove page=%1").arg(pageIndex));
+        removePlotPageDock(pageIndex);
+    }
+    m_syncingPlotRemoval = false;
+
+    logShutdownTrace(QString("removeAllPlotDocksForShutdown leave remaining=%1").arg(m_pageDocks.size()));
 }
 
 template <typename T>
@@ -665,13 +812,24 @@ void UI::reindexPlotPageStateAfterRemoval(int removedPageIndex)
 }
 void UI::removePlotPageDock(int pageIndex)
 {
+    logShutdownTrace(QString("removePlotPageDock enter page=%1 pageDocks=%2")
+                         .arg(pageIndex)
+                         .arg(m_pageDocks.size()));
     auto* dock = m_pageDocks.take(pageIndex);
     if (dock)
     {
         m_lastRemovedPageIndex = pageIndex;
         cleanupPlotPageState(pageIndex, dock);
+        logShutdownTrace(QString("removePlotPageDock removeDockWidget page=%1 dock=%2")
+                             .arg(pageIndex)
+                             .arg(reinterpret_cast<quintptr>(dock), 0, 16));
         m_plotDockManager->removeDockWidget(dock);
     }
+    else
+    {
+        logShutdownTrace(QString("removePlotPageDock missing dock page=%1").arg(pageIndex));
+    }
+    logShutdownTrace(QString("removePlotPageDock leave page=%1").arg(pageIndex));
 }
 
 void UI::connectInnerDockSignals()
@@ -684,15 +842,31 @@ void UI::connectInnerDockSignals()
 	connect(m_plotDockManager, &ads::CDockManager::dockWidgetAboutToBeRemoved, this,
 		[this](ads::CDockWidget* dw)
 		{
+            logShutdownTrace(QString("dockWidgetAboutToBeRemoved dw=%1 shuttingDown=%2 syncing=%3")
+                                 .arg(reinterpret_cast<quintptr>(dw), 0, 16)
+                                 .arg(m_isShuttingDown)
+                                 .arg(m_syncingPlotRemoval));
+            if (m_isShuttingDown)
+                return;
+
 			int pageIndex = m_pageDocks.key(dw, -1);
 			if (pageIndex >= 0)
 			{
+                logShutdownTrace(QString("dockWidgetAboutToBeRemoved page=%1").arg(pageIndex));
 				 m_lastRemovedPageIndex = pageIndex;
 				cleanupPlotPageState(pageIndex, dw);
 				 m_pageDocks.remove(pageIndex);
-				 auto& pm = m_viewer.GetPlotManager();
-				pm.removePage(pageIndex);
+                if (!m_syncingPlotRemoval)
+                {
+				    auto& pm = m_viewer.GetPlotManager();
+                    logShutdownTrace(QString("dockWidgetAboutToBeRemoved calling pm.removePage(%1)").arg(pageIndex));
+				    pm.removePage(pageIndex);
+                }
 			}
+            else
+            {
+                logShutdownTrace("dockWidgetAboutToBeRemoved page not found");
+            }
 		});
 
 	// 连接内层 dock widget 聚焦变更信号
@@ -700,6 +874,8 @@ void UI::connectInnerDockSignals()
 		[this](ads::CDockWidget* old, ads::CDockWidget* now)
 		{
 			Q_UNUSED(old);
+            if (m_isShuttingDown)
+                return;
 			if (!now) return;
 			int pageIndex = m_pageDocks.key(now, -1);
 			if (pageIndex >= 0)
@@ -718,6 +894,9 @@ void UI::connectInnerDockSignals()
 			connect(area, &ads::CDockAreaWidget::currentChanged, this,
 				[this, area](int tabIndex)
 				{
+                    if (m_isShuttingDown)
+                        return;
+
 					auto* dw = area->dockWidget(tabIndex);
 					if (!dw) return;
 					int pageIndex = m_pageDocks.key(dw, -1);
