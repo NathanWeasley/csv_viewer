@@ -203,6 +203,7 @@ void UI::addBookmark(int pageIndex)
             if (g && g->name().toStdString() == item)
             {
                 QPen p = g->pen();
+                gs.lineStyle = static_cast<int>(g->lineStyle());
                 gs.penStyle = static_cast<int>(p.style());
                 gs.penWidth = p.width();
                 gs.penColor = p.color().name().toStdString();
@@ -270,6 +271,14 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
                 if (g && g->name().toStdString() == gs.dataItemName) { graph = g; break; }
             }
             if (!graph) continue;
+
+            int lineStyle = gs.lineStyle;
+            if (lineStyle < static_cast<int>(viewer::QCPColumnGraph::lsNone)
+                || lineStyle > static_cast<int>(viewer::QCPColumnGraph::lsImpulse))
+            {
+                lineStyle = static_cast<int>(viewer::QCPColumnGraph::lsLine);
+            }
+            graph->setLineStyle(static_cast<viewer::QCPColumnGraph::LineStyle>(lineStyle));
 
             QPen pen(static_cast<Qt::PenStyle>(gs.penStyle));
             pen.setWidth(gs.penWidth);

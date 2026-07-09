@@ -245,6 +245,8 @@ void UI::bindPlotManagerCallbacks()
                             }
                             if (!dstGraph) continue;
 
+                            dstGraph->setVisible(srcGraph->visible());
+                            dstGraph->setLineStyle(srcGraph->lineStyle());
                             dstGraph->setPen(srcGraph->pen());
                             dstGraph->setScatterStyle(srcGraph->scatterStyle());
                         }
@@ -372,7 +374,7 @@ void UI::bindPlotManagerCallbacks()
 
         // 2. 线形下拉
         auto* cmbLineStyle = new QComboBox();
-        cmbLineStyle->addItems({"无", "实线", "点线", "虚线", "点划线"});
+        cmbLineStyle->addItems({"无", "散点", "实线", "点线", "虚线", "点划线"});
         hbox->addWidget(cmbLineStyle);
 
         // 3. 线宽数字框
@@ -536,36 +538,88 @@ void UI::bindPlotManagerCallbacks()
             auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
 
             int lsIdx = cmbLS->currentIndex();
-            // lsIdx: 0=无, 1=实线, 2=点线, 3=虚线, 4=点划线
+            // 线型索引：0=无(隐藏曲线)，1=散点，2=实线，3=点线，4=虚线，5=点划线
             if (lsIdx == 0)
             {
-                graph->setLineStyle(viewer::QCPColumnGraph::lsNone);
+                graph->setVisible(false);
             }
             else
             {
-                graph->setLineStyle(viewer::QCPColumnGraph::lsLine);
+                graph->setVisible(true);
+                if (lsIdx == 1)
+                {
+                    graph->setLineStyle(viewer::QCPColumnGraph::lsNone);
+                }
+                else
+                {
+                    graph->setLineStyle(viewer::QCPColumnGraph::lsLine);
 
-                QPen pen = graph->pen();
-                static const Qt::PenStyle penStyles[] = {Qt::NoPen, Qt::SolidLine, Qt::DotLine, Qt::DashLine, Qt::DashDotLine};
-                pen.setStyle(penStyles[lsIdx]);
-                pen.setWidth(spnLW->value());
-                QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
-                if (lineColor.isValid())
-                    pen.setColor(lineColor);
-                graph->setPen(pen);
+                    QPen pen = graph->pen();
+                    static const Qt::PenStyle penStyles[] = {
+                        Qt::NoPen, Qt::NoPen, Qt::SolidLine, Qt::DotLine, Qt::DashLine, Qt::DashDotLine
+                    };
+                    pen.setStyle(penStyles[lsIdx]);
+                    pen.setWidth(spnLW->value());
+                    QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
+                    if (lineColor.isValid())
+                        pen.setColor(lineColor);
+                    graph->setPen(pen);
+                }
             }
 
             // 散点样式由工具栏控件独立控制
             {
                 QCPScatterStyle ss = graph->scatterStyle();
                 int scIdx = cmbSC->currentIndex();
+                int scatterSize = spnSS->value();
+                QColor scatterColor = cmbSCo->currentData(Qt::UserRole).value<QColor>();
+                if (lsIdx == 1 && scIdx <= 0)
+                {
+                    scIdx = 1;
+                    scatterSize = 1;
+
+                    QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
+                    if (!lineColor.isValid())
+                        lineColor = graph->pen().color();
+                    scatterColor = lineColor;
+
+                    cmbSC->blockSignals(true);
+                    cmbSC->setCurrentIndex(scIdx);
+                    cmbSC->blockSignals(false);
+
+                    spnSS->blockSignals(true);
+                    spnSS->setValue(scatterSize);
+                    spnSS->blockSignals(false);
+
+                    int colorIndex = -1;
+                    for (int i = 0; i < cmbSCo->count(); ++i)
+                    {
+                        if (cmbSCo->itemData(i, Qt::UserRole).value<QColor>() == scatterColor)
+                        {
+                            colorIndex = i;
+                            break;
+                        }
+                    }
+                    if (colorIndex >= 0)
+                    {
+                        cmbSCo->blockSignals(true);
+                        cmbSCo->setCurrentIndex(colorIndex);
+                        cmbSCo->blockSignals(false);
+                    }
+                }
                 static const QCPScatterStyle::ScatterShape shapes[] = {
                     QCPScatterStyle::ssNone, QCPScatterStyle::ssCircle, QCPScatterStyle::ssDisc,
                     QCPScatterStyle::ssSquare, QCPScatterStyle::ssDiamond, QCPScatterStyle::ssStar
                 };
                 ss.setShape(shapes[scIdx]);
-                ss.setSize(spnSS->value());
-                QColor scatterColor = cmbSCo->currentData(Qt::UserRole).value<QColor>();
+                ss.setSize(scatterSize);
+                if (ss.shape() == QCPScatterStyle::ssNone)
+                {
+                    QColor lineColor = cmbLC->currentData(Qt::UserRole).value<QColor>();
+                    if (!lineColor.isValid())
+                        lineColor = graph->pen().color();
+                    scatterColor = lineColor;
+                }
                 if (scatterColor.isValid())
                 {
                     ss.setPen(QPen(scatterColor));
@@ -861,6 +915,13 @@ void UI::bindPlotManagerCallbacks()
                 (plotCount - 1) % m_viewer.GetStyleManager().paletteColorCount()));
         }
         graph->setPen(pen);
+        // 默认散点颜色跟随当前线色，避免后续切换到散点时回退到黑色。
+        {
+            QCPScatterStyle ss = graph->scatterStyle();
+            ss.setPen(QPen(pen.color()));
+            ss.setBrush(QBrush(pen.color()));
+            graph->setScatterStyle(ss);
+        }
         graph->setName(QString::fromStdString(yColName));
 
         // 创建表达式本地拷贝，切换到独立数据源
@@ -1226,19 +1287,22 @@ void UI::bindPlotManagerCallbacks()
             w->blockSignals(false);
         };
 
-        // 线型映射："无"=0, "实线(SolidLine)"=1, "点线(DotLine)"=2, "虚线(DashLine)"=3, "点划线(DashDotLine)"=4
-        bool isLineNone = (graph->lineStyle() == viewer::QCPColumnGraph::lsNone);
-        if (isLineNone)
+        // 线型映射：0=无(隐藏曲线)，1=散点，2=实线，3=点线，4=虚线，5=点划线
+        if (!graph->visible())
         {
             guard(cmbLS, [&]{ cmbLS->setCurrentIndex(0); });
+        }
+        else if (graph->lineStyle() == viewer::QCPColumnGraph::lsNone)
+        {
+            guard(cmbLS, [&]{ cmbLS->setCurrentIndex(1); });
         }
         else
         {
             QPen pen = graph->pen();
             static const std::map<Qt::PenStyle, int> styleMap = {
-                {Qt::SolidLine, 1}, {Qt::DotLine, 2}, {Qt::DashLine, 3}, {Qt::DashDotLine, 4}
+                {Qt::SolidLine, 2}, {Qt::DotLine, 3}, {Qt::DashLine, 4}, {Qt::DashDotLine, 5}
             };
-            guard(cmbLS, [&]{ cmbLS->setCurrentIndex(styleMap.count(pen.style()) ? styleMap.at(pen.style()) : 1); });
+            guard(cmbLS, [&]{ cmbLS->setCurrentIndex(styleMap.count(pen.style()) ? styleMap.at(pen.style()) : 2); });
             guard(spnLW, [&]{ spnLW->setValue(pen.width()); });
             guard(cmbLC, [&]{
                 int ci = -1;
@@ -1260,10 +1324,13 @@ void UI::bindPlotManagerCallbacks()
         guard(spnSS, [&]{ spnSS->setValue(static_cast<int>(ss.size())); });
 
         guard(cmbSCo, [&]{
+            QColor targetColor = ss.pen().color();
+            if (ss.shape() == QCPScatterStyle::ssNone)
+                targetColor = graph->pen().color();
             int ci = -1;
             for (int i = 0; i < cmbSCo->count(); ++i) {
                 QColor c = cmbSCo->itemData(i, Qt::UserRole).value<QColor>();
-                if (c == ss.pen().color()) { ci = i; break; }
+                if (c == targetColor) { ci = i; break; }
             }
             if (ci >= 0) cmbSCo->setCurrentIndex(ci);
         });

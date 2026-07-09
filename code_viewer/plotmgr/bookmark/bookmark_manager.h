@@ -15,6 +15,7 @@ namespace viewer
 struct GraphStyleSnapshot
 {
     std::string dataItemName;       // 数据项名称
+    int         lineStyle   = 1;    // QCPColumnGraph::LineStyle
     int         penStyle    = 1;    // Qt::PenStyle
     int         penWidth    = 1;
     std::string penColor    = "#0072bd";

@@ -695,6 +695,8 @@ void QCPColumnGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& l
 
 void QCPColumnGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
 {
+    // QCPScatterStyle::drawShape relies on the painter pen/brush already being set.
+    mScatterStyle.applyTo(painter, mPen);
     for (const auto& pt : scatters)
         mScatterStyle.drawShape(painter, pt);
 }

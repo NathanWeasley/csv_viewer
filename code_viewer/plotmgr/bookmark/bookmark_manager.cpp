@@ -381,6 +381,7 @@ const BookmarkEntry* BookmarkMgr::find(const std::string& folderPath,
 void BookmarkMgr::graphToJson(const GraphStyleSnapshot& gs, QJsonObject& out) const
 {
     out["name"]           = QString::fromStdString(gs.dataItemName);
+    out["lineStyle"]      = gs.lineStyle;
     out["penStyle"]       = gs.penStyle;
     out["penWidth"]       = gs.penWidth;
     out["penColor"]       = QString::fromStdString(gs.penColor);
@@ -394,6 +395,7 @@ void BookmarkMgr::graphToJson(const GraphStyleSnapshot& gs, QJsonObject& out) co
 void BookmarkMgr::jsonToGraph(const QJsonObject& obj, GraphStyleSnapshot& out)
 {
     out.dataItemName  = obj.value("name").toString().toStdString();
+    out.lineStyle     = obj.value("lineStyle").toInt(1);
     out.penStyle      = obj.value("penStyle").toInt(1);
     out.penWidth      = obj.value("penWidth").toInt(1);
     out.penColor      = obj.value("penColor").toString("#0072bd").toStdString();
