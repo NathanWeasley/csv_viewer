@@ -56,7 +56,7 @@ static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
     double previous = dm.GetValueAsDouble(xIdx, 0);
     if (!std::isfinite(previous))
     {
-        return QString("The auto-selected X axis \"%1\" contains a non-numeric value at row 1.")
+        return QString("自动选择的X轴数据 \"%1\" 的第1行含有非数值项。")
             .arg(QString::fromStdString(colNames[xIdx]));
     }
 
@@ -65,13 +65,13 @@ static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
         const double value = dm.GetValueAsDouble(xIdx, row);
         if (!std::isfinite(value))
         {
-            return QString("The auto-selected X axis \"%1\" contains a non-numeric value at row %2.")
+            return QString("自动选择的X轴数据 \"%1\" 在第 %2 行含有非数值项。")
                 .arg(QString::fromStdString(colNames[xIdx]))
                 .arg(row + 1);
         }
         if (value < previous)
         {
-            return QString("The auto-selected X axis \"%1\" is not monotonically increasing at row %2.")
+            return QString("自动选择的X轴数据 \"%1\" 在第 %2 行处不是单调递增的。")
                 .arg(QString::fromStdString(colNames[xIdx]))
                 .arg(row + 1);
         }
@@ -265,15 +265,15 @@ void UI::createStatusbar()
         if (!m_pendingSkippedFiles.isEmpty())
         {
             QMessageBox::information(this,
-                                     QString::fromUtf8("Ignored CSV files"),
-                                     QString::fromUtf8("The following CSV files were ignored because their column count, column names, or content did not match the loaded data:\n\n%1")
+                                     QString::fromUtf8("未载入的CSV文件"),
+                                     QString::fromUtf8("下列CSV文件被跳过，因为列数、列名或数据类型与先前载入的CSV不一致：\n\n%1")
                                          .arg(m_pendingSkippedFiles.join("\n")));
             m_pendingSkippedFiles.clear();
         }
 
         const QString monotonicWarning = xAxisMonotonicWarning(m_viewer.GetDataManager());
         if (!monotonicWarning.isEmpty())
-            QMessageBox::warning(this, QString::fromUtf8("X axis warning"), monotonicWarning);
+            QMessageBox::warning(this, QString::fromUtf8("X轴数据告警"), monotonicWarning);
     });
 
     // Handle cross-file column validation errors
@@ -283,7 +283,7 @@ void UI::createStatusbar()
         m_progressBar->hide();
         m_dataTree->clear();
         m_xAxisLabel->setText("X: (none)");
-        QMessageBox::critical(this, "CSV Load Error", message);
+        QMessageBox::critical(this, "CSV载入错误", message);
     });
 }
 
