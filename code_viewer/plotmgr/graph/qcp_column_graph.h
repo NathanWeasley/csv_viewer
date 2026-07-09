@@ -4,6 +4,8 @@
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_qcp/qcustomplot.h"
 #include <cmath>
+#include <qpainterpath.h>
+#include <qpolygon.h>
 
 namespace viewer
 {
@@ -132,6 +134,14 @@ private:
     mutable bool mRangeCacheValid = false;
     mutable double mCachedKeyMin = 0, mCachedKeyMax = 0;
     mutable double mCachedValueMin = 0, mCachedValueMax = 0;
+
+    // 重绘热路径复用缓冲区，减少拖拽/缩放时的瞬时内存分配。
+    mutable QVector<QPointF> m_lineBuffer;
+    mutable QVector<QPointF> m_scatterBuffer;
+    mutable QPolygonF m_fillPolygonBuffer;
+    mutable QVector<QLineF> m_segmentBuffer;
+    mutable QVector<QRectF> m_scatterRectBuffer;
+    mutable QPainterPath m_scatterPathBuffer;
 
 };
 

@@ -289,6 +289,10 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
             ss.setShape(static_cast<QCPScatterStyle::ScatterShape>(gs.scatterShape));
             ss.setSize(gs.scatterSize);
             ss.setPen(QPen(QColor(QString::fromStdString(gs.scatterColor))));
+            if (ss.shape() == QCPScatterStyle::ssCircle)
+                ss.setBrush(Qt::NoBrush);
+            else
+                ss.setBrush(QBrush(QColor(QString::fromStdString(gs.scatterColor))));
             graph->setScatterStyle(ss);
 
             if (gs.isEdited && !gs.expressionText.empty())

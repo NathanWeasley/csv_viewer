@@ -115,6 +115,8 @@ void UI::bindPlotManagerCallbacks()
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
         plot->setOpenGl(m_openglEnabled);
+        plot->setNoAntialiasingOnDrag(true);
+        plot->setPlottingHint(QCP::phFastPolylines, true);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
@@ -390,7 +392,7 @@ void UI::bindPlotManagerCallbacks()
 
         // 5. 数据点类型下拉
         auto* cmbScatter = new QComboBox();
-        cmbScatter->addItems({"无", "空心圆", "实心圆", "方形", "菱形", "星号"});
+        cmbScatter->addItems({"无", "实心圆", "空心圆", "方形", "菱形", "星号"});
         hbox->addWidget(cmbScatter);
 
         // 6. 数据点大小
@@ -608,7 +610,7 @@ void UI::bindPlotManagerCallbacks()
                     }
                 }
                 static const QCPScatterStyle::ScatterShape shapes[] = {
-                    QCPScatterStyle::ssNone, QCPScatterStyle::ssCircle, QCPScatterStyle::ssDisc,
+                    QCPScatterStyle::ssNone, QCPScatterStyle::ssDisc, QCPScatterStyle::ssCircle,
                     QCPScatterStyle::ssSquare, QCPScatterStyle::ssDiamond, QCPScatterStyle::ssStar
                 };
                 ss.setShape(shapes[scIdx]);
@@ -623,7 +625,10 @@ void UI::bindPlotManagerCallbacks()
                 if (scatterColor.isValid())
                 {
                     ss.setPen(QPen(scatterColor));
-                    ss.setBrush(QBrush(scatterColor));
+                    if (ss.shape() == QCPScatterStyle::ssCircle)
+                        ss.setBrush(Qt::NoBrush);
+                    else
+                        ss.setBrush(QBrush(scatterColor));
                 }
                 graph->setScatterStyle(ss);
             }
@@ -1317,7 +1322,7 @@ void UI::bindPlotManagerCallbacks()
         QCPScatterStyle ss = graph->scatterStyle();
         // 散点形状映射
         static const std::map<QCPScatterStyle::ScatterShape, int> shapeMap = {
-            {QCPScatterStyle::ssNone, 0}, {QCPScatterStyle::ssCircle, 1}, {QCPScatterStyle::ssDisc, 2},
+            {QCPScatterStyle::ssNone, 0}, {QCPScatterStyle::ssDisc, 1}, {QCPScatterStyle::ssCircle, 2},
             {QCPScatterStyle::ssSquare, 3}, {QCPScatterStyle::ssDiamond, 4}, {QCPScatterStyle::ssStar, 5}
         };
         guard(cmbSC, [&]{ cmbSC->setCurrentIndex(shapeMap.count(ss.shape()) ? shapeMap.at(ss.shape()) : 0); });

@@ -40,15 +40,11 @@ void QCPColumnGraph::setDataColumns(const Column* keyCol, const Column* valueCol
 void QCPColumnGraph::setLineStyle(LineStyle style)
 {
     mLineStyle = style;
-    if (mParentPlot)
-        mParentPlot->replot();
 }
 
 void QCPColumnGraph::setScatterStyle(const QCPScatterStyle& style)
 {
     mScatterStyle = style;
-    if (mParentPlot)
-        mParentPlot->replot();
 }
 
 // ============================================================
@@ -449,70 +445,73 @@ void QCPColumnGraph::draw(QCPPainter* painter)
     }
 
     ///< rescale ratio to account for span < width case
-    double bucket_scale = std::max(1.0, xspan/xdatarange);
+    double bucket_scale = 1.0;
+    if (std::abs(xdatarange) > 1e-12)
+        bucket_scale = std::max(1.0, xspan / xdatarange);
 
     bool useDownsample = (s_adaptiveSamplingEnabled && ratio > 2.0 && mLineStyle == lsLine);
 
-    // 抗锯齿：降采样开启时强制生效，否则由用户设置控制
-    bool useAA = s_adaptiveSamplingEnabled || s_antiAliasingEnabled;
+    // 线和散点都保持用户显式的抗锯齿设置，不因降采样自动打开。
+    const bool useLineAA = s_antiAliasingEnabled;
+    const bool useScatterAA = s_antiAliasingEnabled;
 
     int buckets = std::max(1, static_cast<int>(std::ceil(pixelsW * std::min(ratio, 1.0)/bucket_scale)));
     if (buckets > visibleCount / 2)
         buckets = std::max(1, visibleCount / 2);
 
-    QVector<QPointF> lines;
-    QVector<QPointF> scatters;
+    m_lineBuffer.clear();
+    m_scatterBuffer.clear();
 
     if (mLineStyle != lsNone)
     {
         if (useDownsample)
-            getLinesDownsampled(&lines, begin, end, buckets);
+            getLinesDownsampled(&m_lineBuffer, begin, end, buckets);
         else
-            getLinesDirectStyled(&lines, begin, end);
+            getLinesDirectStyled(&m_lineBuffer, begin, end);
     }
 
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
         QCPDataRange dataRange(begin, end);
-        getScatters(&scatters, dataRange);
+        getScatters(&m_scatterBuffer, dataRange);
     }
 
-    if (mBrush.style() != Qt::NoBrush && !lines.isEmpty())
+    if (mBrush.style() != Qt::NoBrush && !m_lineBuffer.isEmpty())
     {
         applyFillAntialiasingHint(painter);
         painter->setBrush(mBrush);
         painter->setPen(Qt::NoPen);
 
-        QPolygonF fillPolygon;
-        fillPolygon.reserve(lines.size() + 2);
-        fillPolygon << lines.first();
-        for (const auto& pt : lines)
-            fillPolygon << pt;
-        QPointF lastPoint = lines.last();
+        m_fillPolygonBuffer.clear();
+        m_fillPolygonBuffer.reserve(m_lineBuffer.size() + 2);
+        m_fillPolygonBuffer << m_lineBuffer.first();
+        for (const auto& pt : m_lineBuffer)
+            m_fillPolygonBuffer << pt;
+        QPointF lastPoint = m_lineBuffer.last();
         if (mValueAxis)
-            fillPolygon << QPointF(lastPoint.x(), mValueAxis->coordToPixel(0));
-        fillPolygon << QPointF(lines.first().x(), mValueAxis->coordToPixel(0));
-        painter->drawPolygon(fillPolygon);
+            m_fillPolygonBuffer << QPointF(lastPoint.x(), mValueAxis->coordToPixel(0));
+        m_fillPolygonBuffer << QPointF(m_lineBuffer.first().x(), mValueAxis->coordToPixel(0));
+        painter->drawPolygon(m_fillPolygonBuffer);
     }
 
     if (mLineStyle != lsNone)
     {
-        if (!useAA && ratio > 1.0)
+        if (!useLineAA && ratio > 1.0)
             painter->setAntialiasing(false);
         else
             applyDefaultAntialiasingHint(painter);
         painter->setPen(mPen);
         painter->setBrush(Qt::NoBrush);
-        drawLinePlot(painter, lines);
+        drawLinePlot(painter, m_lineBuffer);
     }
 
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
-        if (!useAA)
+        if (!useScatterAA)
             painter->setAntialiasing(false);
         else
             applyDefaultAntialiasingHint(painter);
-        drawScatterPlot(painter, scatters);
+        drawScatterPlot(painter, m_scatterBuffer);
     }
 }
 
@@ -671,8 +670,8 @@ void QCPColumnGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& l
     }
 
     // 使用 QPainter::drawLines() 批量绘制相邻有效线段
-    QVector<QLineF> segments;
-    segments.reserve(lines.size());
+    m_segmentBuffer.clear();
+    m_segmentBuffer.reserve(lines.size());
 
     for (int i = 1; i < lines.size(); ++i)
     {
@@ -681,22 +680,56 @@ void QCPColumnGraph::drawLinePlot(QCPPainter* painter, const QVector<QPointF>& l
         if (!std::isnan(p0.y()) && !std::isnan(p1.y()) &&
             !std::isnan(p0.x()) && !std::isnan(p1.x()))
         {
-            segments.append(QLineF(p0, p1));
+            m_segmentBuffer.append(QLineF(p0, p1));
         }
     }
 
-    if (!segments.isEmpty())
+    if (!m_segmentBuffer.isEmpty())
     {
         painter->setPen(drawPen);
-        painter->drawLines(segments);
+        painter->drawLines(m_segmentBuffer);
         painter->setPen(mPen);  // 恢复原 pen
     }
 }
 
 void QCPColumnGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>& scatters) const
 {
+    if (scatters.isEmpty())
+        return;
+
     // QCPScatterStyle::drawShape relies on the painter pen/brush already being set.
     mScatterStyle.applyTo(painter, mPen);
+
+    const auto shape = mScatterStyle.shape();
+    const double size = mScatterStyle.size();
+    const double half = size * 0.5;
+
+    if ((shape == QCPScatterStyle::ssCircle || shape == QCPScatterStyle::ssDisc) && size > 0.0)
+    {
+        // 分批复用 path 缓冲，避免拖拽/缩放时为整批散点反复申请大块内存。
+        constexpr int kScatterPathBatchSize = 256;
+        for (int start = 0; start < scatters.size(); start += kScatterPathBatchSize)
+        {
+            const int end = std::min(start + kScatterPathBatchSize, static_cast<int>(scatters.size()));
+            m_scatterPathBuffer.clear();
+            m_scatterPathBuffer.reserve((end - start) * 16);
+            for (int i = start; i < end; ++i)
+                m_scatterPathBuffer.addEllipse(scatters.at(i), half, half);
+            painter->drawPath(m_scatterPathBuffer);
+        }
+        return;
+    }
+
+    if (shape == QCPScatterStyle::ssSquare && size > 0.0)
+    {
+        m_scatterRectBuffer.clear();
+        m_scatterRectBuffer.reserve(scatters.size());
+        for (const auto& pt : scatters)
+            m_scatterRectBuffer.append(QRectF(pt.x() - half, pt.y() - half, size, size));
+        painter->drawRects(m_scatterRectBuffer.constData(), m_scatterRectBuffer.size());
+        return;
+    }
+
     for (const auto& pt : scatters)
         mScatterStyle.drawShape(painter, pt);
 }
