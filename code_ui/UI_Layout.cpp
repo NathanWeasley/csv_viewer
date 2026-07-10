@@ -633,20 +633,34 @@ ads::CDockWidget* UI::addPlotPageDock(int pageIndex, QWidget* container, const Q
 	// 从 QADS 内部 map 查找已存在的目标区域。必须拷贝 map 再迭代：
 	// removeDockWidget 会异步析构 dock，若持有引用迭代可能遇到残留悬空条目。
 	ads::CDockAreaWidget* targetArea = nullptr;
-	const auto dwMap = m_plotDockManager->dockWidgetsMap();
-	for (auto it = dwMap.begin(); it != dwMap.end(); ++it)
+	if (m_pendingDockTargetPage >= 0)
 	{
-		if (it.value() != dock && it.value()->dockAreaWidget())
+		auto* targetDock = m_pageDocks.value(m_pendingDockTargetPage, nullptr);
+		if (targetDock && targetDock != dock && targetDock->dockAreaWidget())
+			targetArea = targetDock->dockAreaWidget();
+	}
+	if (!targetArea)
+	{
+		const auto dwMap = m_plotDockManager->dockWidgetsMap();
+		for (auto it = dwMap.begin(); it != dwMap.end(); ++it)
 		{
-			targetArea = it.value()->dockAreaWidget();
-			break;
+			if (it.value() != dock && it.value()->dockAreaWidget())
+			{
+				targetArea = it.value()->dockAreaWidget();
+				break;
+			}
 		}
 	}
 
-	if (targetArea)
+	if (targetArea && m_pendingDockTargetPage >= 0 && m_pendingDockArea != ads::CenterDockWidgetArea)
+		m_plotDockManager->addDockWidget(m_pendingDockArea, dock, targetArea);
+	else if (targetArea)
 		m_plotDockManager->addDockWidgetTabToArea(dock, targetArea);
 	else
 		m_plotDockManager->addDockWidget(ads::CenterDockWidgetArea, dock);
+
+	m_pendingDockTargetPage = -1;
+	m_pendingDockArea = ads::CenterDockWidgetArea;
 
 	m_pendingActivation = pageIndex;
 	return dock;

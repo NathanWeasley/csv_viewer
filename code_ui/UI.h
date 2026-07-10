@@ -141,6 +141,8 @@ private Q_SLOTS:
     void onFFTRequested(int pageIndex);
     void showFFTDialog(int pageIndex, double xMin, double xMax);
     void cancelFFTSelection();
+    void onSTFTRequested(int pageIndex);
+    void showSTFTDialog(int pageIndex);
 
 private:
     Ui::UIClass ui;
@@ -166,6 +168,8 @@ private:
     bool m_syncingPlotRemoval = false;
     bool m_isShuttingDown = false;
     bool m_shutdownCleanupDone = false;
+    int m_pendingDockTargetPage = -1;
+    ads::DockWidgetArea m_pendingDockArea = ads::CenterDockWidgetArea;
 
     // ---- Cursor state ----
 

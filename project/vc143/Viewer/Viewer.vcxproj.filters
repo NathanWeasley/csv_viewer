@@ -109,6 +109,12 @@
     <ClInclude Include="..\..\..\code_viewer\plotmgr\graph\opengl\column_graph_gl_painter.h">
       <Filter>plotmgr</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\math\fft_core.h">
+      <Filter>datamgr\math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\math\stft_core.h">
+      <Filter>datamgr\math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h">

@@ -350,6 +350,11 @@ void UI::bindPlotManagerCallbacks()
                 });
 
                 QAction* stftAction = menu.addAction("计算STFT");
+                stftAction->setEnabled(hasData && !isFFT);
+                connect(stftAction, &QAction::triggered, this, [this, pageIndex]()
+                {
+                    onSTFTRequested(pageIndex);
+                });
 
                 menu.addSeparator();
 

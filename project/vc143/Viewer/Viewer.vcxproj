@@ -31,6 +31,8 @@
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp" />
+    <ClInclude Include="..\..\..\code_viewer\datamgr\math\fft_core.h" />
+    <ClInclude Include="..\..\..\code_viewer\datamgr\math\stft_core.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.h" />
     <QtMoc Include="..\..\..\code_viewer\plotmgr\fft\fft_manager.h" />
