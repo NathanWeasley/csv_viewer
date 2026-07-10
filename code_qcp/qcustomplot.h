@@ -56,6 +56,7 @@
 #include <QtGui/QPaintEvent>
 #include <QtGui/QMouseEvent>
 #include <QtGui/QWheelEvent>
+#include <QtGui/QImage>
 #include <QtGui/QPixmap>
 #include <QtCore/QVector>
 #include <QtCore/QString>
@@ -667,6 +668,7 @@ protected:
   QWeakPointer<QOpenGLContext> mGlContext;
   QWeakPointer<QOpenGLPaintDevice> mGlPaintDevice;
   QOpenGLFramebufferObject *mGlFrameBuffer;
+  mutable QImage mGlFrameBufferImage;
   
   // reimplemented virtual methods:
   virtual void reallocateBuffer() Q_DECL_OVERRIDE;
@@ -7771,4 +7773,3 @@ private:
 
 
 #endif // QCUSTOMPLOT_H
-

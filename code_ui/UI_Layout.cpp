@@ -343,6 +343,7 @@ void UI::createMenu()
     connect(openglAction, &QAction::toggled, this, [this](bool checked)
     {
         m_openglEnabled = checked;
+        applyOpenGlDrawingMode(checked);
     });
 
     auto* antiAliasingAction = settingsMenu->addAction(QString::fromUtf8("曲线抗锯齿"));

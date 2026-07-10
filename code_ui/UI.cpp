@@ -1,4 +1,4 @@
-﻿#include "UI.h"
+#include "UI.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -42,6 +42,13 @@ QString shutdownTracePath()
     const QString userDir = QCoreApplication::applicationDirPath() + "/user";
     QDir().mkpath(userDir);
     return userDir + "/shutdown_trace.txt";
+}
+
+QString plotTracePath()
+{
+    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
+    QDir().mkpath(userDir);
+    return userDir + "/plot_gl_trace.txt";
 }
 }
 
@@ -256,6 +263,55 @@ void UI::logShutdownTrace(const QString& message) const
     out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
         << " | " << message << "\n";
     out.flush();
+}
+
+void UI::logPlotTrace(const QString& message) const
+{
+    QFile file(plotTracePath());
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
+        << " | " << message << "\n";
+    out.flush();
+}
+
+void UI::configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const
+{
+    if (!plot)
+        return;
+
+    // CPU 模式恢复 QCustomPlot 原始的软件绘制路径。
+    // OpenGL 模式统一交给 QCustomPlot 的 OpenGL 后端，不再单独拆分散点路径。
+    if (auto* overlayLayer = plot->layer("overlay"))
+        overlayLayer->setMode(enabled ? QCPLayer::lmLogical : QCPLayer::lmBuffered);
+
+    plot->setOpenGl(enabled, 0);
+
+    logPlotTrace(QString("configure drawing mode page=%1 openGl=%2 overlayMode=%3")
+                 .arg(m_plotToPageIndex.value(plot, -1))
+                 .arg(plot->openGl())
+                 .arg(plot->layer("overlay") && plot->layer("overlay")->mode() == QCPLayer::lmLogical ? "logical" : "buffered"));
+}
+
+void UI::applyOpenGlDrawingMode(bool enabled)
+{
+    const auto pageIndices = m_pageDocks.keys();
+    for (int pageIndex : pageIndices)
+    {
+        auto* plot = getPlot(pageIndex);
+        if (!plot)
+            continue;
+
+        const bool prevUpdatesEnabled = plot->updatesEnabled();
+        plot->setUpdatesEnabled(false);
+        configurePlotDrawingMode(plot, enabled);
+        plot->setUpdatesEnabled(prevUpdatesEnabled);
+
+        if (prevUpdatesEnabled)
+            plot->replot(QCustomPlot::rpQueuedRefresh);
+    }
 }
 // ============================================================
 // 双击数据树项 → 添加到激活图窗

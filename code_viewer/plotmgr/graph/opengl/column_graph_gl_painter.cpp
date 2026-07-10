@@ -1,9 +1,13 @@
 #include "code_viewer/plotmgr/graph/opengl/column_graph_gl_painter.h"
 
+#include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
+#include <QFile>
 #include <QHash>
-#include <QOpenGLBuffer>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
+#include <QTextStream>
 #include <QVector4D>
 #include <QtGlobal>
 
@@ -16,17 +20,16 @@ namespace
 constexpr const char* kVertexShader = R"(
 attribute vec2 a_position;
 uniform vec2 u_viewportSize;
-uniform float u_devicePixelRatio;
 uniform float u_pointSize;
 
 void main()
 {
-    vec2 pos = a_position * u_devicePixelRatio;
+    vec2 pos = a_position;
     vec2 ndc = vec2(
         pos.x / u_viewportSize.x * 2.0 - 1.0,
         1.0 - pos.y / u_viewportSize.y * 2.0);
     gl_Position = vec4(ndc, 0.0, 1.0);
-    gl_PointSize = max(u_pointSize * u_devicePixelRatio, 1.0);
+    gl_PointSize = max(u_pointSize, 1.0);
 }
 )";
 
@@ -83,6 +86,21 @@ inline QVector4D toVec4(const QColor& color)
     return QVector4D(color.redF(), color.greenF(), color.blueF(), color.alphaF());
 }
 
+void appendOpenGlTrace(const QString& message)
+{
+    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
+    QDir().mkpath(userDir);
+
+    QFile file(userDir + "/plot_gl_trace.txt");
+    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+        return;
+
+    QTextStream out(&file);
+    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
+        << " | " << message << "\n";
+    out.flush();
+}
+
 } // namespace
 
 QCPColumnGraphOpenGLPainter::QCPColumnGraphOpenGLPainter()
@@ -118,18 +136,24 @@ bool QCPColumnGraphOpenGLPainter::drawScatterPlot(QCPPainter* painter,
         return false;
 
     buildUploadBuffer(scatters);
-
-    const int viewportWidthPx = qMax(1, qRound(static_cast<double>(viewportSize.width()) * devicePixelRatio));
-    const int viewportHeightPx = qMax(1, qRound(static_cast<double>(viewportSize.height()) * devicePixelRatio));
-    const int scissorX = qMax(0, qRound(static_cast<double>(clipRect.x()) * devicePixelRatio));
-    const int scissorY = qMax(0, qRound((static_cast<double>(viewportSize.height()) -
-                                         static_cast<double>(clipRect.y() + clipRect.height())) * devicePixelRatio));
+    const int viewportWidthLogical = qMax(1, viewportSize.width());
+    const int viewportHeightLogical = qMax(1, viewportSize.height());
+    const int scissorX = qMax(0, qRound(static_cast<double>(clipRect.left()) * devicePixelRatio));
+    const int scissorTop = qMax(0, qRound(static_cast<double>(clipRect.top()) * devicePixelRatio));
     const int scissorW = qMax(0, qRound(static_cast<double>(clipRect.width()) * devicePixelRatio));
     const int scissorH = qMax(0, qRound(static_cast<double>(clipRect.height()) * devicePixelRatio));
-    if (scissorW <= 0 || scissorH <= 0)
-        return false;
 
     painter->beginNativePainting();
+
+    GLint viewport[4] = { 0, 0, 0, 0 };
+    gl->glGetIntegerv(GL_VIEWPORT, viewport);
+    const int viewportHeightPx = qMax(1, viewport[3]);
+    const int scissorY = qMax(0, viewportHeightPx - (scissorTop + scissorH));
+    if (scissorW <= 0 || scissorH <= 0)
+    {
+        painter->endNativePainting();
+        return false;
+    }
 
     gl->glDisable(GL_DEPTH_TEST);
     gl->glEnable(GL_BLEND);
@@ -138,8 +162,17 @@ bool QCPColumnGraphOpenGLPainter::drawScatterPlot(QCPPainter* painter,
     gl->glScissor(scissorX, scissorY, scissorW, scissorH);
     gl->glEnable(GL_PROGRAM_POINT_SIZE);
 
-    QOpenGLBuffer vertexBuffer(QOpenGLBuffer::VertexBuffer);
-    if (!vertexBuffer.create())
+    if (m_vertexBufferContext != context)
+    {
+        if (m_vertexBuffer && m_vertexBuffer->isCreated())
+            m_vertexBuffer->destroy();
+        m_vertexBuffer.reset(new QOpenGLBuffer(QOpenGLBuffer::VertexBuffer));
+        m_vertexBufferContext = context;
+        m_vertexBufferCapacity = 0;
+        m_loggedGpuState = false;
+    }
+
+    if (!m_vertexBuffer || (!m_vertexBuffer->isCreated() && !m_vertexBuffer->create()))
     {
         gl->glDisable(GL_PROGRAM_POINT_SIZE);
         gl->glDisable(GL_SCISSOR_TEST);
@@ -148,17 +181,50 @@ bool QCPColumnGraphOpenGLPainter::drawScatterPlot(QCPPainter* painter,
         return false;
     }
 
-    vertexBuffer.setUsagePattern(QOpenGLBuffer::StreamDraw);
-    vertexBuffer.bind();
-    vertexBuffer.allocate(m_uploadBuffer.constData(), m_uploadBuffer.size() * static_cast<int>(sizeof(QVector2D)));
+    const int uploadBytes = m_uploadBuffer.size() * static_cast<int>(sizeof(QVector2D));
+    m_vertexBuffer->setUsagePattern(QOpenGLBuffer::StreamDraw);
+    if (!m_vertexBuffer->bind())
+    {
+        gl->glDisable(GL_PROGRAM_POINT_SIZE);
+        gl->glDisable(GL_SCISSOR_TEST);
+        gl->glDisable(GL_BLEND);
+        painter->endNativePainting();
+        return false;
+    }
+
+    if (uploadBytes > m_vertexBufferCapacity)
+    {
+        m_vertexBuffer->allocate(m_uploadBuffer.constData(), uploadBytes);
+        m_vertexBufferCapacity = uploadBytes;
+    }
+    else
+    {
+        m_vertexBuffer->write(0, m_uploadBuffer.constData(), uploadBytes);
+    }
+
+    if (!m_loggedGpuState)
+    {
+        appendOpenGlTrace(QString("ScatterGL context=0x%1 viewportLogical=%2x%3 viewportPx=%4x%5 clip=%6,%7 %8x%9 dpr=%10 vboCapacityKiB=%11")
+                          .arg(QString::number(reinterpret_cast<quintptr>(context), 16))
+                          .arg(viewportWidthLogical)
+                          .arg(viewportHeightLogical)
+                          .arg(viewport[2])
+                          .arg(viewport[3])
+                          .arg(clipRect.x())
+                          .arg(clipRect.y())
+                          .arg(clipRect.width())
+                          .arg(clipRect.height())
+                          .arg(QString::number(devicePixelRatio, 'f', 2))
+                          .arg(QString::number(static_cast<double>(m_vertexBufferCapacity) / 1024.0, 'f', 1)));
+        m_loggedGpuState = true;
+    }
 
     program->bind();
-    program->setUniformValue("u_viewportSize", QVector2D(viewportWidthPx, viewportHeightPx));
-    program->setUniformValue("u_devicePixelRatio", static_cast<float>(devicePixelRatio));
+    program->setUniformValue("u_viewportSize", QVector2D(viewportWidthLogical, viewportHeightLogical));
     program->setUniformValue("u_pointSize", state.size);
     program->setUniformValue("u_strokeColor", toVec4(state.strokeColor));
     program->setUniformValue("u_fillColor", toVec4(state.fillColor));
-    program->setUniformValue("u_strokeWidth", state.strokeWidth * static_cast<float>(devicePixelRatio));
+    program->setUniformValue("u_strokeWidth", state.strokeWidth);
 
     float shapeMode = 0.0f;
     switch (state.shape)
@@ -173,8 +239,7 @@ bool QCPColumnGraphOpenGLPainter::drawScatterPlot(QCPPainter* painter,
     const int positionLocation = program->attributeLocation("a_position");
     if (positionLocation < 0)
     {
-        vertexBuffer.release();
-        vertexBuffer.destroy();
+        m_vertexBuffer->release();
         program->release();
         gl->glDisable(GL_PROGRAM_POINT_SIZE);
         gl->glDisable(GL_SCISSOR_TEST);
@@ -189,8 +254,7 @@ bool QCPColumnGraphOpenGLPainter::drawScatterPlot(QCPPainter* painter,
     gl->glDrawArrays(GL_POINTS, 0, scatters.size());
 
     program->disableAttributeArray(positionLocation);
-    vertexBuffer.release();
-    vertexBuffer.destroy();
+    m_vertexBuffer->release();
     program->release();
 
     gl->glDisable(GL_PROGRAM_POINT_SIZE);
@@ -210,7 +274,6 @@ bool QCPColumnGraphOpenGLPainter::ensureProgram(QOpenGLShaderProgram** program) 
     if (!context)
         return false;
 
-    // 着色器按 context 缓存，避免拖拽/缩放时重复编译。
     static QHash<QOpenGLContext*, QOpenGLShaderProgram*> s_programs;
     auto it = s_programs.find(context);
     if (it == s_programs.end())
@@ -276,7 +339,7 @@ void QCPColumnGraphOpenGLPainter::buildUploadBuffer(const QVector<QPointF>& scat
     m_uploadBuffer.resize(scatters.size());
     for (int i = 0; i < scatters.size(); ++i)
     {
-        const QPointF& pt = scatters.at(i);
+        const QPointF pt = scatters.at(i);
         m_uploadBuffer[i] = QVector2D(static_cast<float>(pt.x()), static_cast<float>(pt.y()));
     }
 }

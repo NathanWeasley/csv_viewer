@@ -87,6 +87,9 @@ private:
     void disconnectViewerCallbacks();
     void removeAllPlotDocksForShutdown();
     void logShutdownTrace(const QString& message) const;
+    void logPlotTrace(const QString& message) const;
+    void configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
+    void applyOpenGlDrawingMode(bool enabled);
 
 private Q_SLOTS:
     /** Open file dialog for selecting CSV files */

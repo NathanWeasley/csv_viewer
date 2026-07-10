@@ -4,10 +4,14 @@
 #include "code_qcp/qcustomplot.h"
 
 #include <QColor>
+#include <QOpenGLBuffer>
 #include <QOpenGLContext>
 #include <QOpenGLShaderProgram>
+#include <QPointer>
+#include <QSize>
 #include <QVector>
 #include <QVector2D>
+#include <memory>
 
 namespace viewer
 {
@@ -54,6 +58,10 @@ private:
 
 private:
     mutable QVector<QVector2D> m_uploadBuffer;
+    mutable QPointer<QOpenGLContext> m_vertexBufferContext;
+    mutable std::unique_ptr<QOpenGLBuffer> m_vertexBuffer;
+    mutable int m_vertexBufferCapacity = 0;
+    mutable bool m_loggedGpuState = false;
 };
 
 } // namespace viewer

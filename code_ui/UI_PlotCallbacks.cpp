@@ -114,13 +114,22 @@ void UI::bindPlotManagerCallbacks()
     {
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
-        plot->setOpenGl(m_openglEnabled);
+        // QCustomPlot 的 OpenGL FBO 默认 16x MSAA，多个图窗时显存/内存占用会急剧增大。
+        // 这里改为 0，优先控制多窗口场景下的内存占用。
+        configurePlotDrawingMode(plot, m_openglEnabled);
+        // overlay 默认会独占一个缓冲层，在 OpenGL FBO 模式下会额外复制一份大缓冲。
+        // 这里改为 logical，可以减少多窗口场景下的内存占用和读回次数。
         plot->setNoAntialiasingOnDrag(true);
         plot->setPlottingHint(QCP::phFastPolylines, true);
         plot->setInteraction(QCP::iRangeDrag, true);
         plot->setInteraction(QCP::iRangeZoom, true);
         plot->xAxis->setLabel("X");
         plot->yAxis->setLabel("Y");
+        logPlotTrace(QString("plot create page=%1 openGl=%2 overlayMode=%3 widgetDpr=%4")
+                     .arg(index)
+                     .arg(plot->openGl())
+                     .arg(plot->layer("overlay") && plot->layer("overlay")->mode() == QCPLayer::lmLogical ? "logical" : "buffered")
+                     .arg(QString::number(plot->devicePixelRatioF(), 'f', 2)));
 
         // 深浅色主题适配（从 StyleManager 读取）
         {

@@ -30,6 +30,23 @@
 #include <qjsonarray.h>
 #include <qjsonobject.h>
 
+namespace
+{
+const char* plotEventTypeName(QEvent::Type type)
+{
+    switch (type)
+    {
+    case QEvent::Show: return "Show";
+    case QEvent::Hide: return "Hide";
+    case QEvent::Resize: return "Resize";
+    case QEvent::Move: return "Move";
+    case QEvent::ParentChange: return "ParentChange";
+    case QEvent::WindowStateChange: return "WindowStateChange";
+    default: return "";
+    }
+}
+}
+
 // ============================================================
 // 事件过滤器：Ctrl/Shift + 滚轮单轴缩放 / 游标交互 / Delete
 // ============================================================
@@ -40,6 +57,24 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         return QMainWindow::eventFilter(obj, event);
 
     QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
+    if (plot && plot->openGl())
+    {
+        const char* eventName = plotEventTypeName(event->type());
+        if (eventName[0] != '\0')
+        {
+            logPlotTrace(QString("plot event page=%1 type=%2 widget=%3x%4 viewport=%5x%6 axisRect=%7x%8 bufferDpr=%9 visible=%10")
+                         .arg(m_plotToPageIndex.value(plot, -1))
+                         .arg(QString::fromLatin1(eventName))
+                         .arg(plot->width())
+                         .arg(plot->height())
+                         .arg(plot->viewport().width())
+                         .arg(plot->viewport().height())
+                         .arg(plot->axisRect() ? plot->axisRect()->width() : -1)
+                         .arg(plot->axisRect() ? plot->axisRect()->height() : -1)
+                         .arg(QString::number(plot->bufferDevicePixelRatio(), 'f', 2))
+                         .arg(plot->isVisible()));
+        }
+    }
 
     // ============================================================
     // 右键上下文菜单（框选模式 / FFT 框选取消）

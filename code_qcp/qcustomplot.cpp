@@ -25,6 +25,37 @@
 
 #include "qcustomplot.h"
 
+#include <QtCore/QCoreApplication>
+#include <QtCore/QDir>
+#include <QtCore/QFile>
+#include <QtCore/QTextStream>
+#include <QOpenGLFunctions>
+
+#ifdef QCUSTOMPLOT_USE_OPENGL
+namespace
+{
+void appendOpenGlTrace(const QString& message)
+{
+  const QString userDir = QCoreApplication::applicationDirPath() + "/user";
+  QDir().mkpath(userDir);
+
+  QFile file(userDir + "/plot_gl_trace.txt");
+  if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
+    return;
+
+  QTextStream out(&file);
+  out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
+      << " | " << message << "\n";
+  out.flush();
+}
+
+QString formatMiB(qint64 bytes)
+{
+  return QString::number(static_cast<double>(bytes) / (1024.0 * 1024.0), 'f', 1);
+}
+}
+#endif
+
 
 /* including file 'src/vector2d.cpp'       */
 /* modified 2022-11-06T12:45:56, size 7973 */
@@ -908,7 +939,44 @@ void QCPPaintBufferGlFbo::draw(QCPPainter *painter) const
     qDebug() << Q_FUNC_INFO << "OpenGL frame buffer object doesn't exist, reallocateBuffer was not called?";
     return;
   }
-  painter->drawImage(0, 0, mGlFrameBuffer->toImage());
+
+  QSharedPointer<QOpenGLContext> context = mGlContext.toStrongRef();
+  if (!context)
+  {
+    qDebug() << Q_FUNC_INFO << "OpenGL context doesn't exist";
+    return;
+  }
+
+  if (QOpenGLContext::currentContext() != context.data())
+    context->makeCurrent(context->surface());
+  mGlFrameBuffer->bind();
+
+  QOpenGLFunctions *gl = context->functions();
+  if (!gl)
+  {
+    mGlFrameBuffer->release();
+    qDebug() << Q_FUNC_INFO << "OpenGL functions are unavailable";
+    return;
+  }
+
+  const QSize pixelSize = mSize*mDevicePixelRatio;
+  if (mGlFrameBufferImage.size() != pixelSize || mGlFrameBufferImage.format() != QImage::Format_RGBA8888)
+  {
+    mGlFrameBufferImage = QImage(pixelSize, QImage::Format_RGBA8888);
+  }
+#ifdef QCP_DEVICEPIXELRATIO_SUPPORTED
+  mGlFrameBufferImage.setDevicePixelRatio(mDevicePixelRatio);
+#endif
+
+  gl->glPixelStorei(GL_PACK_ALIGNMENT, 4);
+  gl->glReadPixels(0, 0, pixelSize.width(), pixelSize.height(), GL_RGBA, GL_UNSIGNED_BYTE, mGlFrameBufferImage.bits());
+  mGlFrameBuffer->release();
+
+  painter->save();
+  painter->translate(0, mSize.height());
+  painter->scale(1, -1);
+  painter->drawImage(0, 0, mGlFrameBufferImage);
+  painter->restore();
 }
 
 /* inherits documentation from base class */
@@ -965,11 +1033,28 @@ void QCPPaintBufferGlFbo::reallocateBuffer()
   frameBufferFormat.setSamples(context->format().samples());
   frameBufferFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
   mGlFrameBuffer = new QOpenGLFramebufferObject(mSize*mDevicePixelRatio, frameBufferFormat);
+  mGlFrameBufferImage = QImage();
   if (paintDevice->size() != mSize*mDevicePixelRatio)
     paintDevice->setSize(mSize*mDevicePixelRatio);
 #ifdef QCP_DEVICEPIXELRATIO_SUPPORTED
   paintDevice->setDevicePixelRatio(mDevicePixelRatio);
 #endif
+
+  const QSize pixelSize = mSize*mDevicePixelRatio;
+  const qint64 pixelCount = static_cast<qint64>(pixelSize.width()) * static_cast<qint64>(pixelSize.height());
+  const qint64 colorBytes = pixelCount * 4;
+  const qint64 depthStencilBytes = pixelCount * 4;
+  const qint64 readbackBytes = colorBytes;
+  appendOpenGlTrace(QString("QCPPaintBufferGlFbo realloc logical=%1x%2 dpr=%3 physical=%4x%5 samples=%6 approxColorMiB=%7 approxDepthStencilMiB=%8 approxReadbackMiB=%9")
+                    .arg(mSize.width())
+                    .arg(mSize.height())
+                    .arg(QString::number(mDevicePixelRatio, 'f', 2))
+                    .arg(pixelSize.width())
+                    .arg(pixelSize.height())
+                    .arg(context->format().samples())
+                    .arg(formatMiB(colorBytes))
+                    .arg(formatMiB(depthStencilBytes))
+                    .arg(formatMiB(readbackBytes)));
 }
 #endif // QCP_OPENGL_FBO
 /* end of 'src/paintbuffer.cpp' */
@@ -35525,5 +35610,3 @@ QVector<QPointF> QCPPolarGraph::dataToLines(const QVector<QCPGraphData> &data) c
   return result;
 }
 /* end of 'src/polar/polargraph.cpp' */
-
-
