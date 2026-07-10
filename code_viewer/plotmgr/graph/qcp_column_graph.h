@@ -4,11 +4,14 @@
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_qcp/qcustomplot.h"
 #include <cmath>
+#include <memory>
 #include <qpainterpath.h>
 #include <qpolygon.h>
 
 namespace viewer
 {
+
+class QCPColumnGraphOpenGLPainter;
 
 // ============================================================
 // QCPColumnGraph: 零拷贝 QCustomPlot plottable
@@ -142,6 +145,7 @@ private:
     mutable QVector<QLineF> m_segmentBuffer;
     mutable QVector<QRectF> m_scatterRectBuffer;
     mutable QPainterPath m_scatterPathBuffer;
+    mutable std::unique_ptr<QCPColumnGraphOpenGLPainter> m_openGlScatterPainter;
 
 };
 

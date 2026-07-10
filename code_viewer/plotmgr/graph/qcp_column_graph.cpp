@@ -1,4 +1,5 @@
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
+#include "code_viewer/plotmgr/graph/opengl/column_graph_gl_painter.h"
 #include <limits>
 
 namespace viewer
@@ -696,6 +697,24 @@ void QCPColumnGraph::drawScatterPlot(QCPPainter* painter, const QVector<QPointF>
 {
     if (scatters.isEmpty())
         return;
+
+    if (mParentPlot && mParentPlot->openGl())
+    {
+        if (!m_openGlScatterPainter)
+            m_openGlScatterPainter = std::make_unique<QCPColumnGraphOpenGLPainter>();
+
+        if (m_openGlScatterPainter->drawScatterPlot(
+                painter,
+                scatters,
+                mScatterStyle,
+                mPen,
+                clipRect(),
+                mParentPlot->viewport().size(),
+                mParentPlot->bufferDevicePixelRatio()))
+        {
+            return;
+        }
+    }
 
     // QCPScatterStyle::drawShape relies on the painter pen/brush already being set.
     mScatterStyle.applyTo(painter, mPen);
