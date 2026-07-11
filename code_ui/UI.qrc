@@ -7,5 +7,9 @@
         <file alias="SVG/clear.svg">../data/icons/SVG/clear.svg</file>
         <file alias="SVG/addexpr.svg">../data/icons/SVG/addexpr.svg</file>
         <file alias="SVG/varrename.svg">../data/icons/SVG/varrename.svg</file>
+		<file alias="SVG/newplot.svg">../data/icons/SVG/newplot.svg</file>
+		<file alias="SVG/gridview.svg">../data/icons/SVG/gridview.svg</file>
+		<file alias="SVG/rowview.svg">../data/icons/SVG/rowview.svg</file>
+		<file alias="SVG/linkx.svg">../data/icons/SVG/linkx.svg</file>
     </qresource>
 </RCC>

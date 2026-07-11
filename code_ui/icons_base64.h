@@ -26,6 +26,10 @@ enum class IconIdx : uint8_t
 	CLEAR,
 	ADDEXPR,
 	VARRENAME,
+	NEWPLOT,
+	GRIDVIEW,
+	ROWVIEW,
+	LINKX
 };
 
 // ============================================================
@@ -88,17 +92,47 @@ static const IconEntry g_iconTable[] =
 
 	// Group 1: 
 	{
-		IconIdx::ADDEXPR,
+		IconIdx::NEWPLOT,
 		1,
+		"New Plot",
+		IconSource::SvgFile,
+		":/icons/SVG/newplot.svg"
+	},
+	{
+		IconIdx::GRIDVIEW,
+		1,
+		"View All Plots in Grid",
+		IconSource::SvgFile,
+		":/icons/SVG/gridview.svg"
+	},
+	{
+		IconIdx::ROWVIEW,
+		1,
+		"Vertically Layout Plots",
+		IconSource::SvgFile,
+		":/icons/SVG/rowview.svg"
+	},
+	{
+		IconIdx::LINKX,
+		1,
+		"Tie X Axis Movements",
+		IconSource::SvgFile,
+		":/icons/SVG/linkx.svg"
+	},
+
+	// Group 2: 
+	{
+		IconIdx::ADDEXPR,
+		2,
 		"Add Global Expression",
 		IconSource::SvgFile,
 		":/icons/SVG/addexpr.svg"
 	},
 
-	// Group 2:
+	// Group 3:
 	{
 		IconIdx::VARRENAME,
-		2,
+		3,
 		"Rename Variable",
 		IconSource::SvgFile,
 		":/icons/SVG/varrename.svg"
