@@ -94,21 +94,21 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::NEWPLOT,
 		1,
-		"New Plot",
+		"新建图窗",
 		IconSource::SvgFile,
 		":/icons/SVG/newplot.svg"
 	},
 	{
 		IconIdx::GRIDVIEW,
 		1,
-		"View All Plots in Grid",
+		"网格视图",
 		IconSource::SvgFile,
 		":/icons/SVG/gridview.svg"
 	},
 	{
 		IconIdx::ROWVIEW,
 		1,
-		"Vertically Layout Plots",
+		"纵向视图",
 		IconSource::SvgFile,
 		":/icons/SVG/rowview.svg"
 	},

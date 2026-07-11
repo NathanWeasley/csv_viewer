@@ -67,6 +67,7 @@ UI::UI(QWidget *parent)
     ads::CDockManager::setConfigFlag(ads::CDockManager::DragPreviewIsDynamic, true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::DragPreviewShowsContentPixmap, true);
     ads::CDockManager::setConfigFlag(ads::CDockManager::FocusHighlighting, true);
+    ads::CDockManager::setConfigFlag(ads::CDockManager::EqualSplitOnInsertion, true);
 
     m_dockManager = new ads::CDockManager(ui.centralWidget);
 
@@ -201,6 +202,9 @@ void UI::beginShutdownCleanup(bool persistUiState)
     logShutdownTrace("beginShutdownCleanup disconnected viewer callbacks");
     cleanupPlotOverlaysBeforeShutdown();
     logShutdownTrace("beginShutdownCleanup finished overlay cleanup");
+    m_rearrangingPlotLayout = true;
+    clearLayoutPlaceholders();
+    m_rearrangingPlotLayout = false;
     removeAllPlotDocksForShutdown();
     logShutdownTrace("beginShutdownCleanup finished plot dock removal");
 
@@ -228,6 +232,7 @@ void UI::disconnectViewerCallbacks()
     pm.onDataItemAdded = nullptr;
     pm.onDataItemRemoved = nullptr;
     pm.onCleared = nullptr;
+    pm.onLayoutModeChanged = nullptr;
     pm.onLegendVisibilityChanged = nullptr;
     pm.onLegendNeedReplot = nullptr;
     pm.onRectZoomStateChanged = nullptr;

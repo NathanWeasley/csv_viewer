@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <string>
+#include <cstdint>
 #include <unordered_set>
 #include <vector>
 
@@ -12,6 +13,13 @@
 
 namespace viewer
 {
+
+enum class PlotLayoutMode : uint8_t
+{
+    Tabbed = 0,
+    Grid,
+    Row
+};
 
 // ============================================================
 // PlotPageInfo: 单个图窗的逻辑状态（纯数据，无 Qt 依赖）
@@ -156,6 +164,7 @@ public:
 
     // 所有页面清空后触发
     std::function<void()> onCleared;
+    std::function<void(PlotLayoutMode mode)> onLayoutModeChanged;
 
     // ============================================================
     // 图例管理
@@ -212,6 +221,10 @@ public:
     // 查询图窗是否为 FFT 类型
     bool isFFTPage(int pageIndex) const;
 
+    void setLayoutMode(PlotLayoutMode mode);
+    PlotLayoutMode layoutMode() const noexcept { return m_layoutMode; }
+    bool isLayoutMode(PlotLayoutMode mode) const noexcept { return m_layoutMode == mode; }
+
     // ============================================================
     // 收藏夹管理
     // ============================================================
@@ -223,6 +236,7 @@ private:
     std::vector<PlotPageInfo> m_pages;
     int m_activeIndex = -1;
     int m_nextPageNumber = 1;
+    PlotLayoutMode m_layoutMode = PlotLayoutMode::Tabbed;
 };
 
 } // namespace viewer

@@ -687,6 +687,7 @@ void UI::bindPlotManagerCallbacks()
         // ---- 存储 widget 引用 ----
         m_exprLineEdits[index] = exprLineEdit;
         m_toolbarCombos[index] = cmbDataItem;
+        setPlotPageBaseChrome(index, true, true);
 
         // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
         connect(exprLineEdit, &QLineEdit::textChanged, this,
@@ -773,6 +774,18 @@ void UI::bindPlotManagerCallbacks()
 
         // 聚焦新页面（dock widget 就绪后激活）
         m_pendingActivation = index;
+
+        if (m_viewer.GetPlotManager().layoutMode() != viewer::PlotLayoutMode::Tabbed)
+        {
+            m_savedTabbedPlotLayoutState.clear();
+            m_hasSavedTabbedPlotLayoutState = false;
+            if (m_viewer.GetPlotManager().layoutMode() == viewer::PlotLayoutMode::Grid)
+                arrangePlotsInGridLayout();
+            else
+                arrangePlotsInRowLayout();
+            updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
+            updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
+        }
     };
 
     // 页面即将移除
@@ -804,6 +817,18 @@ void UI::bindPlotManagerCallbacks()
         {
             auto& pm = m_viewer.GetPlotManager();
             pm.setActivePage(activeIdx);
+        }
+
+        if (m_viewer.GetPlotManager().layoutMode() != viewer::PlotLayoutMode::Tabbed)
+        {
+            m_savedTabbedPlotLayoutState.clear();
+            m_hasSavedTabbedPlotLayoutState = false;
+            if (m_viewer.GetPlotManager().layoutMode() == viewer::PlotLayoutMode::Grid)
+                arrangePlotsInGridLayout();
+            else
+                arrangePlotsInRowLayout();
+            updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
+            updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
         }
     };
 
@@ -1361,8 +1386,13 @@ void UI::bindPlotManagerCallbacks()
         logShutdownTrace(QString("pm.onCleared enter dockWidgets=%1 pageDocks=%2")
                              .arg(m_plotDockManager ? m_plotDockManager->dockWidgetsMap().size() : 0)
                              .arg(m_pageDocks.size()));
+        m_rearrangingPlotLayout = true;
+        clearLayoutPlaceholders();
+        m_rearrangingPlotLayout = false;
         m_exprLineEdits.clear();
         m_toolbarCombos.clear();
+        m_pageToolbarBaseVisible.clear();
+        m_pageExprBaseVisible.clear();
         m_syncingPlotRemoval = true;
 
         // 先拷贝 QADS 内部 map 的 entries，再逐个移除。
@@ -1382,6 +1412,13 @@ void UI::bindPlotManagerCallbacks()
         }
 
         m_syncingPlotRemoval = false;
+        m_savedTabbedPlotLayoutState.clear();
+        m_hasSavedTabbedPlotLayoutState = false;
         logShutdownTrace("pm.onCleared leave");
+    };
+
+    pm.onLayoutModeChanged = [this](viewer::PlotLayoutMode mode)
+    {
+        applyPlotLayoutMode(mode);
     };
 }

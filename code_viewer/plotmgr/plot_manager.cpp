@@ -303,6 +303,17 @@ bool PlotManager::isFFTPage(int pageIndex) const
     return m_pages[pageIndex].isFFT;
 }
 
+void PlotManager::setLayoutMode(PlotLayoutMode mode)
+{
+    if (m_layoutMode == mode)
+        return;
+
+    m_layoutMode = mode;
+
+    if (onLayoutModeChanged)
+        onLayoutModeChanged(mode);
+}
+
 // ============================================================
 // 私有
 // ============================================================

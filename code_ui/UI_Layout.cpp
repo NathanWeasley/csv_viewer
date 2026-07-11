@@ -23,10 +23,12 @@
 #include <qwindow.h>
 #include <utility>
 #include <cmath>
+#include <algorithm>
 
 #include "icons_base64.h"
 #include "DockAreaWidget.h"
 #include "DockAreaTitleBar.h"
+#include "DockSplitter.h"
 #include "FloatingDockContainer.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
@@ -41,7 +43,16 @@
 extern bool isSystemInDark();
 
 #ifdef Q_OS_WIN
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <windows.h>
+#ifdef min
+#undef min
+#endif
+#ifdef max
+#undef max
+#endif
 #endif
 
 static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
@@ -79,6 +90,46 @@ static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
     }
 
     return QString();
+}
+
+static bool isWidgetDescendantOf(const QWidget* child, const QWidget* ancestor)
+{
+    for (const QWidget* current = child; current; current = current->parentWidget())
+    {
+        if (current == ancestor)
+            return true;
+    }
+    return false;
+}
+
+static ads::CDockSplitter* findCommonVerticalPlotSplitter(
+    const QList<ads::CDockAreaWidget*>& rowAreas,
+    int expectedRowCount)
+{
+    if (rowAreas.isEmpty() || expectedRowCount <= 0)
+        return nullptr;
+
+    for (QWidget* current = rowAreas.first(); current; current = current->parentWidget())
+    {
+        auto* splitter = qobject_cast<ads::CDockSplitter*>(current);
+        if (!splitter || splitter->orientation() != Qt::Vertical || splitter->count() != expectedRowCount)
+            continue;
+
+        bool containsAllRows = true;
+        for (auto* area : rowAreas)
+        {
+            if (!area || !isWidgetDescendantOf(area, splitter))
+            {
+                containsAllRows = false;
+                break;
+            }
+        }
+
+        if (containsAllRows)
+            return splitter;
+    }
+
+    return nullptr;
 }
 
 #ifdef Q_OS_WIN
@@ -513,6 +564,9 @@ void UI::createToolbar()
     QAction* action_loadfolder = nullptr;
 	QAction* action_clearall = nullptr;
 	QAction* action_varrename = nullptr;
+    QAction* action_newplot = nullptr;
+    QAction* action_gridview = nullptr;
+    QAction* action_rowview = nullptr;
 
 	uint8_t lastGroup = 0xFF;  // 跟踪上一个图标的 group，换组时自动插入分隔符
 	bool   firstItem  = true;
@@ -527,6 +581,8 @@ void UI::createToolbar()
 
 		QIcon icon = createIcon(entry.id);
 		auto* action = new QAction(icon, entry.tooltip, this);
+        if (entry.id == IconIdx::GRIDVIEW || entry.id == IconIdx::ROWVIEW)
+            action->setCheckable(true);
 
 		// 记录需要连接信号的 action
 		switch (entry.id)
@@ -535,6 +591,9 @@ void UI::createToolbar()
         case IconIdx::LOADFOLDER: action_loadfolder = action; break;
 		case IconIdx::CLEAR:    action_clearall = action; break;
 		case IconIdx::VARRENAME: action_varrename = action; break;
+        case IconIdx::NEWPLOT: action_newplot = action; break;
+        case IconIdx::GRIDVIEW: action_gridview = action; break;
+        case IconIdx::ROWVIEW: action_rowview = action; break;
 		default: break;
 		}
 
@@ -558,6 +617,372 @@ void UI::createToolbar()
 		});
 	if (action_varrename)
 		connect(action_varrename, &QAction::triggered, this, &UI::showAliasDialog);
+
+    m_actionNewPlot = action_newplot;
+    m_actionGridView = action_gridview;
+    m_actionRowView = action_rowview;
+
+    if (m_actionNewPlot)
+        connect(m_actionNewPlot, &QAction::triggered, this, [this]()
+        {
+            m_viewer.GetPlotManager().addPage();
+        });
+
+    if (m_actionGridView)
+        connect(m_actionGridView, &QAction::toggled, this, [this](bool checked)
+        {
+            auto& pm = m_viewer.GetPlotManager();
+            if (checked)
+                pm.setLayoutMode(viewer::PlotLayoutMode::Grid);
+            else if (pm.isLayoutMode(viewer::PlotLayoutMode::Grid))
+                pm.setLayoutMode(viewer::PlotLayoutMode::Tabbed);
+        });
+
+    if (m_actionRowView)
+        connect(m_actionRowView, &QAction::toggled, this, [this](bool checked)
+        {
+            auto& pm = m_viewer.GetPlotManager();
+            if (checked)
+                pm.setLayoutMode(viewer::PlotLayoutMode::Row);
+            else if (pm.isLayoutMode(viewer::PlotLayoutMode::Row))
+                pm.setLayoutMode(viewer::PlotLayoutMode::Tabbed);
+        });
+
+    updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
+}
+
+void UI::updatePlotLayoutActions(viewer::PlotLayoutMode mode)
+{
+    if (m_actionGridView)
+    {
+        m_actionGridView->blockSignals(true);
+        m_actionGridView->setChecked(mode == viewer::PlotLayoutMode::Grid);
+        m_actionGridView->blockSignals(false);
+    }
+
+    if (m_actionRowView)
+    {
+        m_actionRowView->blockSignals(true);
+        m_actionRowView->setChecked(mode == viewer::PlotLayoutMode::Row);
+        m_actionRowView->blockSignals(false);
+    }
+}
+
+void UI::setPlotPageBaseChrome(int pageIndex, bool toolbarVisible, bool exprVisible)
+{
+    m_pageToolbarBaseVisible[pageIndex] = toolbarVisible;
+    m_pageExprBaseVisible[pageIndex] = exprVisible;
+}
+
+void UI::updatePlotPageChromeForLayout(viewer::PlotLayoutMode mode)
+{
+    const QList<int> pageIndices = m_pageDocks.keys();
+    for (int pageIndex : pageIndices)
+    {
+        auto* container = getPlotContainer(pageIndex);
+        if (!container)
+            continue;
+
+        auto* vbox = container->findChild<QVBoxLayout*>();
+        if (!vbox)
+            continue;
+
+        const bool forceHide = (mode != viewer::PlotLayoutMode::Tabbed);
+        const bool toolbarVisible = forceHide ? false : m_pageToolbarBaseVisible.value(pageIndex, true);
+        const bool exprVisible = forceHide ? false : m_pageExprBaseVisible.value(pageIndex, true);
+
+        if (vbox->count() >= 1)
+        {
+            if (auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget()))
+                toolbar->setVisible(toolbarVisible);
+        }
+        if (vbox->count() >= 3)
+        {
+            if (auto* exprBar = qobject_cast<QWidget*>(vbox->itemAt(2)->widget()))
+                exprBar->setVisible(exprVisible);
+        }
+    }
+}
+
+void UI::clearLayoutPlaceholders()
+{
+    if (!m_plotDockManager || m_layoutPlaceholderDocks.isEmpty())
+        return;
+
+    const auto placeholders = m_layoutPlaceholderDocks;
+    m_layoutPlaceholderDocks.clear();
+    for (auto* dock : placeholders)
+    {
+        if (dock)
+            m_plotDockManager->removeDockWidget(dock);
+    }
+}
+
+void UI::applyPlotLayoutMode(viewer::PlotLayoutMode mode)
+{
+    if (!m_plotDockManager || m_isShuttingDown)
+        return;
+
+    if (mode == viewer::PlotLayoutMode::Tabbed)
+    {
+        restoreTabbedPlotLayout();
+    }
+    else
+    {
+        if (!m_hasSavedTabbedPlotLayoutState)
+        {
+            m_savedTabbedPlotLayoutState = m_plotDockManager->saveState();
+            m_hasSavedTabbedPlotLayoutState = !m_savedTabbedPlotLayoutState.isEmpty();
+        }
+
+        if (mode == viewer::PlotLayoutMode::Grid)
+            arrangePlotsInGridLayout();
+        else
+            arrangePlotsInRowLayout();
+    }
+
+    updatePlotPageChromeForLayout(mode);
+    updatePlotLayoutActions(mode);
+}
+
+void UI::restoreTabbedPlotLayout()
+{
+    if (!m_plotDockManager)
+        return;
+
+    const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
+    bool restored = false;
+
+    clearLayoutPlaceholders();
+
+    if (m_hasSavedTabbedPlotLayoutState && !m_savedTabbedPlotLayoutState.isEmpty())
+    {
+        m_rearrangingPlotLayout = true;
+        restored = m_plotDockManager->restoreState(m_savedTabbedPlotLayoutState);
+        m_rearrangingPlotLayout = false;
+    }
+
+    if (!restored)
+        normalizeAllPlotDocksToMainContainer();
+
+    m_savedTabbedPlotLayoutState.clear();
+    m_hasSavedTabbedPlotLayoutState = false;
+
+    if (activeIndex >= 0)
+    {
+        if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
+        {
+            if (auto* area = dock->dockAreaWidget())
+                area->setCurrentDockWidget(dock);
+            m_plotDockManager->setDockWidgetFocused(dock);
+        }
+    }
+}
+
+void UI::normalizeAllPlotDocksToMainContainer()
+{
+    if (!m_plotDockManager)
+        return;
+
+    QList<int> pageIndices = m_pageDocks.keys();
+    std::sort(pageIndices.begin(), pageIndices.end());
+    if (pageIndices.isEmpty())
+        return;
+
+    const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
+    m_rearrangingPlotLayout = true;
+
+    clearLayoutPlaceholders();
+
+    for (int pageIndex : pageIndices)
+    {
+        if (auto* dock = m_pageDocks.value(pageIndex, nullptr))
+            m_plotDockManager->removeDockWidget(dock);
+    }
+
+    ads::CDockAreaWidget* firstArea = nullptr;
+    for (int pageIndex : pageIndices)
+    {
+        auto* dock = m_pageDocks.value(pageIndex, nullptr);
+        if (!dock)
+            continue;
+
+        if (!firstArea)
+            firstArea = m_plotDockManager->addDockWidgetToContainer(ads::CenterDockWidgetArea, dock, m_plotDockManager);
+        else
+            m_plotDockManager->addDockWidgetTabToArea(dock, firstArea);
+    }
+
+    m_rearrangingPlotLayout = false;
+
+    if (activeIndex >= 0)
+    {
+        if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
+        {
+            if (auto* area = dock->dockAreaWidget())
+                area->setCurrentDockWidget(dock);
+            m_plotDockManager->setDockWidgetFocused(dock);
+        }
+    }
+}
+
+void UI::arrangePlotsInRowLayout()
+{
+    if (!m_plotDockManager)
+        return;
+
+    QList<int> pageIndices = m_pageDocks.keys();
+    std::sort(pageIndices.begin(), pageIndices.end());
+    if (pageIndices.isEmpty())
+        return;
+
+    const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
+    m_rearrangingPlotLayout = true;
+
+    clearLayoutPlaceholders();
+
+    for (int pageIndex : pageIndices)
+    {
+        if (auto* dock = m_pageDocks.value(pageIndex, nullptr))
+            m_plotDockManager->removeDockWidget(dock);
+    }
+
+    bool firstDock = true;
+    for (int pageIndex : pageIndices)
+    {
+        auto* dock = m_pageDocks.value(pageIndex, nullptr);
+        if (!dock)
+            continue;
+
+        if (firstDock)
+        {
+            m_plotDockManager->addDockWidgetToContainer(ads::CenterDockWidgetArea, dock, m_plotDockManager);
+            firstDock = false;
+        }
+        else
+        {
+            m_plotDockManager->addDockWidgetToContainer(ads::BottomDockWidgetArea, dock, m_plotDockManager);
+        }
+    }
+
+    m_rearrangingPlotLayout = false;
+
+    if (activeIndex >= 0)
+    {
+        if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
+            m_plotDockManager->setDockWidgetFocused(dock);
+    }
+}
+
+void UI::arrangePlotsInGridLayout()
+{
+    if (!m_plotDockManager)
+        return;
+
+    QList<int> pageIndices = m_pageDocks.keys();
+    std::sort(pageIndices.begin(), pageIndices.end());
+    if (pageIndices.isEmpty())
+        return;
+
+    const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
+    const int plotCount = pageIndices.size();
+    const int cols = static_cast<int>(std::ceil(std::sqrt(static_cast<double>(plotCount))));
+    const int rows = static_cast<int>(std::ceil(static_cast<double>(plotCount) / static_cast<double>(cols)));
+
+    m_rearrangingPlotLayout = true;
+
+    clearLayoutPlaceholders();
+
+    for (int pageIndex : pageIndices)
+    {
+        if (auto* dock = m_pageDocks.value(pageIndex, nullptr))
+            m_plotDockManager->removeDockWidget(dock);
+    }
+
+    QList<QList<ads::CDockWidget*>> gridRows;
+    int cursor = 0;
+    for (int row = 0; row < rows; ++row)
+    {
+        QList<ads::CDockWidget*> rowDocks;
+        for (int col = 0; col < cols; ++col)
+        {
+            ads::CDockWidget* dock = nullptr;
+            if (cursor < plotCount)
+            {
+                dock = m_pageDocks.value(pageIndices[cursor], nullptr);
+                ++cursor;
+            }
+            else
+            {
+                dock = new ads::CDockWidget(QString());
+                dock->setObjectName(QString("layout_placeholder_%1_%2").arg(row).arg(col));
+                dock->setFeatures(ads::CDockWidget::NoDockWidgetFeatures);
+                auto* filler = new QWidget();
+                filler->setStyleSheet("background: transparent;");
+                dock->setWidget(filler);
+                m_layoutPlaceholderDocks.append(dock);
+            }
+            rowDocks.append(dock);
+        }
+        gridRows.append(rowDocks);
+    }
+
+    QList<ads::CDockAreaWidget*> rowAreas;
+    for (int row = 0; row < rows; ++row)
+    {
+        if (gridRows[row].isEmpty() || !gridRows[row][0])
+            continue;
+
+        ads::CDockAreaWidget* rowArea = nullptr;
+        if (row == 0)
+            rowArea = m_plotDockManager->addDockWidgetToContainer(ads::CenterDockWidgetArea, gridRows[row][0], m_plotDockManager);
+        else
+            rowArea = m_plotDockManager->addDockWidgetToContainer(ads::BottomDockWidgetArea, gridRows[row][0], m_plotDockManager);
+
+        rowAreas.append(rowArea);
+    }
+
+    for (int row = 0; row < rows; ++row)
+    {
+        ads::CDockAreaWidget* rowArea = (row < rowAreas.size()) ? rowAreas[row] : nullptr;
+        if (!rowArea)
+            continue;
+
+        for (int col = 1; col < cols; ++col)
+        {
+            auto* dock = gridRows[row][col];
+            if (!dock)
+                continue;
+
+            rowArea = m_plotDockManager->addDockWidget(ads::RightDockWidgetArea, dock, rowArea);
+        }
+
+        QList<int> rowSizes;
+        for (int col = 0; col < cols; ++col)
+            rowSizes.append(1);
+        m_plotDockManager->setSplitterSizes(rowAreas[row], rowSizes);
+    }
+
+    // 网格布局构建完成后，再统一设置纵向根 splitter 的尺寸，
+    // 避免 QADS 按插入顺序保留不均匀的首行高度。
+    if (auto* rootSplitter = findCommonVerticalPlotSplitter(rowAreas, rowAreas.size()))
+    {
+        QList<int> columnSizes;
+        for (int row = 0; row < rowAreas.size(); ++row)
+        {
+            rootSplitter->setStretchFactor(row, 1);
+            columnSizes.append(1);
+        }
+        rootSplitter->setSizes(columnSizes);
+    }
+
+    m_rearrangingPlotLayout = false;
+
+    if (activeIndex >= 0)
+    {
+        if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
+            m_plotDockManager->setDockWidgetFocused(dock);
+    }
 }
 
 // ============================================================
@@ -723,6 +1148,8 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
 
     m_exprLineEdits.remove(pageIndex);
     m_toolbarCombos.remove(pageIndex);
+    m_pageToolbarBaseVisible.remove(pageIndex);
+    m_pageExprBaseVisible.remove(pageIndex);
     m_fftMagCols.erase(pageIndex);
     m_fftFreqCols.erase(pageIndex);
     logShutdownTrace(QString("cleanupPlotPageState leave page=%1").arg(pageIndex));
@@ -792,6 +1219,8 @@ void UI::reindexPlotPageStateAfterRemoval(int removedPageIndex)
     reindexQHashAfterRemoval(m_pageDocks, removedPageIndex);
     reindexQHashAfterRemoval(m_exprLineEdits, removedPageIndex);
     reindexQHashAfterRemoval(m_toolbarCombos, removedPageIndex);
+    reindexQHashAfterRemoval(m_pageToolbarBaseVisible, removedPageIndex);
+    reindexQHashAfterRemoval(m_pageExprBaseVisible, removedPageIndex);
     reindexQHashAfterRemoval(m_highlightRects, removedPageIndex);
     reindexQHashAfterRemoval(m_highlightLabels, removedPageIndex);
     for (auto it = m_highlightReplotConns.begin(); it != m_highlightReplotConns.end(); ++it)
@@ -861,7 +1290,7 @@ void UI::connectInnerDockSignals()
                                  .arg(reinterpret_cast<quintptr>(dw), 0, 16)
                                  .arg(m_isShuttingDown)
                                  .arg(m_syncingPlotRemoval));
-            if (m_isShuttingDown)
+            if (m_isShuttingDown || m_rearrangingPlotLayout)
                 return;
 
 			int pageIndex = m_pageDocks.key(dw, -1);
@@ -888,8 +1317,8 @@ void UI::connectInnerDockSignals()
 	connect(m_plotDockManager, &ads::CDockManager::focusedDockWidgetChanged, this,
 		[this](ads::CDockWidget* old, ads::CDockWidget* now)
 		{
-			Q_UNUSED(old);
-            if (m_isShuttingDown)
+            Q_UNUSED(old);
+            if (m_isShuttingDown || m_rearrangingPlotLayout)
                 return;
 			if (!now) return;
 			int pageIndex = m_pageDocks.key(now, -1);
@@ -907,9 +1336,9 @@ void UI::connectInnerDockSignals()
 		[this](ads::CDockAreaWidget* area)
 		{
 			connect(area, &ads::CDockAreaWidget::currentChanged, this,
-				[this, area](int tabIndex)
-				{
-                    if (m_isShuttingDown)
+                [this, area](int tabIndex)
+                {
+                    if (m_isShuttingDown || m_rearrangingPlotLayout)
                         return;
 
 					auto* dw = area->dockWidget(tabIndex);

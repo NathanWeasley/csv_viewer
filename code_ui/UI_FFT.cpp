@@ -386,6 +386,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
             // 存储列生命周期
             m_fftMagCols[fftPageIdx] = std::move(realCol);
             m_fftFreqCols[fftPageIdx] = std::move(imagCol);
+            setPlotPageBaseChrome(fftPageIdx, true, false);
+            updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
 
             plot->rescaleAxes();
             plot->replot();
@@ -542,6 +544,9 @@ void UI::showSTFTDialog(int pageIndex)
                         exprBar->setVisible(false);
                 }
             }
+
+            setPlotPageBaseChrome(stftPageIndex, false, false);
+            updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
 
             plot->replot();
         });

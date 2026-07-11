@@ -16,6 +16,8 @@
 #include <QHash>
 #include <QLabel>
 #include <QPoint>
+#include <QByteArray>
+#include <QAction>
 #include <map>
 #include <unordered_map>
 #include "ui_UI.h"
@@ -90,6 +92,15 @@ private:
     void logPlotTrace(const QString& message) const;
     void configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
     void applyOpenGlDrawingMode(bool enabled);
+    void applyPlotLayoutMode(viewer::PlotLayoutMode mode);
+    void restoreTabbedPlotLayout();
+    void arrangePlotsInRowLayout();
+    void arrangePlotsInGridLayout();
+    void normalizeAllPlotDocksToMainContainer();
+    void updatePlotLayoutActions(viewer::PlotLayoutMode mode);
+    void updatePlotPageChromeForLayout(viewer::PlotLayoutMode mode);
+    void setPlotPageBaseChrome(int pageIndex, bool toolbarVisible, bool exprVisible);
+    void clearLayoutPlaceholders();
 
 private Q_SLOTS:
     /** Open file dialog for selecting CSV files */
@@ -166,10 +177,19 @@ private:
     int m_pendingActivation = -1;                      // 待激活的页面索引（-1 表示无）
     int m_lastRemovedPageIndex = -1;
     bool m_syncingPlotRemoval = false;
+    bool m_rearrangingPlotLayout = false;
     bool m_isShuttingDown = false;
     bool m_shutdownCleanupDone = false;
     int m_pendingDockTargetPage = -1;
     ads::DockWidgetArea m_pendingDockArea = ads::CenterDockWidgetArea;
+    QByteArray m_savedTabbedPlotLayoutState;
+    bool m_hasSavedTabbedPlotLayoutState = false;
+    QAction* m_actionNewPlot = nullptr;
+    QAction* m_actionGridView = nullptr;
+    QAction* m_actionRowView = nullptr;
+    QList<ads::CDockWidget*> m_layoutPlaceholderDocks;
+    QHash<int, bool> m_pageToolbarBaseVisible;
+    QHash<int, bool> m_pageExprBaseVisible;
 
     // ---- Cursor state ----
 
