@@ -171,6 +171,15 @@ void UI::bindPlotManagerCallbacks()
         // 图例交互
         plot->setInteraction(QCP::iSelectLegend, true);
 
+        // X 轴联动：任一图窗的横轴范围变化后，同步到所在联动组的其他图窗。
+        connect(plot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
+            this, [this, plot](const QCPRange& newRange)
+            {
+                const int pageIndex = m_plotToPageIndex.value(plot, -1);
+                if (pageIndex >= 0)
+                    syncLinkedXAxisRange(pageIndex, newRange);
+            });
+
         // 右键上下文菜单
         plot->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(plot, &QCustomPlot::customContextMenuRequested, this,
@@ -811,6 +820,7 @@ void UI::bindPlotManagerCallbacks()
                              .arg(activeIdx)
                              .arg(m_lastRemovedPageIndex));
         reindexPlotPageStateAfterRemoval(m_lastRemovedPageIndex);
+        reindexLinkedXAxisGroupsAfterRemoval(m_lastRemovedPageIndex);
         m_lastRemovedPageIndex = -1;
 
         if (activeIdx >= 0 && activeIdx < plotPageCount())
@@ -1393,6 +1403,8 @@ void UI::bindPlotManagerCallbacks()
         m_toolbarCombos.clear();
         m_pageToolbarBaseVisible.clear();
         m_pageExprBaseVisible.clear();
+        m_linkedXAxisGroups.clear();
+        m_syncingLinkedXAxis = false;
         m_syncingPlotRemoval = true;
 
         // 先拷贝 QADS 内部 map 的 entries，再逐个移除。

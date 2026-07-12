@@ -12,6 +12,10 @@
 #include <qfiledialog.h>
 #include <qmessagebox.h>
 #include <qclipboard.h>
+#include <qabstractitemview.h>
+#include <qdialog.h>
+#include <qdialogbuttonbox.h>
+#include <qlistwidget.h>
 #include <qmenu.h>
 #include <qtabbar.h>
 #include <qcombobox.h>
@@ -477,6 +481,276 @@ void UI::plotDataGroupInNewPage(QTreeWidgetItem* groupItem)
     }
 }
 
+QString UI::plotPageDisplayName(int pageIndex) const
+{
+    const auto& pm = m_viewer.GetPlotManager();
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+        return QString();
+
+    const QString title = QString::fromStdString(pm.pageInfo(pageIndex).title);
+    return QStringLiteral("[%1] %2").arg(pageIndex + 1).arg(title);
+}
+
+bool UI::isLinkEligiblePlotPage(int pageIndex) const
+{
+    const auto& pm = m_viewer.GetPlotManager();
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+        return false;
+
+    const auto& pageInfo = pm.pageInfo(pageIndex);
+    if (!pageInfo.isFFT)
+        return true;
+
+    return pageInfo.title.rfind("STFT:", 0) == 0;
+}
+
+int UI::linkedXAxisGroupIndexForPage(int pageIndex) const
+{
+    for (int groupIndex = 0; groupIndex < m_linkedXAxisGroups.size(); ++groupIndex)
+    {
+        if (m_linkedXAxisGroups[groupIndex].contains(pageIndex))
+            return groupIndex;
+    }
+    return -1;
+}
+
+void UI::cleanupLinkedXAxisGroups()
+{
+    const auto& pm = m_viewer.GetPlotManager();
+
+    QList<QList<int>> cleanedGroups;
+    QSet<int> usedPages;
+
+    for (const auto& group : m_linkedXAxisGroups)
+    {
+        QList<int> cleanedMembers;
+        for (int pageIndex : group)
+        {
+            if (!isLinkEligiblePlotPage(pageIndex))
+                continue;
+            if (usedPages.contains(pageIndex))
+                continue;
+
+            usedPages.insert(pageIndex);
+            cleanedMembers.append(pageIndex);
+        }
+
+        std::sort(cleanedMembers.begin(), cleanedMembers.end());
+        if (cleanedMembers.size() >= 2)
+            cleanedGroups.append(cleanedMembers);
+    }
+
+    m_linkedXAxisGroups = cleanedGroups;
+}
+
+void UI::reindexLinkedXAxisGroupsAfterRemoval(int removedPageIndex)
+{
+    if (removedPageIndex < 0)
+        return;
+
+    for (auto& group : m_linkedXAxisGroups)
+    {
+        QList<int> shifted;
+        for (int pageIndex : group)
+        {
+            if (pageIndex == removedPageIndex)
+                continue;
+            shifted.append(pageIndex > removedPageIndex ? pageIndex - 1 : pageIndex);
+        }
+        group = shifted;
+    }
+
+    cleanupLinkedXAxisGroups();
+}
+
+void UI::syncLinkedXAxisRange(int sourcePageIndex, const QCPRange& newRange)
+{
+    if (m_syncingLinkedXAxis)
+        return;
+
+    const int groupIndex = linkedXAxisGroupIndexForPage(sourcePageIndex);
+    if (groupIndex < 0 || groupIndex >= m_linkedXAxisGroups.size())
+        return;
+
+    m_syncingLinkedXAxis = true;
+
+    const auto& members = m_linkedXAxisGroups[groupIndex];
+    for (int pageIndex : members)
+    {
+        if (pageIndex == sourcePageIndex)
+            continue;
+
+        auto* plot = getPlot(pageIndex);
+        if (!plot)
+            continue;
+
+        if (plot->xAxis->range() == newRange)
+            continue;
+
+        plot->xAxis->setRange(newRange);
+        plot->replot(QCustomPlot::rpQueuedRefresh);
+    }
+
+    m_syncingLinkedXAxis = false;
+}
+
+void UI::showLinkXAxisDialog()
+{
+    auto& pm = m_viewer.GetPlotManager();
+
+    QDialog dlg(this);
+    dlg.setWindowTitle(QString::fromUtf8("X轴联动设置"));
+    dlg.resize(760, 440);
+
+    auto workingGroups = m_linkedXAxisGroups;
+
+    auto* mainLayout = new QVBoxLayout(&dlg);
+    auto* bodyLayout = new QHBoxLayout();
+    mainLayout->addLayout(bodyLayout, 1);
+
+    auto* leftLayout = new QVBoxLayout();
+    auto* leftLabel = new QLabel(QString::fromUtf8("可选图窗"));
+    auto* listAvailable = new QListWidget();
+    listAvailable->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    leftLayout->addWidget(leftLabel);
+    leftLayout->addWidget(listAvailable, 1);
+
+    auto* midLayout = new QVBoxLayout();
+    midLayout->addStretch();
+    auto* btnLink = new QPushButton(QString::fromUtf8("关联 ->"));
+    auto* btnRemove = new QPushButton(QString::fromUtf8("<- 移除"));
+    midLayout->addWidget(btnLink);
+    midLayout->addWidget(btnRemove);
+    midLayout->addStretch();
+
+    auto* rightLayout = new QVBoxLayout();
+    auto* rightLabel = new QLabel(QString::fromUtf8("联动分组"));
+    auto* treeLinked = new QTreeWidget();
+    treeLinked->setHeaderHidden(true);
+    treeLinked->setSelectionMode(QAbstractItemView::SingleSelection);
+    rightLayout->addWidget(rightLabel);
+    rightLayout->addWidget(treeLinked, 1);
+
+    bodyLayout->addLayout(leftLayout, 1);
+    bodyLayout->addLayout(midLayout);
+    bodyLayout->addLayout(rightLayout, 1);
+
+    auto* buttonBox = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel);
+    mainLayout->addWidget(buttonBox);
+
+    auto rebuildWidgets = [&, this]()
+    {
+        listAvailable->clear();
+        treeLinked->clear();
+
+        QSet<int> groupedPages;
+        for (const auto& group : workingGroups)
+        {
+            for (int pageIndex : group)
+                groupedPages.insert(pageIndex);
+        }
+
+        for (int pageIndex = 0; pageIndex < pm.pageCount(); ++pageIndex)
+        {
+            if (!isLinkEligiblePlotPage(pageIndex))
+                continue;
+
+            auto* item = new QListWidgetItem(plotPageDisplayName(pageIndex), listAvailable);
+            item->setData(Qt::UserRole, pageIndex);
+            if (groupedPages.contains(pageIndex))
+                item->setFlags(item->flags() & ~Qt::ItemIsEnabled & ~Qt::ItemIsSelectable);
+        }
+
+        for (int groupIndex = 0; groupIndex < workingGroups.size(); ++groupIndex)
+        {
+            auto* groupItem = new QTreeWidgetItem(treeLinked);
+            groupItem->setText(0, QStringLiteral("GROUP %1").arg(groupIndex + 1));
+            groupItem->setData(0, Qt::UserRole, -1);
+            groupItem->setData(0, Qt::UserRole + 1, groupIndex);
+            groupItem->setExpanded(true);
+
+            for (int pageIndex : workingGroups[groupIndex])
+            {
+                auto* childItem = new QTreeWidgetItem(groupItem);
+                childItem->setText(0, plotPageDisplayName(pageIndex));
+                childItem->setData(0, Qt::UserRole, pageIndex);
+                childItem->setData(0, Qt::UserRole + 1, groupIndex);
+            }
+        }
+
+        btnLink->setEnabled(listAvailable->selectedItems().size() >= 2);
+        btnRemove->setEnabled(treeLinked->currentItem() != nullptr);
+    };
+
+    connect(listAvailable, &QListWidget::itemSelectionChanged, &dlg, [=]()
+    {
+        btnLink->setEnabled(listAvailable->selectedItems().size() >= 2);
+    });
+
+    connect(treeLinked, &QTreeWidget::itemSelectionChanged, &dlg, [=]()
+    {
+        btnRemove->setEnabled(treeLinked->currentItem() != nullptr);
+    });
+
+    connect(btnLink, &QPushButton::clicked, &dlg, [&, this]()
+    {
+        QList<int> selectedPages;
+        for (auto* item : listAvailable->selectedItems())
+        {
+            if (!item)
+                continue;
+            if (!(item->flags() & Qt::ItemIsEnabled))
+                continue;
+            selectedPages.append(item->data(Qt::UserRole).toInt());
+        }
+
+        std::sort(selectedPages.begin(), selectedPages.end());
+        selectedPages.erase(std::unique(selectedPages.begin(), selectedPages.end()), selectedPages.end());
+
+        if (selectedPages.size() < 2)
+            return;
+
+        workingGroups.append(selectedPages);
+        rebuildWidgets();
+    });
+
+    connect(btnRemove, &QPushButton::clicked, &dlg, [&, this]()
+    {
+        auto* item = treeLinked->currentItem();
+        if (!item)
+            return;
+
+        const int pageIndex = item->data(0, Qt::UserRole).toInt();
+        const int groupIndex = item->data(0, Qt::UserRole + 1).toInt();
+        if (groupIndex < 0 || groupIndex >= workingGroups.size())
+            return;
+
+        if (pageIndex < 0)
+        {
+            workingGroups.removeAt(groupIndex);
+        }
+        else
+        {
+            workingGroups[groupIndex].removeAll(pageIndex);
+            if (workingGroups[groupIndex].size() < 2)
+                workingGroups.removeAt(groupIndex);
+        }
+
+        rebuildWidgets();
+    });
+
+    connect(buttonBox, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    connect(buttonBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    rebuildWidgets();
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    m_linkedXAxisGroups = workingGroups;
+    cleanupLinkedXAxisGroups();
+}
+
 void UI::createMenu()
 {
     /** Generating MainWindow part */
@@ -716,6 +990,7 @@ void UI::createToolbar()
     QAction* action_newplot = nullptr;
     QAction* action_gridview = nullptr;
     QAction* action_rowview = nullptr;
+    QAction* action_linkx = nullptr;
 
 	uint8_t lastGroup = 0xFF;  // 跟踪上一个图标的 group，换组时自动插入分隔符
 	bool   firstItem  = true;
@@ -743,6 +1018,7 @@ void UI::createToolbar()
         case IconIdx::NEWPLOT: action_newplot = action; break;
         case IconIdx::GRIDVIEW: action_gridview = action; break;
         case IconIdx::ROWVIEW: action_rowview = action; break;
+        case IconIdx::LINKX: action_linkx = action; break;
 		default: break;
 		}
 
@@ -770,6 +1046,7 @@ void UI::createToolbar()
     m_actionNewPlot = action_newplot;
     m_actionGridView = action_gridview;
     m_actionRowView = action_rowview;
+    m_actionLinkX = action_linkx;
 
     if (m_actionNewPlot)
         connect(m_actionNewPlot, &QAction::triggered, this, [this]()
@@ -796,6 +1073,9 @@ void UI::createToolbar()
             else if (pm.isLayoutMode(viewer::PlotLayoutMode::Row))
                 pm.setLayoutMode(viewer::PlotLayoutMode::Tabbed);
         });
+
+    if (m_actionLinkX)
+        connect(m_actionLinkX, &QAction::triggered, this, &UI::showLinkXAxisDialog);
 
     updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
 }

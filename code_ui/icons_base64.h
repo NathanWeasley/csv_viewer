@@ -115,7 +115,7 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::LINKX,
 		1,
-		"Tie X Axis Movements",
+		"X轴联动",
 		IconSource::SvgFile,
 		":/icons/SVG/linkx.svg"
 	},

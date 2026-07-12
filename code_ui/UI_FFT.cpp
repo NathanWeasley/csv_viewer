@@ -78,6 +78,35 @@ QCPRange buildAxisRangeFromCenters(const std::vector<double>& axis)
     return QCPRange(lower, upper);
 }
 
+std::vector<double> buildAlignedSTFTTimeAxis(const viewer::Column* xCol,
+                                             size_t sampleCount,
+                                             size_t windowSize,
+                                             size_t overlap)
+{
+    std::vector<double> axis;
+    if (!xCol || xCol->empty() || sampleCount == 0 || windowSize == 0 || overlap >= windowSize)
+        return axis;
+
+    const size_t hopSize = windowSize - overlap;
+    const size_t frameCount = (sampleCount <= windowSize)
+        ? 1
+        : (1 + (sampleCount - windowSize + hopSize - 1) / hopSize);
+
+    axis.reserve(frameCount);
+    for (size_t frame = 0; frame < frameCount; ++frame)
+    {
+        const double centerIndex = static_cast<double>(frame * hopSize) + 0.5 * static_cast<double>(windowSize);
+        const double clampedIndex = std::clamp(centerIndex, 0.0, static_cast<double>(sampleCount - 1));
+        const size_t leftIndex = static_cast<size_t>(std::floor(clampedIndex));
+        const size_t rightIndex = std::min(leftIndex + 1, sampleCount - 1);
+        const double alpha = clampedIndex - static_cast<double>(leftIndex);
+        const double value = (*xCol)[leftIndex] * (1.0 - alpha) + (*xCol)[rightIndex] * alpha;
+        axis.push_back(value);
+    }
+
+    return axis;
+}
+
 void applyColorScaleTheme(QCPColorScale* colorScale, const viewer::PlotTheme& theme)
 {
     if (!colorScale || !colorScale->axis())
@@ -462,19 +491,23 @@ void UI::showSTFTDialog(int pageIndex)
     const size_t fftSize = dlg.fftSize();
     const double sampleFrequency = dlg.sampleFrequency();
     const viewer::STFTWindowType windowType = dlg.windowType();
+    const size_t xIdx = pm.xAxisColumn(pageIndex);
+    const viewer::Column* stftXCol = (xIdx != static_cast<size_t>(-1)) ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
+    const std::vector<double> alignedTimeAxis =
+        buildAlignedSTFTTimeAxis(stftXCol, srcCol->size(), windowSize, overlap);
 
     m_progressBar->setRange(0, 0);
     m_progressBar->setVisible(true);
 
     auto* watcher = new QFutureWatcher<viewer::STFTResult>(this);
     connect(watcher, &QFutureWatcher<viewer::STFTResult>::finished, this,
-        [this, watcher, pageIndex, chosenItem]()
+        [this, watcher, pageIndex, chosenItem, alignedTimeAxis]()
         {
             m_progressBar->hide();
             m_progressBar->setRange(0, 1000);
             m_progressBar->setValue(0);
 
-            const viewer::STFTResult result = watcher->result();
+            viewer::STFTResult result = watcher->result();
             watcher->deleteLater();
 
             if (result.empty())
@@ -495,6 +528,9 @@ void UI::showSTFTDialog(int pageIndex)
                 return;
 
             auto* colorMap = new QCPColorMap(plot->xAxis, plot->yAxis);
+            if (alignedTimeAxis.size() == result.timeBinCount)
+                result.timeAxis = alignedTimeAxis;
+
             const QCPRange timeRange = buildAxisRangeFromCenters(result.timeAxis);
             const QCPRange freqRange = buildAxisRangeFromCenters(result.freqAxis);
             colorMap->data()->setSize(static_cast<int>(result.timeBinCount),
@@ -547,6 +583,22 @@ void UI::showSTFTDialog(int pageIndex)
 
             setPlotPageBaseChrome(stftPageIndex, false, false);
             updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
+
+            // STFT 图窗创建后自动加入数据图窗的 X 轴联动组。
+            const int sourceGroupIndex = linkedXAxisGroupIndexForPage(pageIndex);
+            if (sourceGroupIndex >= 0 && sourceGroupIndex < m_linkedXAxisGroups.size())
+            {
+                if (!m_linkedXAxisGroups[sourceGroupIndex].contains(stftPageIndex))
+                    m_linkedXAxisGroups[sourceGroupIndex].append(stftPageIndex);
+            }
+            else
+            {
+                m_linkedXAxisGroups.append(QList<int>{ pageIndex, stftPageIndex });
+            }
+            cleanupLinkedXAxisGroups();
+
+            if (auto* sourcePlot = getPlot(pageIndex))
+                syncLinkedXAxisRange(pageIndex, sourcePlot->xAxis->range());
 
             plot->replot();
         });
