@@ -97,6 +97,11 @@ private:
     void arrangePlotsInRowLayout();
     void arrangePlotsInGridLayout();
     void normalizeAllPlotDocksToMainContainer();
+    void rebuildDataTree();
+    void onDataTreeContextMenu(const QPoint& pos);
+    void plotDataColumnByName(const QString& dataName);
+    void plotDataGroupInNewPage(QTreeWidgetItem* groupItem);
+    bool isDataGroupingEnabledForDisplay() const;
     void updatePlotLayoutActions(viewer::PlotLayoutMode mode);
     void updatePlotPageChromeForLayout(viewer::PlotLayoutMode mode);
     void setPlotPageBaseChrome(int pageIndex, bool toolbarVisible, bool exprVisible);
@@ -187,6 +192,7 @@ private:
     QAction* m_actionNewPlot = nullptr;
     QAction* m_actionGridView = nullptr;
     QAction* m_actionRowView = nullptr;
+    QAction* m_actionAutoGrouping = nullptr;
     QList<ads::CDockWidget*> m_layoutPlaceholderDocks;
     QHash<int, bool> m_pageToolbarBaseVisible;
     QHash<int, bool> m_pageExprBaseVisible;
@@ -249,6 +255,9 @@ private:
     bool m_adaptiveDownsampling = true;  // 自适应降采样开关
     bool m_openglEnabled = true;          // OpenGL 绘制开关
     bool m_antiAliasingEnabled = false;   // 抗锯齿开关
+
+    bool m_autoGroupingEnabled = false;   // CSV 读取后的自动分组开关
+    bool m_forceDataGrouping = false;     // 预留给二进制/外部分组源的强制分组开关
 
     viewer::Viewer m_viewer;
 };

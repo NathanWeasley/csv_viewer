@@ -21,6 +21,8 @@
 #include <qinputdialog.h>
 #include <qtimer.h>
 #include <qwindow.h>
+#include <qapplication.h>
+#include <qstyle.h>
 #include <utility>
 #include <cmath>
 #include <algorithm>
@@ -132,6 +134,23 @@ static ads::CDockSplitter* findCommonVerticalPlotSplitter(
     return nullptr;
 }
 
+namespace
+{
+constexpr int kDataTreeKindRole = Qt::UserRole;
+constexpr int kDataTreeNameRole = Qt::UserRole + 1;
+constexpr int kDataTreeGroupKind = 1;
+constexpr int kDataTreeLeafKind = 2;
+constexpr int kAutoGroupMinItemCount = 4;
+
+QString dataGroupPrefix(const QString& name)
+{
+    const int underscorePos = name.indexOf('_');
+    if (underscorePos <= 0)
+        return QString();
+    return name.left(underscorePos);
+}
+}
+
 #ifdef Q_OS_WIN
 static void detachFloatingDockNativeOwner(ads::CFloatingDockContainer* floating)
 {
@@ -190,21 +209,8 @@ void UI::createMain()
     m_dataTree = new QTreeWidget();
     m_dataTree->setHeaderHidden(true);
     m_dataTree->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_dataTree, &QTreeWidget::customContextMenuRequested, this,
-        [this](const QPoint& /*pos*/)
-        {
-            QTreeWidgetItem* item = m_dataTree->currentItem();
-            if (!item)
-                return;
-
-            QMenu menu;
-            QAction* copyAction = menu.addAction("Copy Data Name");
-            connect(copyAction, &QAction::triggered, this, [item]()
-            {
-                QApplication::clipboard()->setText(item->text(0));
-            });
-            menu.exec(QCursor::pos());
-        });
+    connect(m_dataTree, &QTreeWidget::customContextMenuRequested,
+            this, &UI::onDataTreeContextMenu);
     connect(m_dataTree, &QTreeWidget::itemDoubleClicked, this, &UI::onDataItemDoubleClicked);
 
     m_dataDock = new ads::CDockWidget("Data");
@@ -290,14 +296,8 @@ void UI::createStatusbar()
         m_progressBar->setValue(1000);
         m_progressBar->hide();
 
-        // Populate the Data tree with column names
-        m_dataTree->clear();
+        rebuildDataTree();
         const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
-        for (const auto& name : colNames)
-        {
-            auto* item = new QTreeWidgetItem(m_dataTree);
-            item->setText(0, QString::fromStdString(name));
-        }
 
         // Update X-axis label
         if (m_viewer.GetDataManager().GetColumnCount() > 0)
@@ -338,6 +338,145 @@ void UI::createStatusbar()
     });
 }
 
+bool UI::isDataGroupingEnabledForDisplay() const
+{
+    return m_forceDataGrouping || m_autoGroupingEnabled;
+}
+
+void UI::rebuildDataTree()
+{
+    if (!m_dataTree)
+        return;
+
+    m_dataTree->clear();
+
+    const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
+    if (colNames.empty())
+        return;
+
+    const QIcon folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirIcon);
+    const QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
+
+    if (!isDataGroupingEnabledForDisplay())
+    {
+        for (const auto& name : colNames)
+        {
+            auto* item = new QTreeWidgetItem(m_dataTree);
+            const QString qName = QString::fromStdString(name);
+            item->setText(0, qName);
+            item->setIcon(0, fileIcon);
+            item->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
+            item->setData(0, kDataTreeNameRole, qName);
+        }
+        return;
+    }
+
+    QHash<QString, int> prefixCounts;
+    for (const auto& name : colNames)
+    {
+        const QString prefix = dataGroupPrefix(QString::fromStdString(name));
+        if (!prefix.isEmpty())
+            ++prefixCounts[prefix];
+    }
+
+    QHash<QString, QTreeWidgetItem*> groupItems;
+    for (const auto& name : colNames)
+    {
+        const QString qName = QString::fromStdString(name);
+        const QString prefix = dataGroupPrefix(qName);
+        const bool shouldGroup = !prefix.isEmpty() && prefixCounts.value(prefix) >= kAutoGroupMinItemCount;
+
+        if (shouldGroup)
+        {
+            auto* groupItem = groupItems.value(prefix, nullptr);
+            if (!groupItem)
+            {
+                groupItem = new QTreeWidgetItem(m_dataTree);
+                groupItem->setText(0, prefix);
+                groupItem->setIcon(0, folderIcon);
+                groupItem->setData(0, kDataTreeKindRole, kDataTreeGroupKind);
+                groupItems.insert(prefix, groupItem);
+            }
+
+            auto* childItem = new QTreeWidgetItem(groupItem);
+            childItem->setText(0, qName);
+            childItem->setIcon(0, fileIcon);
+            childItem->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
+            childItem->setData(0, kDataTreeNameRole, qName);
+        }
+        else
+        {
+            auto* item = new QTreeWidgetItem(m_dataTree);
+            item->setText(0, qName);
+            item->setIcon(0, fileIcon);
+            item->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
+            item->setData(0, kDataTreeNameRole, qName);
+        }
+    }
+
+    m_dataTree->expandAll();
+}
+
+void UI::onDataTreeContextMenu(const QPoint& pos)
+{
+    if (!m_dataTree)
+        return;
+
+    auto* item = m_dataTree->itemAt(pos);
+    if (!item)
+        return;
+
+    m_dataTree->setCurrentItem(item);
+
+    const int itemKind = item->data(0, kDataTreeKindRole).toInt();
+    QMenu menu;
+
+    if (itemKind == kDataTreeGroupKind)
+    {
+        auto* plotAllAction = menu.addAction(QString::fromUtf8("全部绘图"));
+        connect(plotAllAction, &QAction::triggered, this, [this, item]()
+        {
+            plotDataGroupInNewPage(item);
+        });
+    }
+    else
+    {
+        const QString dataName = item->data(0, kDataTreeNameRole).toString();
+        if (dataName.isEmpty())
+            return;
+
+        auto* copyAction = menu.addAction(QString::fromUtf8("复制数据名"));
+        connect(copyAction, &QAction::triggered, this, [dataName]()
+        {
+            QApplication::clipboard()->setText(dataName);
+        });
+    }
+
+    if (!menu.isEmpty())
+        menu.exec(m_dataTree->viewport()->mapToGlobal(pos));
+}
+
+void UI::plotDataGroupInNewPage(QTreeWidgetItem* groupItem)
+{
+    if (!groupItem || groupItem->childCount() <= 0)
+        return;
+
+    auto& pm = m_viewer.GetPlotManager();
+    const int pageIndex = pm.addPage(groupItem->text(0).toStdString());
+    pm.setActivePage(pageIndex);
+
+    for (int i = 0; i < groupItem->childCount(); ++i)
+    {
+        auto* childItem = groupItem->child(i);
+        if (!childItem)
+            continue;
+
+        const QString dataName = childItem->data(0, kDataTreeNameRole).toString();
+        if (!dataName.isEmpty())
+            plotDataColumnByName(dataName);
+    }
+}
+
 void UI::createMenu()
 {
     /** Generating MainWindow part */
@@ -360,6 +499,16 @@ void UI::createMenu()
     auto* settingsMenu = menuBar()->addMenu(QString::fromUtf8("设置"));
     auto* aliasAction = settingsMenu->addAction(QString::fromUtf8("自动重命名数据"));
     connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
+
+    m_actionAutoGrouping = settingsMenu->addAction(QString::fromUtf8("自动分组"));
+    m_actionAutoGrouping->setCheckable(true);
+    m_actionAutoGrouping->setChecked(m_autoGroupingEnabled);
+    connect(m_actionAutoGrouping, &QAction::toggled, this, [this](bool checked)
+    {
+        m_autoGroupingEnabled = checked;
+        if (m_viewer.GetDataManager().GetColumnCount() > 0)
+            statusBar()->showMessage(QString::fromUtf8("自动分组设置已更新，将在下次读取数据后生效"), 4000);
+    });
 
     auto* xAxisSettingAction = settingsMenu->addAction(QString::fromUtf8("默认X轴设置"));
     connect(xAxisSettingAction, &QAction::triggered, this, [this]()

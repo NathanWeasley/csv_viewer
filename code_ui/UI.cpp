@@ -37,6 +37,10 @@ extern bool isSystemInDark();
 
 namespace
 {
+constexpr int kDataTreeKindRole = Qt::UserRole;
+constexpr int kDataTreeNameRole = Qt::UserRole + 1;
+constexpr int kDataTreeLeafKind = 2;
+
 QString shutdownTracePath()
 {
     const QString userDir = QCoreApplication::applicationDirPath() + "/user";
@@ -86,6 +90,9 @@ UI::UI(QWidget *parent)
         // 读取抗锯齿设置（默认 false）
         m_antiAliasingEnabled = settings.value("antiAliasing", false).toBool();
         viewer::QCPColumnGraph::s_antiAliasingEnabled = m_antiAliasingEnabled;
+
+        // 读取自动分组设置（默认 false）
+        m_autoGroupingEnabled = settings.value("autoGrouping", false).toBool();
     }
 
     init();
@@ -193,6 +200,7 @@ void UI::beginShutdownCleanup(bool persistUiState)
         settings.setValue("adaptiveDownsampling", m_adaptiveDownsampling);
         settings.setValue("openglEnabled", m_openglEnabled);
         settings.setValue("antiAliasing", m_antiAliasingEnabled);
+        settings.setValue("autoGrouping", m_autoGroupingEnabled);
 
         saveState();
         logShutdownTrace("beginShutdownCleanup saved UI state");
@@ -322,18 +330,18 @@ void UI::applyOpenGlDrawingMode(bool enabled)
 // 双击数据树项 → 添加到激活图窗
 // ============================================================
 
-void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
+void UI::plotDataColumnByName(const QString& dataName)
 {
-    if (!item)
+    if (dataName.isEmpty())
         return;
 
-    std::string yColName = item->text(0).toStdString();
+    const std::string yColName = dataName.toStdString();
 
     auto& dm = m_viewer.GetDataManager();
     auto& pm = m_viewer.GetPlotManager();
 
     // 验证列存在
-    size_t yIdx = dm.GetColumnIndex(yColName);
+    const size_t yIdx = dm.GetColumnIndex(yColName);
     if (yIdx == static_cast<size_t>(-1))
         return;
 
@@ -342,19 +350,19 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
         pm.addPage();
 
     // ---- X 轴自动/手动设置 ----
-    int pageIdx = pm.activePageIndex();
+    const int pageIdx = pm.activePageIndex();
     size_t xIdx = pm.xAxisColumn(pageIdx);
     if (xIdx == static_cast<size_t>(-1))
     {
         // 1. 尝试使用全局检测结果
-        size_t globalX = dm.GetXAxisColumn();
+        const size_t globalX = dm.GetXAxisColumn();
         if (globalX != static_cast<size_t>(-1))
         {
             pm.setXAxisColumn(pageIdx, globalX);
         }
         else
         {
-            // 2. 全局也没检测到 → 弹出对话框让用户选择
+            // 2. 全局也没检测到 -> 弹出对话框让用户选择
             const auto& colNames = dm.GetColumnNames();
             QStringList items;
             items << QString::fromUtf8("[数据索引]");
@@ -362,14 +370,14 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
                 items << QString::fromStdString(name);
 
             bool ok = false;
-            QString choice = QInputDialog::getItem(
+            const QString choice = QInputDialog::getItem(
                 this,
                 QString::fromUtf8("选择 X 轴"),
                 QString::fromUtf8("未检测到默认 X 轴变量，请手动选择："),
                 items, 0, false, &ok);
 
             if (!ok || choice.isEmpty())
-                return;  // 用户取消
+                return;
 
             if (choice == QString::fromUtf8("[数据索引]"))
             {
@@ -377,15 +385,15 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
             }
             else
             {
-                size_t selIdx = dm.GetColumnIndex(choice.toStdString());
+                const size_t selIdx = dm.GetColumnIndex(choice.toStdString());
                 pm.setXAxisColumn(pageIdx, selIdx);
             }
         }
     }
 
-    // 检查：如果 yColName 是当前图窗的 X 轴列，跳过（不添加到 Y 轴）
+    // 如果当前 Y 列就是当前图窗的 X 轴列，则跳过
     {
-        size_t pxIdx = pm.xAxisColumn(pageIdx);
+        const size_t pxIdx = pm.xAxisColumn(pageIdx);
         if (pxIdx != static_cast<size_t>(-1) && pxIdx < dm.GetColumnNames().size())
         {
             const auto& colNames = dm.GetColumnNames();
@@ -398,6 +406,20 @@ void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
     if (pm.hasActivePage() && pm.isFFTPage(pm.activePageIndex()))
         return;
 
-    // 向 PlotManager 注册（自动处理去重）
     pm.addDataToActivePage(yColName);
+}
+
+void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)
+{
+    if (!item)
+        return;
+
+    const QVariant itemKind = item->data(0, kDataTreeKindRole);
+    if (itemKind.isValid() && itemKind.toInt() != kDataTreeLeafKind)
+        return;
+
+    const QString dataName = item->data(0, kDataTreeNameRole).toString().isEmpty()
+        ? item->text(0)
+        : item->data(0, kDataTreeNameRole).toString();
+    plotDataColumnByName(dataName);
 }
