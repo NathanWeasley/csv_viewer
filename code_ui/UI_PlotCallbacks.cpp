@@ -116,9 +116,16 @@ void UI::bindPlotManagerCallbacks()
         auto* plot = new QCustomPlot();
         // QCustomPlot 的 OpenGL FBO 默认 16x MSAA，多个图窗时显存/内存占用会急剧增大。
         // 这里改为 0，优先控制多窗口场景下的内存占用。
-        configurePlotDrawingMode(plot, m_openglEnabled);
-        // overlay 默认会独占一个缓冲层，在 OpenGL FBO 模式下会额外复制一份大缓冲。
-        // 这里改为 logical，可以减少多窗口场景下的内存占用和读回次数。
+        const bool openGlRequested = m_openglEnabled;
+        const bool openGlActive = configurePlotDrawingMode(plot, openGlRequested);
+        if (openGlRequested && !openGlActive)
+        {
+            applyOpenGlDrawingMode(false);
+            statusBar()->showMessage(
+                QString::fromUtf8("当前显卡不适合此 OpenGL 绘制路径，已自动切换为软件绘制。"), 6000);
+        }
+        // OpenGL 生效时 overlay 使用 logical，减少一个 FBO 和一次读回；
+        // 自动回退到软件绘制时则由 configurePlotDrawingMode 恢复 buffered。
         plot->setNoAntialiasingOnDrag(true);
         plot->setPlottingHint(QCP::phFastPolylines, true);
         plot->setInteraction(QCP::iRangeDrag, true);

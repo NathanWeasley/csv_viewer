@@ -53,6 +53,39 @@ QString formatMiB(qint64 bytes)
 {
   return QString::number(static_cast<double>(bytes) / (1024.0 * 1024.0), 'f', 1);
 }
+
+bool isOpenGlReadbackRendererUnsuitable(const QString &vendor, const QString &renderer)
+{
+  const QString identity = (vendor + QLatin1Char(' ') + renderer).toLower();
+
+  // QCustomPlot's OpenGL backend renders off-screen and synchronously reads the
+  // complete FBO back to system memory for every widget paint. Software and
+  // integrated renderers are commonly slower than QPixmap for that workload,
+  // and a number of their Windows drivers are unstable while many FBOs resize.
+  const bool softwareRenderer =
+      identity.contains(QStringLiteral("llvmpipe")) ||
+      identity.contains(QStringLiteral("softpipe")) ||
+      identity.contains(QStringLiteral("swiftshader")) ||
+      identity.contains(QStringLiteral("software rasterizer")) ||
+      identity.contains(QStringLiteral("microsoft basic render")) ||
+      identity.contains(QStringLiteral("gdi generic"));
+
+  const bool intelDiscreteArc = identity.contains(QStringLiteral("arc(tm) a")) ||
+                                identity.contains(QStringLiteral("arc a")) ||
+                                identity.contains(QStringLiteral("arc(tm) b")) ||
+                                identity.contains(QStringLiteral("arc b"));
+  const bool intelIntegrated = identity.contains(QStringLiteral("intel")) && !intelDiscreteArc;
+  const bool amdVendor = identity.contains(QStringLiteral("amd")) ||
+                         identity.contains(QStringLiteral("ati technologies"));
+  const bool amdIntegrated = amdVendor &&
+                             renderer.toLower().endsWith(QStringLiteral(" graphics")) &&
+                             !identity.contains(QStringLiteral(" radeon pro ")) &&
+                             !identity.contains(QStringLiteral(" radeon rx "));
+  const bool otherIntegrated = identity.contains(QStringLiteral("adreno")) ||
+                               identity.contains(QStringLiteral("mali"));
+
+  return softwareRenderer || intelIntegrated || amdIntegrated || otherIntegrated;
+}
 }
 #endif
 
@@ -883,7 +916,22 @@ QCPPaintBufferGlFbo::QCPPaintBufferGlFbo(const QSize &size, double devicePixelRa
 QCPPaintBufferGlFbo::~QCPPaintBufferGlFbo()
 {
   if (mGlFrameBuffer)
+  {
+    QSharedPointer<QOpenGLContext> context = mGlContext.toStrongRef();
+    if (!context)
+    {
+      qDebug() << Q_FUNC_INFO << "OpenGL context no longer exists; abandoning frame buffer";
+      mGlFrameBuffer = 0;
+      return;
+    }
+    if (QOpenGLContext::currentContext() != context.data() && !context->makeCurrent(context->surface()))
+    {
+      qDebug() << Q_FUNC_INFO << "Failed to make OpenGL context current; abandoning frame buffer";
+      mGlFrameBuffer = 0;
+      return;
+    }
     delete mGlFrameBuffer;
+  }
 }
 
 /* inherits documentation from base class */
@@ -907,9 +955,16 @@ QCPPainter *QCPPaintBufferGlFbo::startPainting()
     return 0;
   }
   
-  if (QOpenGLContext::currentContext() != context.data())
-    context->makeCurrent(context->surface());
-  mGlFrameBuffer->bind();
+  if (QOpenGLContext::currentContext() != context.data() && !context->makeCurrent(context->surface()))
+  {
+    qDebug() << Q_FUNC_INFO << "Failed to make OpenGL context current";
+    return 0;
+  }
+  if (!mGlFrameBuffer->isValid() || !mGlFrameBuffer->bind())
+  {
+    qDebug() << Q_FUNC_INFO << "OpenGL frame buffer is invalid or could not be bound";
+    return 0;
+  }
   QCPPainter *result = new QCPPainter(paintDevice.data());
 #if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
   result->setRenderHint(QPainter::HighQualityAntialiasing);
@@ -947,9 +1002,16 @@ void QCPPaintBufferGlFbo::draw(QCPPainter *painter) const
     return;
   }
 
-  if (QOpenGLContext::currentContext() != context.data())
-    context->makeCurrent(context->surface());
-  mGlFrameBuffer->bind();
+  if (QOpenGLContext::currentContext() != context.data() && !context->makeCurrent(context->surface()))
+  {
+    qDebug() << Q_FUNC_INFO << "Failed to make OpenGL context current";
+    return;
+  }
+  if (!mGlFrameBuffer->isValid() || !mGlFrameBuffer->bind())
+  {
+    qDebug() << Q_FUNC_INFO << "OpenGL frame buffer is invalid or could not be bound";
+    return;
+  }
 
   QOpenGLFunctions *gl = context->functions();
   if (!gl)
@@ -960,9 +1022,18 @@ void QCPPaintBufferGlFbo::draw(QCPPainter *painter) const
   }
 
   const QSize pixelSize = mSize*mDevicePixelRatio;
-  if (mGlFrameBufferImage.size() != pixelSize || mGlFrameBufferImage.format() != QImage::Format_RGBA8888)
+  if (mGlFrameBufferImage.size() != pixelSize || mGlFrameBufferImage.format() != QImage::Format_RGBA8888_Premultiplied)
   {
-    mGlFrameBufferImage = QImage(pixelSize, QImage::Format_RGBA8888);
+    // Qt's OpenGL paint engine stores premultiplied color in the FBO. Marking
+    // the readback as straight-alpha makes QPainter multiply translucent and
+    // antialiased pixels a second time, which visibly desaturates them.
+    mGlFrameBufferImage = QImage(pixelSize, QImage::Format_RGBA8888_Premultiplied);
+  }
+  if (mGlFrameBufferImage.isNull())
+  {
+    mGlFrameBuffer->release();
+    qDebug() << Q_FUNC_INFO << "Failed to allocate OpenGL readback image";
+    return;
   }
 #ifdef QCP_DEVICEPIXELRATIO_SUPPORTED
   mGlFrameBufferImage.setDevicePixelRatio(mDevicePixelRatio);
@@ -994,9 +1065,16 @@ void QCPPaintBufferGlFbo::clear(const QColor &color)
     return;
   }
   
-  if (QOpenGLContext::currentContext() != context.data())
-    context->makeCurrent(context->surface());
-  mGlFrameBuffer->bind();
+  if (QOpenGLContext::currentContext() != context.data() && !context->makeCurrent(context->surface()))
+  {
+    qDebug() << Q_FUNC_INFO << "Failed to make OpenGL context current";
+    return;
+  }
+  if (!mGlFrameBuffer->isValid() || !mGlFrameBuffer->bind())
+  {
+    qDebug() << Q_FUNC_INFO << "OpenGL frame buffer is invalid or could not be bound";
+    return;
+  }
   glClearColor(color.redF(), color.greenF(), color.blueF(), color.alphaF());
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   mGlFrameBuffer->release();
@@ -1005,15 +1083,6 @@ void QCPPaintBufferGlFbo::clear(const QColor &color)
 /* inherits documentation from base class */
 void QCPPaintBufferGlFbo::reallocateBuffer()
 {
-  // release and delete possibly existing framebuffer:
-  if (mGlFrameBuffer)
-  {
-    if (mGlFrameBuffer->isBound())
-      mGlFrameBuffer->release();
-    delete mGlFrameBuffer;
-    mGlFrameBuffer = 0;
-  }
-  
   QSharedPointer<QOpenGLPaintDevice> paintDevice = mGlPaintDevice.toStrongRef();
   QSharedPointer<QOpenGLContext> context = mGlContext.toStrongRef();
   if (!paintDevice)
@@ -1026,21 +1095,51 @@ void QCPPaintBufferGlFbo::reallocateBuffer()
     qDebug() << Q_FUNC_INFO << "OpenGL context doesn't exist";
     return;
   }
+
+  // FBO deletion, just like creation, must happen with its owning context
+  // current. Layout changes resize several plots in quick succession, so the
+  // context currently bound on this thread often belongs to another plot.
+  if (QOpenGLContext::currentContext() != context.data() && !context->makeCurrent(context->surface()))
+  {
+    qDebug() << Q_FUNC_INFO << "Failed to make OpenGL context current";
+    return;
+  }
+
+  if (mGlFrameBuffer)
+  {
+    if (mGlFrameBuffer->isBound())
+      mGlFrameBuffer->release();
+    delete mGlFrameBuffer;
+    mGlFrameBuffer = 0;
+  }
+
+  const QSize pixelSize = mSize*mDevicePixelRatio;
+  if (pixelSize.width() <= 0 || pixelSize.height() <= 0)
+  {
+    mGlFrameBufferImage = QImage();
+    return;
+  }
   
   // create new fbo with appropriate size:
-  context->makeCurrent(context->surface());
   QOpenGLFramebufferObjectFormat frameBufferFormat;
   frameBufferFormat.setSamples(context->format().samples());
   frameBufferFormat.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
-  mGlFrameBuffer = new QOpenGLFramebufferObject(mSize*mDevicePixelRatio, frameBufferFormat);
+  mGlFrameBuffer = new QOpenGLFramebufferObject(pixelSize, frameBufferFormat);
+  if (!mGlFrameBuffer->isValid())
+  {
+    delete mGlFrameBuffer;
+    mGlFrameBuffer = 0;
+    mGlFrameBufferImage = QImage();
+    qDebug() << Q_FUNC_INFO << "Failed to create a valid OpenGL frame buffer" << pixelSize;
+    return;
+  }
   mGlFrameBufferImage = QImage();
-  if (paintDevice->size() != mSize*mDevicePixelRatio)
-    paintDevice->setSize(mSize*mDevicePixelRatio);
+  if (paintDevice->size() != pixelSize)
+    paintDevice->setSize(pixelSize);
 #ifdef QCP_DEVICEPIXELRATIO_SUPPORTED
   paintDevice->setDevicePixelRatio(mDevicePixelRatio);
 #endif
 
-  const QSize pixelSize = mSize*mDevicePixelRatio;
   const qint64 pixelCount = static_cast<qint64>(pixelSize.width()) * static_cast<qint64>(pixelSize.height());
   const qint64 colorBytes = pixelCount * 4;
   const qint64 depthStencilBytes = pixelCount * 4;
@@ -13779,6 +13878,13 @@ QCustomPlot::QCustomPlot(QWidget *parent) :
 
 QCustomPlot::~QCustomPlot()
 {
+  // Paint buffers own GL resources and must be destroyed before the context
+  // and surface members (which otherwise disappear first due to reverse member
+  // destruction order).
+  mPaintBuffers.clear();
+  freeOpenGl();
+  mOpenGl = false;
+
   clearPlottables();
   clearItems();
 
@@ -14150,11 +14256,30 @@ void QCustomPlot::setSelectionRect(QCPSelectionRect *selectionRect)
 */
 void QCustomPlot::setOpenGl(bool enabled, int multisampling)
 {
-  mOpenGlMultisamples = qMax(0, multisampling);
 #ifdef QCUSTOMPLOT_USE_OPENGL
-  mOpenGl = enabled;
+  const int requestedMultisamples = qMax(0, multisampling);
+  if (enabled == mOpenGl && (!enabled || requestedMultisamples == mOpenGlMultisamples))
+    return;
+
+  // Destroy FBO-backed paint buffers while their context is still alive. In
+  // particular, disabling or reconfiguring OpenGL in the old order left the
+  // FBO destructors with an expired context, which is unsafe on some drivers.
   if (mOpenGl)
   {
+    // restore antialiasing override and labelcaching to what it was before enabling OpenGL, if nobody changed it in the meantime:
+    if (mAntialiasedElements == QCP::aeAll)
+      setAntialiasedElements(mOpenGlAntialiasedElementsBackup);
+    if (!mPlottingHints.testFlag(QCP::phCacheLabels))
+      setPlottingHint(QCP::phCacheLabels, mOpenGlCacheLabelsBackup);
+    mPaintBuffers.clear();
+    freeOpenGl();
+    mOpenGl = false;
+  }
+
+  mOpenGlMultisamples = requestedMultisamples;
+  if (enabled)
+  {
+    mOpenGl = true;
     if (setupOpenGl())
     {
       // backup antialiasing override and labelcaching setting so we can restore upon disabling OpenGL
@@ -14168,19 +14293,13 @@ void QCustomPlot::setOpenGl(bool enabled, int multisampling)
       qDebug() << Q_FUNC_INFO << "Failed to enable OpenGL, continuing plotting without hardware acceleration.";
       mOpenGl = false;
     }
-  } else
-  {
-    // restore antialiasing override and labelcaching to what it was before enabling OpenGL, if nobody changed it in the meantime:
-    if (mAntialiasedElements == QCP::aeAll)
-      setAntialiasedElements(mOpenGlAntialiasedElementsBackup);
-    if (!mPlottingHints.testFlag(QCP::phCacheLabels))
-      setPlottingHint(QCP::phCacheLabels, mOpenGlCacheLabelsBackup);
-    freeOpenGl();
   }
+
   // recreate all paint buffers:
   mPaintBuffers.clear();
   setupPaintBuffers();
 #else
+  mOpenGlMultisamples = qMax(0, multisampling);
   Q_UNUSED(enabled)
   qDebug() << Q_FUNC_INFO << "QCustomPlot can't use OpenGL because QCUSTOMPLOT_USE_OPENGL was not defined during compilation (add 'DEFINES += QCUSTOMPLOT_USE_OPENGL' to your qmake .pro file)";
 #endif
@@ -16055,6 +16174,35 @@ bool QCustomPlot::setupOpenGl()
     mGlSurface.clear();
     return false;
   }
+
+  QOpenGLFunctions *gl = mGlContext->functions();
+  const QString vendor = gl && gl->glGetString(GL_VENDOR)
+      ? QString::fromLatin1(reinterpret_cast<const char *>(gl->glGetString(GL_VENDOR)))
+      : QStringLiteral("unknown");
+  const QString renderer = gl && gl->glGetString(GL_RENDERER)
+      ? QString::fromLatin1(reinterpret_cast<const char *>(gl->glGetString(GL_RENDERER)))
+      : QStringLiteral("unknown");
+  const QString version = gl && gl->glGetString(GL_VERSION)
+      ? QString::fromLatin1(reinterpret_cast<const char *>(gl->glGetString(GL_VERSION)))
+      : QStringLiteral("unknown");
+
+  const bool allowIntegrated = qEnvironmentVariableIsSet("CSVVIEWER_ALLOW_INTEGRATED_OPENGL");
+  const bool unsuitableRenderer = isOpenGlReadbackRendererUnsuitable(vendor, renderer);
+  appendOpenGlTrace(QString("OpenGL probe vendor=%1 renderer=%2 version=%3 readbackSuitable=%4 override=%5")
+                    .arg(vendor, renderer, version)
+                    .arg(!unsuitableRenderer)
+                    .arg(allowIntegrated));
+  if (unsuitableRenderer && !allowIntegrated)
+  {
+    qDebug() << Q_FUNC_INFO
+             << "OpenGL renderer is unsuitable for QCustomPlot's synchronous FBO readback; using software rendering:"
+             << vendor << renderer;
+    mGlContext->doneCurrent();
+    mGlContext.clear();
+    mGlSurface.clear();
+    return false;
+  }
+
   mGlPaintDevice = QSharedPointer<QOpenGLPaintDevice>(new QOpenGLPaintDevice);
   return true;
 #elif defined(QCP_OPENGL_PBUFFER)
@@ -16079,6 +16227,8 @@ void QCustomPlot::freeOpenGl()
 {
 #ifdef QCP_OPENGL_FBO
   mGlPaintDevice.clear();
+  if (mGlContext && QOpenGLContext::currentContext() == mGlContext.data())
+    mGlContext->doneCurrent();
   mGlContext.clear();
   mGlSurface.clear();
 #endif

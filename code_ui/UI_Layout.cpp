@@ -811,12 +811,11 @@ void UI::createMenu()
         viewer::QCPColumnGraph::s_adaptiveSamplingEnabled = checked;
     });
 
-    auto* openglAction = settingsMenu->addAction("OpenGL 绘制");
-    openglAction->setCheckable(true);
-    openglAction->setChecked(m_openglEnabled);
-    connect(openglAction, &QAction::toggled, this, [this](bool checked)
+    m_actionOpenGl = settingsMenu->addAction("OpenGL 绘制");
+    m_actionOpenGl->setCheckable(true);
+    m_actionOpenGl->setChecked(m_openglEnabled);
+    connect(m_actionOpenGl, &QAction::toggled, this, [this](bool checked)
     {
-        m_openglEnabled = checked;
         applyOpenGlDrawingMode(checked);
     });
 

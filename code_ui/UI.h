@@ -79,7 +79,7 @@ private:
     void removeAllPlotDocksForShutdown();
     void logShutdownTrace(const QString& message) const;
     void logPlotTrace(const QString& message) const;
-    void configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
+    bool configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
     void applyOpenGlDrawingMode(bool enabled);
     void applyPlotLayoutMode(viewer::PlotLayoutMode mode);
     void restoreTabbedPlotLayout();
@@ -175,6 +175,7 @@ private:
     QAction* m_actionRowView = nullptr;
     QAction* m_actionLinkX = nullptr;
     QAction* m_actionAutoGrouping = nullptr;
+    QAction* m_actionOpenGl = nullptr;
     QList<ads::CDockWidget*> m_layoutPlaceholderDocks;
     QHash<int, bool> m_pageToolbarBaseVisible;
     QHash<int, bool> m_pageExprBaseVisible;

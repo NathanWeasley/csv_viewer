@@ -19,6 +19,7 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <QSignalBlocker>
 #include <qtimer.h>
 
 #include "icons_base64.h"
@@ -290,27 +291,29 @@ void UI::logPlotTrace(const QString& message) const
     out.flush();
 }
 
-void UI::configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const
+bool UI::configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const
 {
     if (!plot)
-        return;
+        return false;
 
     // CPU 模式恢复 QCustomPlot 原始的软件绘制路径。
     // OpenGL 模式统一交给 QCustomPlot 的 OpenGL 后端，不再单独拆分散点路径。
-    if (auto* overlayLayer = plot->layer("overlay"))
-        overlayLayer->setMode(enabled ? QCPLayer::lmLogical : QCPLayer::lmBuffered);
-
     plot->setOpenGl(enabled, 0);
+    const bool active = plot->openGl();
+    if (auto* overlayLayer = plot->layer("overlay"))
+        overlayLayer->setMode(active ? QCPLayer::lmLogical : QCPLayer::lmBuffered);
 
     logPlotTrace(QString("configure drawing mode page=%1 openGl=%2 overlayMode=%3")
                  .arg(m_plotToPageIndex.value(plot, -1))
-                 .arg(plot->openGl())
+                 .arg(active)
                  .arg(plot->layer("overlay") && plot->layer("overlay")->mode() == QCPLayer::lmLogical ? "logical" : "buffered"));
+    return active;
 }
 
 void UI::applyOpenGlDrawingMode(bool enabled)
 {
     const auto pageIndices = m_pageDocks.keys();
+    bool rejected = false;
     for (int pageIndex : pageIndices)
     {
         auto* plot = getPlot(pageIndex);
@@ -319,11 +322,28 @@ void UI::applyOpenGlDrawingMode(bool enabled)
 
         const bool prevUpdatesEnabled = plot->updatesEnabled();
         plot->setUpdatesEnabled(false);
-        configurePlotDrawingMode(plot, enabled);
+        const bool active = configurePlotDrawingMode(plot, enabled);
+        rejected = rejected || (enabled && !active);
         plot->setUpdatesEnabled(prevUpdatesEnabled);
 
         if (prevUpdatesEnabled)
             plot->replot(QCustomPlot::rpQueuedRefresh);
+    }
+
+    if (rejected)
+    {
+        for (int pageIndex : pageIndices)
+            configurePlotDrawingMode(getPlot(pageIndex), false);
+        enabled = false;
+        statusBar()->showMessage(
+            QString::fromUtf8("当前显卡不适合此 OpenGL 绘制路径，已自动切换为软件绘制。"), 6000);
+    }
+
+    m_openglEnabled = enabled;
+    if (m_actionOpenGl && m_actionOpenGl->isChecked() != enabled)
+    {
+        const QSignalBlocker blocker(m_actionOpenGl);
+        m_actionOpenGl->setChecked(enabled);
     }
 }
 // ============================================================
