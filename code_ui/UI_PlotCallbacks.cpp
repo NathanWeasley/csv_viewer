@@ -39,6 +39,7 @@ extern bool isSystemInDark();
 
 void UI::bindPlotManagerCallbacks()
 {
+    logOperationTrace("bind plot manager callbacks enter");
     auto& pm = m_viewer.GetPlotManager();
     auto& sm = m_viewer.GetStyleManager();
 
@@ -112,6 +113,9 @@ void UI::bindPlotManagerCallbacks()
     // 页面添加 → 创建新 QCustomPlot 页（含工具栏）
     pm.onPageAdded = [this, populateColorCombo](int index)
     {
+        logOperationTrace(QString("page added callback enter page=%1 pageCount=%2 layout=%3")
+                          .arg(index).arg(plotPageCount())
+                          .arg(static_cast<int>(m_viewer.GetPlotManager().layoutMode())));
         // ---- QCustomPlot ----
         auto* plot = new QCustomPlot();
         // QCustomPlot 的 OpenGL FBO 默认 16x MSAA，多个图窗时显存/内存占用会急剧增大。
@@ -570,6 +574,11 @@ void UI::bindPlotManagerCallbacks()
             auto* cmbSCo = qobject_cast<QComboBox*>(hb->itemAt(6)->widget());
 
             int lsIdx = cmbLS->currentIndex();
+            const int pageIndex = m_plotToPageIndex.value(plot, -1);
+            logOperationTrace(QString("graph style apply page=%1 item=\"%2\" lineStyle=%3 lineWidth=%4 scatterShape=%5 scatterSize=%6")
+                              .arg(pageIndex).arg(QString::fromStdString(selName))
+                              .arg(lsIdx).arg(spnLW->value())
+                              .arg(cmbSC->currentIndex()).arg(spnSS->value()));
             // 线型索引：0=无(隐藏曲线)，1=散点，2=实线，3=点线，4=虚线，5=点划线
             if (lsIdx == 0)
             {
@@ -681,11 +690,15 @@ void UI::bindPlotManagerCallbacks()
             this, [applyToGraph](int){ applyToGraph(); });
 
         // ---- 对数轴复选框 → 切换坐标轴类型 ----
-        connect(chkLogX, &QCheckBox::toggled, plot, [plot](bool on){
+        connect(chkLogX, &QCheckBox::toggled, plot, [this, plot](bool on){
+            logXAxisTrace(QString("X-axis scale toggle page=%1 logarithmic=%2")
+                          .arg(m_plotToPageIndex.value(plot, -1)).arg(on));
             plot->xAxis->setScaleType(on ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
             plot->replot();
         });
-        connect(chkLogY, &QCheckBox::toggled, plot, [plot](bool on){
+        connect(chkLogY, &QCheckBox::toggled, plot, [this, plot](bool on){
+            logOperationTrace(QString("Y-axis scale toggle page=%1 logarithmic=%2")
+                              .arg(m_plotToPageIndex.value(plot, -1)).arg(on));
             plot->yAxis->setScaleType(on ? QCPAxis::stLogarithmic : QCPAxis::stLinear);
             plot->replot();
         });
@@ -719,6 +732,12 @@ void UI::bindPlotManagerCallbacks()
                 if (pageIndex < 0 || pageIndex >= pm.pageCount()) return;
                 auto& exprMgr = pm.pageInfo(pageIndex).exprMgr;
 
+                const QString loggedText = text.left(512);
+                logExpressionTrace(QString("edit page=%1 item=\"%2\" length=%3 text=\"%4%5\"")
+                                   .arg(pageIndex).arg(QString::fromStdString(selName))
+                                   .arg(text.size()).arg(loggedText)
+                                   .arg(text.size() > loggedText.size() ? QStringLiteral("...") : QString()));
+
                 // 更新表达式文本
                 exprMgr.setExpressionText(selName, text.toStdString());
 
@@ -727,6 +746,8 @@ void UI::bindPlotManagerCallbacks()
                 if (exprStr.empty())
                 {
                     exprLineEdit->setStyleSheet(exprStyleNormal());
+                    logExpressionTrace(QString("edit page=%1 item=\"%2\" result=empty")
+                                       .arg(pageIndex).arg(QString::fromStdString(selName)));
                     return;
                 }
 
@@ -734,6 +755,8 @@ void UI::bindPlotManagerCallbacks()
                 {
                     // 不合法：红色边框提示
                     exprLineEdit->setStyleSheet(exprStyleError());
+                    logExpressionTrace(QString("validate page=%1 item=\"%2\" result=invalid")
+                                       .arg(pageIndex).arg(QString::fromStdString(selName)));
                     return;
                 }
 
@@ -741,7 +764,13 @@ void UI::bindPlotManagerCallbacks()
                 exprLineEdit->setStyleSheet(exprStyleNormal());
 
                 // 重新计算表达式值
-                if (exprMgr.recompute(selName, dm))
+                logExpressionTrace(QString("recompute enter page=%1 item=\"%2\" rows=%3")
+                                   .arg(pageIndex).arg(QString::fromStdString(selName))
+                                   .arg(dm.GetRowCount()));
+                const bool recomputed = exprMgr.recompute(selName, dm);
+                logExpressionTrace(QString("recompute leave page=%1 item=\"%2\" success=%3")
+                                   .arg(pageIndex).arg(QString::fromStdString(selName)).arg(recomputed));
+                if (recomputed)
                 {
                     // 更新 graph 数据并刷新图窗
                     viewer::QCPColumnGraph* graph = nullptr;
@@ -761,10 +790,18 @@ void UI::bindPlotManagerCallbacks()
                         if (pe && pe->computedData)
                         {
                             size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(pageIndex);
+                            if (xIdx == static_cast<size_t>(-1))
+                                dm.ensureIndexColumnBuilt();
                             const viewer::Column* xCol = (xIdx != static_cast<size_t>(-1))
                                 ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
                             graph->setDataColumns(xCol, pe->computedData.get());
                             graph->notifyDataChanged();
+                            logExpressionTrace(QString("rebind page=%1 item=\"%2\" graph=0x%3 x=0x%4 y=0x%5 rows=%6")
+                                               .arg(pageIndex).arg(QString::fromStdString(selName))
+                                               .arg(reinterpret_cast<quintptr>(graph), 0, 16)
+                                               .arg(reinterpret_cast<quintptr>(xCol), 0, 16)
+                                               .arg(reinterpret_cast<quintptr>(pe->computedData.get()), 0, 16)
+                                               .arg(pe->computedData->size()));
                             plot->rescaleAxes(true); // 仅扩大不放缩，保持用户当前视图
                             plot->replot();
                         }
@@ -802,6 +839,10 @@ void UI::bindPlotManagerCallbacks()
             updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
             updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
         }
+        logOperationTrace(QString("page added callback leave page=%1 container=0x%2 plot=0x%3 dock=0x%4")
+                          .arg(index).arg(reinterpret_cast<quintptr>(container), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(plot), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(m_pageDocks.value(index, nullptr)), 0, 16));
     };
 
     // 页面即将移除
@@ -823,6 +864,8 @@ void UI::bindPlotManagerCallbacks()
     // 页面移除后
     pm.onPageRemoved = [this](int activeIdx, int /*remainingCount*/)
     {
+        logOperationTrace(QString("page removed callback enter activePage=%1 removedPage=%2 pages=%3")
+                          .arg(activeIdx).arg(m_lastRemovedPageIndex).arg(plotPageCount()));
         logShutdownTrace(QString("pm.onPageRemoved activeIdx=%1 lastRemoved=%2")
                              .arg(activeIdx)
                              .arg(m_lastRemovedPageIndex));
@@ -847,11 +890,16 @@ void UI::bindPlotManagerCallbacks()
             updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
             updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
         }
+        logOperationTrace(QString("page removed callback leave activePage=%1 pages=%2 docks=%3")
+                          .arg(activeIdx).arg(plotPageCount()).arg(m_pageDocks.size()));
     };
 
     // 激活页面变更
     pm.onActivePageChanged = [this](int index)
     {
+        logOperationTrace(QString("active page changed page=%1 pages=%2 dock=0x%3")
+                          .arg(index).arg(plotPageCount())
+                          .arg(reinterpret_cast<quintptr>(m_pageDocks.value(index, nullptr)), 0, 16));
         // 同步内层 dock 聚焦（UI → 数据层方向）
         auto* dock = m_pageDocks.value(index, nullptr);
         if (dock && m_plotDockManager)
@@ -869,22 +917,32 @@ void UI::bindPlotManagerCallbacks()
     // X 轴变更 → 更新状态栏 + 重新绑定所有 graph 的 X 列
     pm.onXAxisChanged = [this](int pageIndex, size_t colIdx)
     {
+        logXAxisTrace(QString("X-axis changed callback enter page=%1 column=%2 activePage=%3 pages=%4")
+                      .arg(pageIndex).arg(colIdx)
+                      .arg(m_viewer.GetPlotManager().activePageIndex()).arg(plotPageCount()));
         // 更新状态栏标签
         const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
-        if (m_viewer.GetPlotManager().activePageIndex() != pageIndex)
-            return;
-        if (colIdx != static_cast<size_t>(-1) && colIdx < colNames.size())
-            m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[colIdx])));
-        else
-            m_xAxisLabel->setText("X: (none)");
+        if (m_viewer.GetPlotManager().activePageIndex() == pageIndex)
+        {
+            if (colIdx != static_cast<size_t>(-1) && colIdx < colNames.size())
+                m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[colIdx])));
+            else
+                m_xAxisLabel->setText("X: (none)");
+        }
 
         // 重新绑定当前图窗所有 graph 的 X 列数据
         if (pageIndex < 0 || pageIndex >= plotPageCount())
+        {
+            logXAxisTrace("X-axis changed callback aborted: invalid page");
             return;
+        }
         auto* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
+        {
+            logXAxisTrace("X-axis changed callback aborted: plot missing");
             return;
+        }
         auto& dm = m_viewer.GetDataManager();
         const viewer::Column* newXCol = nullptr;
         if (colIdx != static_cast<size_t>(-1))
@@ -895,7 +953,11 @@ void UI::bindPlotManagerCallbacks()
             newXCol = dm.GetIndexColumn();
         }
         if (!newXCol)
+        {
+            logXAxisTrace(QString("X-axis changed callback aborted: X column missing page=%1 column=%2")
+                          .arg(pageIndex).arg(colIdx));
             return;
+        }
         for (int i = 0; i < plot->plottableCount(); ++i)
         {
             auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
@@ -919,11 +981,16 @@ void UI::bindPlotManagerCallbacks()
         }
         plot->rescaleAxes();
         plot->replot();
+        logXAxisTrace(QString("X-axis changed callback leave page=%1 column=%2 graphs=%3 xData=0x%4 rows=%5")
+                      .arg(pageIndex).arg(colIdx).arg(plot->plottableCount())
+                      .arg(reinterpret_cast<quintptr>(newXCol), 0, 16).arg(newXCol->size()));
     };
 
     // 数据项添加 → 创建 QCPColumnGraph 并绑定到对应 QCustomPlot
     pm.onDataItemAdded = [this](int pageIndex, const std::string& yColName)
     {
+        logOperationTrace(QString("data item added callback enter page=%1 name=\"%2\" pages=%3")
+                          .arg(pageIndex).arg(QString::fromStdString(yColName)).arg(plotPageCount()));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -939,7 +1006,11 @@ void UI::bindPlotManagerCallbacks()
         const viewer::Column* xCol = nullptr;
         const viewer::Column* yCol = dm.GetColumn(yColName);
         if (!yCol)
+        {
+            logOperationTrace(QString("data item added callback aborted: Y column missing name=\"%1\"")
+                              .arg(QString::fromStdString(yColName)));
             return;
+        }
 
         size_t plotCount = m_viewer.GetPlotManager().pageInfo(pageIndex).dataItems.size();
 
@@ -988,6 +1059,9 @@ void UI::bindPlotManagerCallbacks()
         // 创建表达式本地拷贝，切换到独立数据源
         auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
         viewer::PlotExpression& pe = exprMgr.getOrCreate(yColName, dm);
+        logExpressionTrace(QString("expression created/resolved page=%1 item=\"%2\" edited=%3 computed=0x%4")
+                           .arg(pageIndex).arg(QString::fromStdString(yColName)).arg(pe.isEdited)
+                           .arg(reinterpret_cast<quintptr>(pe.computedData.get()), 0, 16));
         // 未编辑时 computedData 为 nullptr，直接从 DataManager 读取原始列
         const viewer::Column* yDataSource = pe.computedData.get();
         if (!yDataSource)
@@ -1040,11 +1114,19 @@ void UI::bindPlotManagerCallbacks()
             auto& pm = m_viewer.GetPlotManager();
             pm.setSelectedDataItem(pageIndex, yColName);
         }
+        logOperationTrace(QString("data item added callback leave page=%1 name=\"%2\" graph=0x%3 x=0x%4 y=0x%5 comboItems=%6")
+                          .arg(pageIndex).arg(QString::fromStdString(yColName))
+                          .arg(reinterpret_cast<quintptr>(graph), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(xCol), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(yDataSource), 0, 16)
+                          .arg(cmbDataItem->count()));
     };
 
     // 数据项移除
     pm.onDataItemRemoved = [this](int pageIndex, const std::string& yColName)
     {
+        logOperationTrace(QString("data item removed callback enter page=%1 name=\"%2\"")
+                          .arg(pageIndex).arg(QString::fromStdString(yColName)));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -1071,6 +1153,8 @@ void UI::bindPlotManagerCallbacks()
 
         // ---- 清理表达式 ----
         m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr.removeItem(yColName);
+        logExpressionTrace(QString("expression removed page=%1 item=\"%2\"")
+                           .arg(pageIndex).arg(QString::fromStdString(yColName)));
 
         // 查找并移除对应名称的 QCPColumnGraph
         for (int i = 0; i < plot->plottableCount(); ++i)
@@ -1147,11 +1231,16 @@ void UI::bindPlotManagerCallbacks()
                 pm.setSelectedDataItem(pageIndex, std::string());
             }
         }
+        logOperationTrace(QString("data item removed callback leave page=%1 name=\"%2\" comboIndex=%3 remainingPlottables=%4")
+                          .arg(pageIndex).arg(QString::fromStdString(yColName))
+                          .arg(rmIdx).arg(plot->plottableCount()));
     };
 
     // 图例可见性变更
     pm.onLegendVisibilityChanged = [this](int pageIndex, bool visible)
     {
+        logOperationTrace(QString("legend visibility callback page=%1 visible=%2")
+                          .arg(pageIndex).arg(visible));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -1182,6 +1271,8 @@ void UI::bindPlotManagerCallbacks()
     // 框选缩放状态变更
     pm.onRectZoomStateChanged = [this](int pageIndex, bool active)
     {
+        logOperationTrace(QString("rectangle zoom callback page=%1 active=%2")
+                          .arg(pageIndex).arg(active));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -1205,6 +1296,7 @@ void UI::bindPlotManagerCallbacks()
     // 还原缩放请求
     pm.onRescaleRequested = [this](int pageIndex)
     {
+        logOperationTrace(QString("rescale request callback page=%1").arg(pageIndex));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -1220,6 +1312,8 @@ void UI::bindPlotManagerCallbacks()
     // 选中数据项变更 → 刷新工具栏控件
     pm.onSelectedDataItemChanged = [this](int pageIndex, const std::string& yColName)
     {
+        logOperationTrace(QString("selected data item callback page=%1 name=\"%2\"")
+                          .arg(pageIndex).arg(QString::fromStdString(yColName)));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -1400,6 +1494,8 @@ void UI::bindPlotManagerCallbacks()
     // 清空全部图窗 → 清理内层 DockManager 中所有页面
     pm.onCleared = [this]()
     {
+        logOperationTrace(QString("clear callback enter docks=%1 expressions=%2 combos=%3")
+                          .arg(m_pageDocks.size()).arg(m_exprLineEdits.size()).arg(m_toolbarCombos.size()));
         logShutdownTrace(QString("pm.onCleared enter dockWidgets=%1 pageDocks=%2")
                              .arg(m_plotDockManager ? m_plotDockManager->dockWidgetsMap().size() : 0)
                              .arg(m_pageDocks.size()));
@@ -1434,10 +1530,13 @@ void UI::bindPlotManagerCallbacks()
         m_savedTabbedPlotLayoutState.clear();
         m_hasSavedTabbedPlotLayoutState = false;
         logShutdownTrace("pm.onCleared leave");
+        logOperationTrace(QString("clear callback leave docks=%1").arg(m_pageDocks.size()));
     };
 
     pm.onLayoutModeChanged = [this](viewer::PlotLayoutMode mode)
     {
+        logLayoutTrace(QString("layout mode changed callback mode=%1").arg(static_cast<int>(mode)));
         applyPlotLayoutMode(mode);
     };
+    logOperationTrace("bind plot manager callbacks leave");
 }

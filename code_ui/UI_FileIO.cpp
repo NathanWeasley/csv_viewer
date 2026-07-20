@@ -106,6 +106,7 @@ static QStringList selectFoldersNativeWin32(QWidget* parent, const QString& titl
 
 void UI::onLoadCSVClicked()
 {
+    logFileTrace("CSV file picker enter");
     QStringList files = QFileDialog::getOpenFileNames(
         this,
         "Select CSV files",
@@ -113,14 +114,20 @@ void UI::onLoadCSVClicked()
         "CSV Files (*.csv);;All Files (*.*)");
 
     if (files.isEmpty())
+    {
+        logFileTrace("CSV file picker cancelled");
         return;
+    }
 
     // Forward the file list to the Viewer's slot for loading
+    logFileTrace(QString("CSV load dispatch count=%1 first=\"%2\" last=\"%3\"")
+                 .arg(files.size()).arg(files.first(), files.last()));
     m_viewer.OnLoadCSV(files);
 }
 
 void UI::onLoadFolderClicked()
 {
+    logFileTrace("CSV folder picker enter");
     QStringList folders;
 
 #ifdef Q_OS_WIN
@@ -141,7 +148,12 @@ void UI::onLoadFolderClicked()
 #endif
 
     if (folders.isEmpty())
+    {
+        logFileTrace("CSV folder picker cancelled");
         return;
+    }
+
+    logFileTrace(QString("CSV folder scan enter folders=%1").arg(folders.size()));
 
     QStringList csvFiles;
     for (const QString& folder : folders)
@@ -162,12 +174,16 @@ void UI::onLoadFolderClicked()
 
     if (csvFiles.isEmpty())
     {
+        logFileTrace(QString("CSV folder scan leave: no files folders=%1").arg(folders.size()));
         QMessageBox::information(this,
                                  QString::fromUtf8("No CSV files"),
                                  QString::fromUtf8("No CSV files were found in the selected folders."));
         return;
     }
 
+    logFileTrace(QString("CSV folder load dispatch folders=%1 files=%2 first=\"%3\" last=\"%4\"")
+                 .arg(folders.size()).arg(csvFiles.size())
+                 .arg(csvFiles.first(), csvFiles.last()));
     m_viewer.OnLoadCSV(csvFiles, true);
 }
 
@@ -177,13 +193,21 @@ void UI::onLoadFolderClicked()
 
 void UI::exportPlotImage(int pageIndex)
 {
+    logFileTrace(QString("plot export enter page=%1 pageCount=%2")
+                 .arg(pageIndex).arg(plotPageCount()));
     if (pageIndex < 0 || pageIndex >= plotPageCount())
+    {
+        logFileTrace("plot export aborted: invalid page");
         return;
+    }
 
     auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
     if (!plot)
+    {
+        logFileTrace("plot export aborted: plot missing");
         return;
+    }
 
     QString filter = "PNG (*.png);;JPEG (*.jpg);;PDF (*.pdf)";
     QString selectedFilter;
@@ -192,12 +216,18 @@ void UI::exportPlotImage(int pageIndex)
         filter, &selectedFilter);
 
     if (fileName.isEmpty())
+    {
+        logFileTrace("plot export cancelled");
         return;
+    }
 
+    bool saved = false;
     if (selectedFilter.contains("PNG"))
-        plot->savePng(fileName, 0, 0, 2.0, 100);
+        saved = plot->savePng(fileName, 0, 0, 2.0, 100);
     else if (selectedFilter.contains("JPEG"))
-        plot->saveJpg(fileName, 0, 0, 2.0, 90);
+        saved = plot->saveJpg(fileName, 0, 0, 2.0, 90);
     else if (selectedFilter.contains("PDF"))
-        plot->savePdf(fileName);
+        saved = plot->savePdf(fileName);
+    logFileTrace(QString("plot export leave page=%1 format=\"%2\" path=\"%3\" success=%4")
+                 .arg(pageIndex).arg(selectedFilter, fileName).arg(saved));
 }

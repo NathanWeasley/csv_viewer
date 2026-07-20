@@ -37,6 +37,7 @@
 
 void UI::bindCursorManagerCallbacks()
 {
+    logOperationTrace("bind cursor manager callbacks enter");
     auto& cm = m_viewer.GetCursorManager();
     auto& pm = m_viewer.GetPlotManager();
 
@@ -45,6 +46,7 @@ void UI::bindCursorManagerCallbacks()
 
     pm.onPageAdded = [this, originalOnPageAdded](int index)
     {
+        logOperationTrace(QString("cursor page wrapper enter page=%1").arg(index));
         if (originalOnPageAdded)
             originalOnPageAdded(index);
 
@@ -73,6 +75,9 @@ void UI::bindCursorManagerCallbacks()
 
         m_plotToPageIndex[plot] = index;
         m_preSelTracers[plot] = tracer;
+        logOperationTrace(QString("cursor page wrapper leave page=%1 plot=0x%2 preselectionTracer=0x%3")
+                          .arg(index).arg(reinterpret_cast<quintptr>(plot), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(tracer), 0, 16));
     };
 
     // ---- 扩展 onPageAboutToRemove：清理该页面的 tracer 和相关游标 ----
@@ -215,6 +220,9 @@ void UI::bindCursorManagerCallbacks()
     cm.onCursorAdded = [this](int cursorIdx, int pageIndex,
                                 const std::string& dataItemName, size_t dataIndex)
     {
+        logOperationTrace(QString("cursor add callback enter cursor=%1 page=%2 item=\"%3\" dataIndex=%4")
+                          .arg(cursorIdx).arg(pageIndex).arg(QString::fromStdString(dataItemName))
+                          .arg(dataIndex));
         if (pageIndex < 0 || pageIndex >= plotPageCount())
             return;
 
@@ -288,11 +296,19 @@ void UI::bindCursorManagerCallbacks()
         updateCursorConnectorLine(cursorIdx);
 
         plot->replot();
+        logOperationTrace(QString("cursor add callback leave cursor=%1 page=%2 tracer=0x%3 label=0x%4 connector=0x%5")
+                          .arg(cursorIdx).arg(pageIndex)
+                          .arg(reinterpret_cast<quintptr>(tracer), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(label), 0, 16)
+                          .arg(reinterpret_cast<quintptr>(connector), 0, 16));
     };
 
     // ---- 游标移除 → 删除 QCPItemText 标签 + tracer ----
     cm.onCursorRemoved = [this](int cursorIdx)
     {
+        logOperationTrace(QString("cursor remove callback enter cursor=%1 labels=%2 tracers=%3 connectors=%4")
+                          .arg(cursorIdx).arg(m_cursorLabels.size())
+                          .arg(m_cursorTracers.size()).arg(m_cursorConnectorLines.size()));
         auto lineIt = m_cursorConnectorLines.find(cursorIdx);
         if (lineIt != m_cursorConnectorLines.end())
         {
@@ -366,11 +382,16 @@ void UI::bindCursorManagerCallbacks()
                 updateCursorConnectorLine(newIdx);
             }
         }
+        logOperationTrace(QString("cursor remove callback leave cursor=%1 labels=%2 tracers=%3 connectors=%4")
+                          .arg(cursorIdx).arg(m_cursorLabels.size())
+                          .arg(m_cursorTracers.size()).arg(m_cursorConnectorLines.size()));
     };
 
     // ---- 激活游标变更 → 更新标签样式 + tracer 样式 + 内容 ----
     cm.onActiveCursorChanged = [this](int cursorIdx)
     {
+        logOperationTrace(QString("active cursor changed cursor=%1 cursorCount=%2")
+                          .arg(cursorIdx).arg(m_viewer.GetCursorManager().cursors().size()));
         // 更新 QCPItemText 标签的激活/非激活样式
         for (auto it = m_cursorLabels.begin(); it != m_cursorLabels.end(); ++it)
         {
@@ -450,6 +471,7 @@ void UI::bindCursorManagerCallbacks()
             }
         }
     };
+    logOperationTrace("bind cursor manager callbacks leave");
 }
 
 // ============================================================

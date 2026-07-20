@@ -1,4 +1,5 @@
 #include "bookmark_manager.h"
+#include "code_viewer/base/trace_logger.h"
 
 #include <QDir>
 #include <QFile>
@@ -96,6 +97,9 @@ bool BookmarkMgr::isNameUnique(const std::string& name) const
 
 bool BookmarkMgr::addFolder(const std::string& parentPath, const std::string& name)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager add folder enter parent=\"%1\" name=\"%2\"")
+                     .arg(QString::fromStdString(parentPath), QString::fromStdString(name)));
     if (name.empty())
         return false;
 
@@ -115,11 +119,14 @@ bool BookmarkMgr::addFolder(const std::string& parentPath, const std::string& na
     BookmarkFolder newFolder;
     newFolder.name = name;
     parent->subFolders.push_back(std::move(newFolder));
+    trace::write(trace::Category::Bookmark, "manager add folder leave result=success");
     return true;
 }
 
 bool BookmarkMgr::removeFolder(const std::string& path)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager remove folder enter path=\"%1\"").arg(QString::fromStdString(path)));
     if (path.empty())
         return false;
 
@@ -138,6 +145,7 @@ bool BookmarkMgr::removeFolder(const std::string& path)
         if (it->name == folderName)
         {
             parent->subFolders.erase(it);
+            trace::write(trace::Category::Bookmark, "manager remove folder leave result=success");
             return true;
         }
     }
@@ -146,6 +154,9 @@ bool BookmarkMgr::removeFolder(const std::string& path)
 
 bool BookmarkMgr::renameFolder(const std::string& path, const std::string& newName)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager rename folder enter path=\"%1\" newName=\"%2\"")
+                     .arg(QString::fromStdString(path), QString::fromStdString(newName)));
     if (path.empty() || newName.empty())
         return false;
 
@@ -173,6 +184,7 @@ bool BookmarkMgr::renameFolder(const std::string& path, const std::string& newNa
         if (sub.name == folderName)
         {
             sub.name = newName;
+            trace::write(trace::Category::Bookmark, "manager rename folder leave result=success");
             return true;
         }
     }
@@ -181,6 +193,9 @@ bool BookmarkMgr::renameFolder(const std::string& path, const std::string& newNa
 
 bool BookmarkMgr::moveFolder(const std::string& fromPath, const std::string& toParentPath)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager move folder enter from=\"%1\" to=\"%2\"")
+                     .arg(QString::fromStdString(fromPath), QString::fromStdString(toParentPath)));
     if (fromPath.empty())
         return false;
 
@@ -223,6 +238,7 @@ bool BookmarkMgr::moveFolder(const std::string& fromPath, const std::string& toP
         return false;
 
     toParent->subFolders.push_back(std::move(movingFolder));
+    trace::write(trace::Category::Bookmark, "manager move folder leave result=success");
     return true;
 }
 
@@ -233,6 +249,10 @@ bool BookmarkMgr::moveFolder(const std::string& fromPath, const std::string& toP
 
 bool BookmarkMgr::addBookmark(const std::string& folderPath, const BookmarkEntry& entry)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager add bookmark enter folder=\"%1\" name=\"%2\" dataItems=%3 graphs=%4")
+                     .arg(QString::fromStdString(folderPath), QString::fromStdString(entry.name))
+                     .arg(entry.dataItems.size()).arg(entry.graphs.size()));
     if (entry.name.empty())
         return false;
 
@@ -250,11 +270,15 @@ bool BookmarkMgr::addBookmark(const std::string& folderPath, const BookmarkEntry
     }
 
     folder->entries.push_back(entry);
+    trace::write(trace::Category::Bookmark, "manager add bookmark leave result=success");
     return true;
 }
 
 bool BookmarkMgr::removeBookmark(const std::string& folderPath, const std::string& name)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager remove bookmark enter folder=\"%1\" name=\"%2\"")
+                     .arg(QString::fromStdString(folderPath), QString::fromStdString(name)));
     BookmarkFolder* folder = findFolder(folderPath);
     if (!folder)
         return false;
@@ -264,6 +288,7 @@ bool BookmarkMgr::removeBookmark(const std::string& folderPath, const std::strin
         if (it->name == name)
         {
             folder->entries.erase(it);
+            trace::write(trace::Category::Bookmark, "manager remove bookmark leave result=success");
             return true;
         }
     }
@@ -274,6 +299,10 @@ bool BookmarkMgr::renameBookmark(const std::string& folderPath,
                                   const std::string& oldName,
                                   const std::string& newName)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager rename bookmark enter folder=\"%1\" old=\"%2\" new=\"%3\"")
+                     .arg(QString::fromStdString(folderPath), QString::fromStdString(oldName),
+                          QString::fromStdString(newName)));
     if (newName.empty())
         return false;
 
@@ -309,6 +338,7 @@ bool BookmarkMgr::renameBookmark(const std::string& folderPath,
         if (e.name == oldName)
         {
             e.name = newName;
+            trace::write(trace::Category::Bookmark, "manager rename bookmark leave result=success");
             return true;
         }
     }
@@ -319,6 +349,10 @@ bool BookmarkMgr::moveBookmark(const std::string& fromPath,
                                 const std::string& toPath,
                                 const std::string& name)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager move bookmark enter from=\"%1\" to=\"%2\" name=\"%3\"")
+                     .arg(QString::fromStdString(fromPath), QString::fromStdString(toPath),
+                          QString::fromStdString(name)));
     if (fromPath == toPath)
         return false;
 
@@ -351,6 +385,7 @@ bool BookmarkMgr::moveBookmark(const std::string& fromPath,
         return false;
 
     toFolder->entries.push_back(std::move(movingEntry));
+    trace::write(trace::Category::Bookmark, "manager move bookmark leave result=success");
     return true;
 }
 
@@ -545,6 +580,8 @@ void BookmarkMgr::jsonToFolder(const QJsonObject& obj, BookmarkFolder& out)
 
 void BookmarkMgr::loadFromFile(const std::string& path)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager load file enter path=\"%1\"").arg(QString::fromStdString(path)));
     clear();
 
     QString qPath = QString::fromStdString(path);
@@ -578,10 +615,16 @@ void BookmarkMgr::loadFromFile(const std::string& path)
             m_root.entries.push_back(std::move(entry));
         }
     }
+    trace::write(trace::Category::Bookmark,
+                 QString("manager load file leave rootFolders=%1 rootEntries=%2")
+                     .arg(m_root.subFolders.size()).arg(m_root.entries.size()));
 }
 
 void BookmarkMgr::saveToFile(const std::string& path)
 {
+    trace::write(trace::Category::Bookmark,
+                 QString("manager save file enter path=\"%1\" rootFolders=%2 rootEntries=%3")
+                     .arg(QString::fromStdString(path)).arg(m_root.subFolders.size()).arg(m_root.entries.size()));
     QString qPath = QString::fromStdString(path);
 
     // 确保目录存在
@@ -601,6 +644,9 @@ void BookmarkMgr::saveToFile(const std::string& path)
         file.write(doc.toJson(QJsonDocument::Indented));
         file.close();
     }
+    trace::write(trace::Category::Bookmark,
+                 QString("manager save file leave path=\"%1\" exists=%2 size=%3")
+                     .arg(qPath).arg(QFile::exists(qPath)).arg(QFileInfo(qPath).size()));
 }
 
 } // namespace viewer

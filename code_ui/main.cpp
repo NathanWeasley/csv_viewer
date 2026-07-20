@@ -3,6 +3,8 @@
 #include <qcoreapplication.h>
 #include <qsettings.h>
 
+#include "code_viewer/base/trace_logger.h"
+
 #ifdef Q_OS_WIN
 // Hybrid-graphics laptops often create off-screen OpenGL contexts on the
 // integrated GPU even when an NVIDIA GPU is installed. These well-known
@@ -22,6 +24,10 @@ int main(int argc, char *argv[])
 
     // Force the global format to INI
     QSettings::setDefaultFormat(QSettings::IniFormat);
+
+    // Keep diagnostics bounded to the current run. This also clears disabled logs.
+    viewer::trace::initializeSessionFiles();
+    viewer::trace::write(viewer::trace::Category::Operation, "application startup");
 
     a.setApplicationDisplayName("Viewer V1.0");
 

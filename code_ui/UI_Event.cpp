@@ -22,6 +22,7 @@
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
+#include "code_viewer/base/trace_logger.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
 #include <qdir.h>
@@ -62,17 +63,24 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         const char* eventName = plotEventTypeName(event->type());
         if (eventName[0] != '\0')
         {
-            logPlotTrace(QString("plot event page=%1 type=%2 widget=%3x%4 viewport=%5x%6 axisRect=%7x%8 bufferDpr=%9 visible=%10")
-                         .arg(m_plotToPageIndex.value(plot, -1))
-                         .arg(QString::fromLatin1(eventName))
-                         .arg(plot->width())
-                         .arg(plot->height())
-                         .arg(plot->viewport().width())
-                         .arg(plot->viewport().height())
-                         .arg(plot->axisRect() ? plot->axisRect()->width() : -1)
-                         .arg(plot->axisRect() ? plot->axisRect()->height() : -1)
-                         .arg(QString::number(plot->bufferDevicePixelRatio(), 'f', 2))
-                         .arg(plot->isVisible()));
+            const QString message = QString("plot event page=%1 type=%2 widget=%3x%4 viewport=%5x%6 axisRect=%7x%8 bufferDpr=%9 visible=%10")
+                                        .arg(m_plotToPageIndex.value(plot, -1))
+                                        .arg(QString::fromLatin1(eventName))
+                                        .arg(plot->width())
+                                        .arg(plot->height())
+                                        .arg(plot->viewport().width())
+                                        .arg(plot->viewport().height())
+                                        .arg(plot->axisRect() ? plot->axisRect()->width() : -1)
+                                        .arg(plot->axisRect() ? plot->axisRect()->height() : -1)
+                                        .arg(QString::number(plot->bufferDevicePixelRatio(), 'f', 2))
+                                        .arg(plot->isVisible());
+            viewer::trace::writeRateLimited(
+                viewer::trace::Category::PlotOpenGL,
+                QString("plot-event-%1-%2")
+                    .arg(reinterpret_cast<quintptr>(plot), 0, 16)
+                    .arg(static_cast<int>(event->type())),
+                message,
+                1000);
         }
     }
 

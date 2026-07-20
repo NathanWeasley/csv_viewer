@@ -37,6 +37,7 @@
 #include "DockSplitter.h"
 #include "FloatingDockContainer.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
+#include "code_viewer/base/trace_logger.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
 #include "XAxisDialog.h"
@@ -185,6 +186,7 @@ static void detachFloatingDockNativeOwner(ads::CFloatingDockContainer* floating)
 
 void UI::createMain()
 {
+    logOperationTrace("create main UI enter");
     ///< Center plot area — 内层 QADS DockManager 管理多个图窗页面
     // QADS 全局标志已在 UI::UI() 构造函数中设置（在任何 CDockManager 创建之前）
     m_plotDockManager = new ads::CDockManager();
@@ -248,6 +250,11 @@ void UI::createMain()
 
     ///< Bind PlotManager callbacks
     bindPlotManagerCallbacks();
+    logOperationTrace(QString("create main UI leave dockManager=0x%1 plotDockManager=0x%2 dataTree=0x%3 bookmarkTree=0x%4")
+                      .arg(reinterpret_cast<quintptr>(m_dockManager), 0, 16)
+                      .arg(reinterpret_cast<quintptr>(m_plotDockManager), 0, 16)
+                      .arg(reinterpret_cast<quintptr>(m_dataTree), 0, 16)
+                      .arg(reinterpret_cast<quintptr>(m_bookmarkTree), 0, 16));
 }
 
 void UI::createStatusbar()
@@ -278,8 +285,10 @@ void UI::createStatusbar()
     statusBar()->addPermanentWidget(m_progressBar);
 
     // Connect Viewer signals to progress bar
-    connect(&m_viewer, &viewer::Viewer::LoadStarted, this, [this](int /*totalFiles*/)
+    connect(&m_viewer, &viewer::Viewer::LoadStarted, this, [this](int totalFiles)
     {
+        logFileTrace(QString("load started files=%1 autoGrouping=%2 forceGrouping=%3")
+                     .arg(totalFiles).arg(m_autoGroupingEnabled).arg(m_forceDataGrouping));
         m_pendingSkippedFiles.clear();
         m_progressBar->setValue(0);
         m_progressBar->show();
@@ -292,11 +301,17 @@ void UI::createStatusbar()
 
     connect(&m_viewer, &viewer::Viewer::LoadSkippedFiles, this, [this](const QStringList& files)
     {
+        logFileTrace(QString("load skipped files count=%1 first=\"%2\"")
+                     .arg(files.size()).arg(files.isEmpty() ? QString() : files.first()));
         m_pendingSkippedFiles = files;
     });
 
     connect(&m_viewer, &viewer::Viewer::LoadFinished, this, [this]()
     {
+        logFileTrace(QString("load finished signal columns=%1 rows=%2 skipped=%3")
+                     .arg(m_viewer.GetDataManager().GetColumnCount())
+                     .arg(m_viewer.GetDataManager().GetRowCount())
+                     .arg(m_pendingSkippedFiles.size()));
         m_progressBar->setValue(1000);
         m_progressBar->hide();
 
@@ -328,12 +343,15 @@ void UI::createStatusbar()
 
         const QString monotonicWarning = xAxisMonotonicWarning(m_viewer.GetDataManager());
         if (!monotonicWarning.isEmpty())
+            logXAxisTrace(QString("loaded X-axis monotonic warning: %1").arg(monotonicWarning));
+        if (!monotonicWarning.isEmpty())
             QMessageBox::warning(this, QString::fromUtf8("X轴数据告警"), monotonicWarning);
     });
 
     // Handle cross-file column validation errors
     connect(&m_viewer, &viewer::Viewer::LoadError, this, [this](const QString& message)
     {
+        logFileTrace(QString("load error: %1").arg(message));
         m_progressBar->setValue(0);
         m_progressBar->hide();
         m_dataTree->clear();
@@ -517,6 +535,8 @@ int UI::linkedXAxisGroupIndexForPage(int pageIndex) const
 void UI::cleanupLinkedXAxisGroups()
 {
     const auto& pm = m_viewer.GetPlotManager();
+    Q_UNUSED(pm);
+    const int groupsBefore = m_linkedXAxisGroups.size();
 
     QList<QList<int>> cleanedGroups;
     QSet<int> usedPages;
@@ -541,12 +561,17 @@ void UI::cleanupLinkedXAxisGroups()
     }
 
     m_linkedXAxisGroups = cleanedGroups;
+    logXAxisTrace(QString("cleanup link groups groupsBefore=%1 groupsAfter=%2 usedPages=%3")
+                  .arg(groupsBefore).arg(m_linkedXAxisGroups.size()).arg(usedPages.size()));
 }
 
 void UI::reindexLinkedXAxisGroupsAfterRemoval(int removedPageIndex)
 {
     if (removedPageIndex < 0)
         return;
+
+    logXAxisTrace(QString("reindex link groups enter removedPage=%1 groups=%2")
+                  .arg(removedPageIndex).arg(m_linkedXAxisGroups.size()));
 
     for (auto& group : m_linkedXAxisGroups)
     {
@@ -561,6 +586,8 @@ void UI::reindexLinkedXAxisGroupsAfterRemoval(int removedPageIndex)
     }
 
     cleanupLinkedXAxisGroups();
+    logXAxisTrace(QString("reindex link groups leave removedPage=%1 groups=%2")
+                  .arg(removedPageIndex).arg(m_linkedXAxisGroups.size()));
 }
 
 void UI::syncLinkedXAxisRange(int sourcePageIndex, const QCPRange& newRange)
@@ -597,6 +624,8 @@ void UI::syncLinkedXAxisRange(int sourcePageIndex, const QCPRange& newRange)
 void UI::showLinkXAxisDialog()
 {
     auto& pm = m_viewer.GetPlotManager();
+    logXAxisTrace(QString("link dialog enter pages=%1 groups=%2 syncing=%3")
+                  .arg(pm.pageCount()).arg(m_linkedXAxisGroups.size()).arg(m_syncingLinkedXAxis));
 
     QDialog dlg(this);
     dlg.setWindowTitle(QString::fromUtf8("X轴联动设置"));
@@ -708,9 +737,17 @@ void UI::showLinkXAxisDialog()
         selectedPages.erase(std::unique(selectedPages.begin(), selectedPages.end()), selectedPages.end());
 
         if (selectedPages.size() < 2)
+        {
+            logXAxisTrace(QString("link dialog ignored selection count=%1").arg(selectedPages.size()));
             return;
+        }
 
         workingGroups.append(selectedPages);
+        QStringList pageTexts;
+        for (int pageIndex : selectedPages)
+            pageTexts.append(QString::number(pageIndex));
+        logXAxisTrace(QString("link dialog add working group pages=[%1] groups=%2")
+                      .arg(pageTexts.join(',')).arg(workingGroups.size()));
         rebuildWidgets();
     });
 
@@ -727,10 +764,13 @@ void UI::showLinkXAxisDialog()
 
         if (pageIndex < 0)
         {
+            logXAxisTrace(QString("link dialog remove working group=%1").arg(groupIndex));
             workingGroups.removeAt(groupIndex);
         }
         else
         {
+            logXAxisTrace(QString("link dialog remove page=%1 from working group=%2")
+                          .arg(pageIndex).arg(groupIndex));
             workingGroups[groupIndex].removeAll(pageIndex);
             if (workingGroups[groupIndex].size() < 2)
                 workingGroups.removeAt(groupIndex);
@@ -745,10 +785,14 @@ void UI::showLinkXAxisDialog()
     rebuildWidgets();
 
     if (dlg.exec() != QDialog::Accepted)
+    {
+        logXAxisTrace("link dialog cancelled");
         return;
+    }
 
     m_linkedXAxisGroups = workingGroups;
     cleanupLinkedXAxisGroups();
+    logXAxisTrace(QString("link dialog accepted groups=%1").arg(m_linkedXAxisGroups.size()));
 }
 
 void UI::createMenu()
@@ -799,6 +843,23 @@ void UI::createMenu()
             dm.SaveXAxisRules(jsonPath.toStdString());
         }
     });
+
+    settingsMenu->addSeparator();
+
+    auto* logMenu = settingsMenu->addMenu(QString::fromUtf8(u8"日志"));
+    for (const auto& info : viewer::trace::categories())
+    {
+        auto* action = logMenu->addAction(QString::fromUtf8(info.displayNameUtf8));
+        action->setCheckable(true);
+        action->setChecked(viewer::trace::isEnabled(info.category));
+        connect(action, &QAction::toggled, this, [this, category = info.category](bool enabled)
+        {
+            viewer::trace::setEnabled(category, enabled);
+            logOperationTrace(QString("log setting changed category=%1 enabled=%2")
+                              .arg(QString::fromLatin1(viewer::trace::categoryInfo(category).settingsKey))
+                              .arg(enabled));
+        });
+    }
 
     settingsMenu->addSeparator();
 
@@ -1148,8 +1209,15 @@ void UI::clearLayoutPlaceholders()
 
 void UI::applyPlotLayoutMode(viewer::PlotLayoutMode mode)
 {
+    logLayoutTrace(QString("apply layout enter mode=%1 pages=%2 plotDockManager=0x%3 shuttingDown=%4 savedTabbedState=%5")
+                   .arg(static_cast<int>(mode)).arg(m_pageDocks.size())
+                   .arg(reinterpret_cast<quintptr>(m_plotDockManager), 0, 16)
+                   .arg(m_isShuttingDown).arg(m_hasSavedTabbedPlotLayoutState));
     if (!m_plotDockManager || m_isShuttingDown)
+    {
+        logLayoutTrace("apply layout aborted: unavailable manager or shutdown in progress");
         return;
+    }
 
     if (mode == viewer::PlotLayoutMode::Tabbed)
     {
@@ -1171,6 +1239,9 @@ void UI::applyPlotLayoutMode(viewer::PlotLayoutMode mode)
 
     updatePlotPageChromeForLayout(mode);
     updatePlotLayoutActions(mode);
+    logLayoutTrace(QString("apply layout leave mode=%1 pages=%2 placeholders=%3")
+                   .arg(static_cast<int>(mode)).arg(m_pageDocks.size())
+                   .arg(m_layoutPlaceholderDocks.size()));
 }
 
 void UI::restoreTabbedPlotLayout()
@@ -1180,6 +1251,9 @@ void UI::restoreTabbedPlotLayout()
 
     const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
     bool restored = false;
+    logLayoutTrace(QString("restore tabbed enter activePage=%1 savedState=%2 stateBytes=%3")
+                   .arg(activeIndex).arg(m_hasSavedTabbedPlotLayoutState)
+                   .arg(m_savedTabbedPlotLayoutState.size()));
 
     clearLayoutPlaceholders();
 
@@ -1191,7 +1265,10 @@ void UI::restoreTabbedPlotLayout()
     }
 
     if (!restored)
+    {
+        logLayoutTrace("restore tabbed saved state unavailable/failed; normalizing docks");
         normalizeAllPlotDocksToMainContainer();
+    }
 
     m_savedTabbedPlotLayoutState.clear();
     m_hasSavedTabbedPlotLayoutState = false;
@@ -1205,6 +1282,8 @@ void UI::restoreTabbedPlotLayout()
             m_plotDockManager->setDockWidgetFocused(dock);
         }
     }
+    logLayoutTrace(QString("restore tabbed leave activePage=%1 restoredState=%2")
+                   .arg(activeIndex).arg(restored));
 }
 
 void UI::normalizeAllPlotDocksToMainContainer()
@@ -1216,6 +1295,8 @@ void UI::normalizeAllPlotDocksToMainContainer()
     std::sort(pageIndices.begin(), pageIndices.end());
     if (pageIndices.isEmpty())
         return;
+
+    logLayoutTrace(QString("normalize tabbed docks enter pages=%1").arg(pageIndices.size()));
 
     const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
     m_rearrangingPlotLayout = true;
@@ -1252,6 +1333,9 @@ void UI::normalizeAllPlotDocksToMainContainer()
             m_plotDockManager->setDockWidgetFocused(dock);
         }
     }
+    logLayoutTrace(QString("normalize tabbed docks leave pages=%1 activePage=%2 firstArea=0x%3")
+                   .arg(pageIndices.size()).arg(activeIndex)
+                   .arg(reinterpret_cast<quintptr>(firstArea), 0, 16));
 }
 
 void UI::arrangePlotsInRowLayout()
@@ -1263,6 +1347,8 @@ void UI::arrangePlotsInRowLayout()
     std::sort(pageIndices.begin(), pageIndices.end());
     if (pageIndices.isEmpty())
         return;
+
+    logLayoutTrace(QString("arrange row enter pages=%1").arg(pageIndices.size()));
 
     const int activeIndex = m_viewer.GetPlotManager().activePageIndex();
     m_rearrangingPlotLayout = true;
@@ -1300,6 +1386,8 @@ void UI::arrangePlotsInRowLayout()
         if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
             m_plotDockManager->setDockWidgetFocused(dock);
     }
+    logLayoutTrace(QString("arrange row leave pages=%1 activePage=%2")
+                   .arg(pageIndices.size()).arg(activeIndex));
 }
 
 void UI::arrangePlotsInGridLayout()
@@ -1316,6 +1404,8 @@ void UI::arrangePlotsInGridLayout()
     const int plotCount = pageIndices.size();
     const int cols = static_cast<int>(std::ceil(std::sqrt(static_cast<double>(plotCount))));
     const int rows = static_cast<int>(std::ceil(static_cast<double>(plotCount) / static_cast<double>(cols)));
+    logLayoutTrace(QString("arrange grid enter pages=%1 rows=%2 cols=%3 activePage=%4")
+                   .arg(plotCount).arg(rows).arg(cols).arg(activeIndex));
 
     m_rearrangingPlotLayout = true;
 
@@ -1411,6 +1501,8 @@ void UI::arrangePlotsInGridLayout()
         if (auto* dock = m_pageDocks.value(activeIndex, nullptr))
             m_plotDockManager->setDockWidgetFocused(dock);
     }
+    logLayoutTrace(QString("arrange grid leave pages=%1 rows=%2 cols=%3 placeholders=%4")
+                   .arg(plotCount).arg(rows).arg(cols).arg(m_layoutPlaceholderDocks.size()));
 }
 
 // ============================================================

@@ -1,15 +1,12 @@
 #include "code_viewer/plotmgr/graph/opengl/column_graph_gl_painter.h"
 
-#include <QCoreApplication>
-#include <QDateTime>
-#include <QDir>
-#include <QFile>
 #include <QHash>
 #include <QOpenGLFunctions>
 #include <QOpenGLShaderProgram>
-#include <QTextStream>
 #include <QVector4D>
 #include <QtGlobal>
+
+#include "code_viewer/base/trace_logger.h"
 
 namespace viewer
 {
@@ -88,17 +85,7 @@ inline QVector4D toVec4(const QColor& color)
 
 void appendOpenGlTrace(const QString& message)
 {
-    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
-    QDir().mkpath(userDir);
-
-    QFile file(userDir + "/plot_gl_trace.txt");
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
-        return;
-
-    QTextStream out(&file);
-    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
-        << " | " << message << "\n";
-    out.flush();
+    trace::write(trace::Category::PlotOpenGL, message);
 }
 
 } // namespace

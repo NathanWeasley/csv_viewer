@@ -24,6 +24,7 @@
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
+#include "code_viewer/base/trace_logger.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
 #include <qdir.h>
@@ -42,24 +43,12 @@ constexpr int kDataTreeKindRole = Qt::UserRole;
 constexpr int kDataTreeNameRole = Qt::UserRole + 1;
 constexpr int kDataTreeLeafKind = 2;
 
-QString shutdownTracePath()
-{
-    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
-    QDir().mkpath(userDir);
-    return userDir + "/shutdown_trace.txt";
-}
-
-QString plotTracePath()
-{
-    const QString userDir = QCoreApplication::applicationDirPath() + "/user";
-    QDir().mkpath(userDir);
-    return userDir + "/plot_gl_trace.txt";
-}
 }
 
 UI::UI(QWidget *parent)
     : QMainWindow(parent)
 {
+    logOperationTrace("UI constructor enter");
     ui.setupUi(this);
 
     // ---- QADS 全局配置（必须在任何 CDockManager 创建之前设置） ----
@@ -118,6 +107,7 @@ UI::UI(QWidget *parent)
             });
         }
     }
+    logOperationTrace(QString("UI constructor leave pages=%1").arg(plotPageCount()));
 }
 
 UI::~UI()
@@ -129,6 +119,7 @@ UI::~UI()
 
 void UI::init()
 {
+    logOperationTrace("UI init enter");
     setCentralWidget(m_dockManager);
 
     // ---- 初始化样式管理器 ----
@@ -145,12 +136,15 @@ void UI::init()
     }
 
     createMenu();
+    logOperationTrace("UI init menu created");
     createMain();
+    logOperationTrace("UI init main docks created");
 
     // ---- 加载 X 轴规则 ----
     {
         QString jsonPath = QCoreApplication::applicationDirPath() + "/user/xaxis.json";
         m_viewer.GetDataManager().LoadXAxisRules(jsonPath.toStdString());
+        logXAxisTrace(QString("default X-axis rules loaded path=\"%1\"").arg(jsonPath));
     }
 
     // ---- 加载变量自动重命名规则 ----
@@ -163,6 +157,7 @@ void UI::init()
     createStatusbar();
 
     bindCursorManagerCallbacks();
+    logOperationTrace("UI init leave callbacks bound");
 }
 
 void UI::saveState()
@@ -170,6 +165,7 @@ void UI::saveState()
     auto& sm = m_viewer.GetStyleManager();
     QString stylePath = QCoreApplication::applicationDirPath() + "/user/style.json";
     sm.save(stylePath.toStdString());
+    logOperationTrace(QString("style state saved path=\"%1\"").arg(stylePath));
 }
 
 void UI::beginShutdownCleanup(bool persistUiState)
@@ -269,26 +265,42 @@ void UI::closeEvent(QCloseEvent* event)
 
 void UI::logShutdownTrace(const QString& message) const
 {
-    QFile file(shutdownTracePath());
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
-        return;
-
-    QTextStream out(&file);
-    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
-        << " | " << message << "\n";
-    out.flush();
+    viewer::trace::write(viewer::trace::Category::Shutdown, message);
 }
 
 void UI::logPlotTrace(const QString& message) const
 {
-    QFile file(plotTracePath());
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Append | QIODevice::Text))
-        return;
+    viewer::trace::write(viewer::trace::Category::PlotOpenGL, message);
+}
 
-    QTextStream out(&file);
-    out << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss.zzz")
-        << " | " << message << "\n";
-    out.flush();
+void UI::logOperationTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::Operation, message);
+}
+
+void UI::logFileTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::FileIO, message);
+}
+
+void UI::logBookmarkTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::Bookmark, message);
+}
+
+void UI::logLayoutTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::Layout, message);
+}
+
+void UI::logXAxisTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::XAxis, message);
+}
+
+void UI::logExpressionTrace(const QString& message) const
+{
+    viewer::trace::write(viewer::trace::Category::Expression, message);
 }
 
 bool UI::configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const
@@ -313,6 +325,8 @@ bool UI::configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const
 void UI::applyOpenGlDrawingMode(bool enabled)
 {
     const auto pageIndices = m_pageDocks.keys();
+    logPlotTrace(QString("apply drawing mode enter requestedOpenGl=%1 pages=%2")
+                 .arg(enabled).arg(pageIndices.size()));
     bool rejected = false;
     for (int pageIndex : pageIndices)
     {
@@ -345,6 +359,8 @@ void UI::applyOpenGlDrawingMode(bool enabled)
         const QSignalBlocker blocker(m_actionOpenGl);
         m_actionOpenGl->setChecked(enabled);
     }
+    logPlotTrace(QString("apply drawing mode leave activeOpenGl=%1 rejected=%2")
+                 .arg(m_openglEnabled).arg(rejected));
 }
 // ============================================================
 // 双击数据树项 → 添加到激活图窗
@@ -352,8 +368,12 @@ void UI::applyOpenGlDrawingMode(bool enabled)
 
 void UI::plotDataColumnByName(const QString& dataName)
 {
+    logOperationTrace(QString("plot data request enter name=\"%1\"").arg(dataName));
     if (dataName.isEmpty())
+    {
+        logOperationTrace("plot data request aborted: empty name");
         return;
+    }
 
     const std::string yColName = dataName.toStdString();
 
@@ -363,11 +383,17 @@ void UI::plotDataColumnByName(const QString& dataName)
     // 验证列存在
     const size_t yIdx = dm.GetColumnIndex(yColName);
     if (yIdx == static_cast<size_t>(-1))
+    {
+        logOperationTrace(QString("plot data request aborted: column not found name=\"%1\"").arg(dataName));
         return;
+    }
 
     // 确保有激活页面（无激活页时自动创建）
     if (!pm.hasActivePage())
+    {
+        logOperationTrace("plot data request creating first page");
         pm.addPage();
+    }
 
     // ---- X 轴自动/手动设置 ----
     const int pageIdx = pm.activePageIndex();
@@ -378,6 +404,7 @@ void UI::plotDataColumnByName(const QString& dataName)
         const size_t globalX = dm.GetXAxisColumn();
         if (globalX != static_cast<size_t>(-1))
         {
+            logXAxisTrace(QString("plot data auto X-axis page=%1 column=%2").arg(pageIdx).arg(globalX));
             pm.setXAxisColumn(pageIdx, globalX);
         }
         else
@@ -397,16 +424,22 @@ void UI::plotDataColumnByName(const QString& dataName)
                 items, 0, false, &ok);
 
             if (!ok || choice.isEmpty())
+            {
+                logXAxisTrace(QString("plot data X-axis selection cancelled page=%1").arg(pageIdx));
                 return;
+            }
 
             if (choice == QString::fromUtf8("[数据索引]"))
             {
                 pm.setXAxisColumn(pageIdx, static_cast<size_t>(-1));
+                logXAxisTrace(QString("plot data X-axis set to index page=%1").arg(pageIdx));
             }
             else
             {
                 const size_t selIdx = dm.GetColumnIndex(choice.toStdString());
                 pm.setXAxisColumn(pageIdx, selIdx);
+                logXAxisTrace(QString("plot data X-axis selected page=%1 column=%2 name=\"%3\"")
+                              .arg(pageIdx).arg(selIdx).arg(choice));
             }
         }
     }
@@ -418,15 +451,24 @@ void UI::plotDataColumnByName(const QString& dataName)
         {
             const auto& colNames = dm.GetColumnNames();
             if (yColName == colNames[pxIdx])
+            {
+                logOperationTrace(QString("plot data request skipped: requested Y is page X-axis page=%1 name=\"%2\"")
+                                  .arg(pageIdx).arg(dataName));
                 return;
+            }
         }
     }
 
     // FFT 图窗禁止添加数据项
     if (pm.hasActivePage() && pm.isFFTPage(pm.activePageIndex()))
+    {
+        logOperationTrace(QString("plot data request blocked on FFT page=%1").arg(pm.activePageIndex()));
         return;
+    }
 
-    pm.addDataToActivePage(yColName);
+    const bool added = pm.addDataToActivePage(yColName);
+    logOperationTrace(QString("plot data request leave page=%1 name=\"%2\" added=%3")
+                      .arg(pm.activePageIndex()).arg(dataName).arg(added));
 }
 
 void UI::onDataItemDoubleClicked(QTreeWidgetItem* item, int /*column*/)

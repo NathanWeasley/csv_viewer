@@ -1,4 +1,5 @@
 #include "code_viewer/plotmgr/plot_manager.h"
+#include "code_viewer/base/trace_logger.h"
 #include <algorithm>
 
 namespace viewer
@@ -11,6 +12,9 @@ namespace viewer
 int PlotManager::addPage(const std::string& title)
 {
     int index = static_cast<int>(m_pages.size());
+    trace::write(trace::Category::Operation,
+                 QString("plot manager add page enter index=%1 requestedTitle=\"%2\" pagesBefore=%3")
+                     .arg(index).arg(QString::fromStdString(title)).arg(m_pages.size()));
 
     PlotPageInfo info;
     info.title = title.empty() ? generatePageTitle() : title;
@@ -24,6 +28,9 @@ int PlotManager::addPage(const std::string& title)
     if (onPageAdded)
         onPageAdded(index);
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager add page leave index=%1 title=\"%2\" pagesAfter=%3")
+                     .arg(index).arg(QString::fromStdString(m_pages[index].title)).arg(m_pages.size()));
     return index;
 }
 
@@ -31,6 +38,10 @@ bool PlotManager::removePage(int index)
 {
     if (index < 0 || index >= static_cast<int>(m_pages.size()))
         return false;
+
+    trace::write(trace::Category::Operation,
+                 QString("plot manager remove page enter index=%1 pagesBefore=%2 activePage=%3")
+                     .arg(index).arg(m_pages.size()).arg(m_activeIndex));
 
     // 通知 UI 层即将移除
     if (onPageAboutToRemove)
@@ -68,6 +79,9 @@ bool PlotManager::removePage(int index)
     if (remaining == 0)
         m_nextPageNumber = 1;
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager remove page leave index=%1 pagesAfter=%2 activePage=%3")
+                     .arg(index).arg(remaining).arg(m_activeIndex));
     return true;
 }
 
@@ -79,6 +93,9 @@ void PlotManager::setActivePage(int index)
         return;
 
     m_activeIndex = index;
+    trace::write(trace::Category::Operation,
+                 QString("plot manager active page changed page=%1 pages=%2")
+                     .arg(index).arg(m_pages.size()));
 
     if (onActivePageChanged)
         onActivePageChanged(index);
@@ -103,9 +120,16 @@ bool PlotManager::addDataItem(int pageIndex, const std::string& yColName)
 
     items.insert(yColName);
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager add data enter page=%1 name=\"%2\" itemsAfterInsert=%3")
+                     .arg(pageIndex).arg(QString::fromStdString(yColName)).arg(items.size()));
+
     if (onDataItemAdded)
         onDataItemAdded(pageIndex, yColName);
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager add data leave page=%1 name=\"%2\"")
+                     .arg(pageIndex).arg(QString::fromStdString(yColName)));
     return true;
 }
 
@@ -123,9 +147,16 @@ bool PlotManager::removeDataItem(int pageIndex, const std::string& yColName)
     if (removed == 0)
         return false;
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager remove data enter page=%1 name=\"%2\" remaining=%3")
+                     .arg(pageIndex).arg(QString::fromStdString(yColName)).arg(items.size()));
+
     if (onDataItemRemoved)
         onDataItemRemoved(pageIndex, yColName);
 
+    trace::write(trace::Category::Operation,
+                 QString("plot manager remove data leave page=%1 name=\"%2\"")
+                     .arg(pageIndex).arg(QString::fromStdString(yColName)));
     return true;
 }
 
@@ -159,12 +190,16 @@ void PlotManager::clearDataItems(int pageIndex)
 
 void PlotManager::clearAll()
 {
+    trace::write(trace::Category::Operation,
+                 QString("plot manager clear enter pages=%1 activePage=%2")
+                     .arg(m_pages.size()).arg(m_activeIndex));
     m_pages.clear();
     m_activeIndex = -1;
     m_nextPageNumber = 1;
 
     if (onCleared)
         onCleared();
+    trace::write(trace::Category::Operation, "plot manager clear leave");
 }
 
 // ============================================================
@@ -187,8 +222,15 @@ void PlotManager::setXAxisColumn(int pageIndex, size_t colIdx)
 
     m_pages[pageIndex].xAxisColumn = colIdx;
 
+    trace::write(trace::Category::XAxis,
+                 QString("plot manager set X-axis enter page=%1 column=%2")
+                     .arg(pageIndex).arg(colIdx));
+
     if (onXAxisChanged)
         onXAxisChanged(pageIndex, colIdx);
+    trace::write(trace::Category::XAxis,
+                 QString("plot manager set X-axis leave page=%1 column=%2")
+                     .arg(pageIndex).arg(colIdx));
 }
 
 size_t PlotManager::activeXAxisColumn() const
@@ -310,8 +352,14 @@ void PlotManager::setLayoutMode(PlotLayoutMode mode)
 
     m_layoutMode = mode;
 
+    trace::write(trace::Category::Layout,
+                 QString("plot manager set layout enter mode=%1 pages=%2")
+                     .arg(static_cast<int>(mode)).arg(m_pages.size()));
+
     if (onLayoutModeChanged)
         onLayoutModeChanged(mode);
+    trace::write(trace::Category::Layout,
+                 QString("plot manager set layout leave mode=%1").arg(static_cast<int>(mode)));
 }
 
 // ============================================================

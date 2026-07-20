@@ -26,6 +26,7 @@
 #include "AliasDialog.h"
 #include <qdir.h>
 #include <qfile.h>
+#include <qfileinfo.h>
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
@@ -39,17 +40,25 @@ void UI::loadAliasFile()
     QString dir = QCoreApplication::applicationDirPath();
     QDir().mkpath(dir + "/user");
     QString path = dir + "/user/alias.json";
+    logFileTrace(QString("alias load enter path=\"%1\" exists=%2")
+                 .arg(path).arg(QFile::exists(path)));
 
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly))
+    {
+        logFileTrace("alias load skipped: file unavailable");
         return;
+    }
 
     QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
     file.close();
 
     m_aliasMap.clear();
     if (!doc.isObject())
+    {
+        logFileTrace("alias load aborted: JSON root is not an object");
         return;
+    }
 
     QJsonArray arr = doc.object().value("aliases").toArray();
     for (const auto& item : arr)
@@ -62,6 +71,7 @@ void UI::loadAliasFile()
     }
 
     m_viewer.GetDataManager().SetAliasMap(m_aliasMap);
+    logFileTrace(QString("alias load leave entries=%1").arg(m_aliasMap.size()));
 }
 
 void UI::saveAliasFile()
@@ -69,6 +79,8 @@ void UI::saveAliasFile()
     QString dir = QCoreApplication::applicationDirPath();
     QDir().mkpath(dir + "/user");
     QString path = dir + "/user/alias.json";
+    logFileTrace(QString("alias save enter path=\"%1\" entries=%2")
+                 .arg(path).arg(m_aliasMap.size()));
 
     QJsonArray arr;
     for (const auto& [from, to] : m_aliasMap)
@@ -90,10 +102,14 @@ void UI::saveAliasFile()
     }
 
     m_viewer.GetDataManager().SetAliasMap(m_aliasMap);
+    logFileTrace(QString("alias save leave path=\"%1\" exists=%2 size=%3")
+                 .arg(path).arg(QFile::exists(path)).arg(QFileInfo(path).size()));
 }
 
 void UI::showAliasDialog()
 {
+    logOperationTrace(QString("alias dialog enter aliases=%1 columns=%2")
+                      .arg(m_aliasMap.size()).arg(m_viewer.GetDataManager().GetColumnCount()));
     AliasDialog dlg(this);
     dlg.setAliases(m_aliasMap);
 
@@ -106,8 +122,12 @@ void UI::showAliasDialog()
     }
 
     if (dlg.exec() != QDialog::Accepted)
+    {
+        logOperationTrace("alias dialog cancelled");
         return;
+    }
 
     m_aliasMap = dlg.getAliases();
     saveAliasFile();
+    logOperationTrace(QString("alias dialog accepted aliases=%1").arg(m_aliasMap.size()));
 }

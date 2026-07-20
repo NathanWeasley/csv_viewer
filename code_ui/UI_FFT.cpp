@@ -131,6 +131,8 @@ void applyColorScaleTheme(QCPColorScale* colorScale, const viewer::PlotTheme& th
 void UI::onFFTRequested(int pageIndex)
 {
     auto& pm = m_viewer.GetPlotManager();
+    logOperationTrace(QString("FFT selection request enter page=%1 pages=%2")
+                      .arg(pageIndex).arg(plotPageCount()));
 
     if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
@@ -162,6 +164,8 @@ void UI::onFFTRequested(int pageIndex)
     m_fftSelectRect->setVisible(false);
 
     plot->replot();
+    logOperationTrace(QString("FFT selection active page=%1 rect=0x%2")
+                      .arg(pageIndex).arg(reinterpret_cast<quintptr>(m_fftSelectRect), 0, 16));
 }
 
 // ============================================================
@@ -169,6 +173,8 @@ void UI::onFFTRequested(int pageIndex)
 // ============================================================
 void UI::cancelFFTSelection()
 {
+    logOperationTrace(QString("FFT selection cancel page=%1 rect=0x%2")
+                      .arg(m_fftPageIndex).arg(reinterpret_cast<quintptr>(m_fftSelectRect), 0, 16));
     m_fftSelecting = false;
 
     if (m_fftPageIndex >= 0 && m_fftPageIndex < plotPageCount())
@@ -194,6 +200,9 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 {
     auto& dm = m_viewer.GetDataManager();
     auto& pm = m_viewer.GetPlotManager();
+    logOperationTrace(QString("FFT dialog enter page=%1 xMin=%2 xMax=%3 pages=%4")
+                      .arg(pageIndex).arg(xMin, 0, 'g', 16).arg(xMax, 0, 'g', 16)
+                      .arg(pm.pageCount()));
 
     if (pageIndex < 0 || pageIndex >= pm.pageCount())
         return;
@@ -273,11 +282,17 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     viewer::TimeUnit xUnit = dm.GetXAxisUnit();
     FFTDialog dlg(itemList, selItem, dataCount, xUnit, this);
     if (dlg.exec() != QDialog::Accepted)
+    {
+        logOperationTrace(QString("FFT dialog cancelled page=%1").arg(pageIndex));
         return;
+    }
 
     std::string chosenItem = dlg.selectedDataItem();
     double sampleInterval = dlg.sampleInterval();
     size_t fftN = dlg.fftSize();
+    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5")
+                      .arg(pageIndex).arg(QString::fromStdString(chosenItem))
+                      .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16));
 
     if (chosenItem != selItem)
     {
@@ -288,6 +303,9 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     // ---- 创建 FFT 图窗 ----
     int fftPageIdx = pm.addFFTPage("FFT: " + chosenItem);
     QPointer<QWidget> fftContainer = getPlotContainer(fftPageIdx);
+    logOperationTrace(QString("FFT output page created sourcePage=%1 outputPage=%2 container=0x%3")
+                      .arg(pageIndex).arg(fftPageIdx)
+                      .arg(reinterpret_cast<quintptr>(fftContainer.data()), 0, 16));
 
     // ---- 准备两列数据 ----
     auto realCol = std::make_unique<viewer::Column>();
@@ -323,6 +341,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         [this, fftMgr, fftContainer,
          realCol = std::move(realCol), imagCol = std::move(imagCol)]() mutable
         {
+            logOperationTrace(QString("FFT finished signal manager=0x%1 containerValid=%2")
+                              .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16).arg(!fftContainer.isNull()));
             m_progressBar->setVisible(false);
 
             if (!fftContainer)
@@ -421,9 +441,16 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
             plot->rescaleAxes();
             plot->replot();
 
+            logOperationTrace(QString("FFT result installed page=%1 points=%2 graph=0x%3")
+                              .arg(fftPageIdx).arg(magPtr->size())
+                              .arg(reinterpret_cast<quintptr>(graph), 0, 16));
+
             fftMgr->deleteLater();
         });
 
+    logOperationTrace(QString("FFT worker start page=%1 outputPage=%2 fftSize=%3 manager=0x%4")
+                      .arg(pageIndex).arg(fftPageIdx).arg(fftN)
+                      .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16));
     fftMgr->startFFT(realPtr, imagPtr, fftN, sampleInterval, nullptr, nullptr);
 }
 
@@ -436,6 +463,8 @@ void UI::showSTFTDialog(int pageIndex)
 {
     auto& dm = m_viewer.GetDataManager();
     auto& pm = m_viewer.GetPlotManager();
+    logOperationTrace(QString("STFT dialog enter page=%1 pages=%2")
+                      .arg(pageIndex).arg(pm.pageCount()));
 
     if (pageIndex < 0 || pageIndex >= pm.pageCount())
         return;
@@ -474,7 +503,10 @@ void UI::showSTFTDialog(int pageIndex)
 
     STFTDialog dlg(itemList, selItem, srcCol->size(), defaultSampleFrequency, this);
     if (dlg.exec() != QDialog::Accepted)
+    {
+        logOperationTrace(QString("STFT dialog cancelled page=%1").arg(pageIndex));
         return;
+    }
 
     const std::string chosenItem = dlg.selectedDataItem();
     srcCol = resolveSTFTSourceColumn(chosenItem);
@@ -491,6 +523,10 @@ void UI::showSTFTDialog(int pageIndex)
     const size_t fftSize = dlg.fftSize();
     const double sampleFrequency = dlg.sampleFrequency();
     const viewer::STFTWindowType windowType = dlg.windowType();
+    logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8")
+                      .arg(pageIndex).arg(QString::fromStdString(chosenItem)).arg(srcCol->size())
+                      .arg(windowSize).arg(overlap).arg(fftSize)
+                      .arg(sampleFrequency, 0, 'g', 16).arg(static_cast<int>(windowType)));
     const size_t xIdx = pm.xAxisColumn(pageIndex);
     const viewer::Column* stftXCol = (xIdx != static_cast<size_t>(-1)) ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
     const std::vector<double> alignedTimeAxis =
@@ -503,6 +539,8 @@ void UI::showSTFTDialog(int pageIndex)
     connect(watcher, &QFutureWatcher<viewer::STFTResult>::finished, this,
         [this, watcher, pageIndex, chosenItem, alignedTimeAxis]()
         {
+            logOperationTrace(QString("STFT finished signal sourcePage=%1 item=\"%2\"")
+                              .arg(pageIndex).arg(QString::fromStdString(chosenItem)));
             m_progressBar->hide();
             m_progressBar->setRange(0, 1000);
             m_progressBar->setValue(0);
@@ -512,6 +550,7 @@ void UI::showSTFTDialog(int pageIndex)
 
             if (result.empty())
             {
+                logOperationTrace(QString("STFT result empty sourcePage=%1").arg(pageIndex));
                 QMessageBox::warning(this, QString::fromUtf8("STFT 失败"),
                                      QString::fromUtf8("STFT 计算结果为空，请检查参数设置。"));
                 return;
@@ -521,6 +560,9 @@ void UI::showSTFTDialog(int pageIndex)
             m_pendingDockTargetPage = pageIndex;
             m_pendingDockArea = ads::BottomDockWidgetArea;
             const int stftPageIndex = pm.addFFTPage("STFT: " + chosenItem);
+            logOperationTrace(QString("STFT output page created sourcePage=%1 outputPage=%2 timeBins=%3 freqBins=%4")
+                              .arg(pageIndex).arg(stftPageIndex)
+                              .arg(result.timeBinCount).arg(result.freqBinCount));
 
             auto* container = getPlotContainer(stftPageIndex);
             auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
@@ -601,8 +643,12 @@ void UI::showSTFTDialog(int pageIndex)
                 syncLinkedXAxisRange(pageIndex, sourcePlot->xAxis->range());
 
             plot->replot();
+            logOperationTrace(QString("STFT result installed sourcePage=%1 outputPage=%2 linkGroups=%3")
+                              .arg(pageIndex).arg(stftPageIndex).arg(m_linkedXAxisGroups.size()));
         });
 
+    logOperationTrace(QString("STFT worker start page=%1 item=\"%2\"")
+                      .arg(pageIndex).arg(QString::fromStdString(chosenItem)));
     watcher->setFuture(QtConcurrent::run(
         [inputData = std::move(inputData), windowSize, overlap, fftSize, sampleFrequency, windowType]() mutable
         {

@@ -31,6 +31,7 @@
 #include "AliasDialog.h"
 #include <qdir.h>
 #include <qfile.h>
+#include <qfileinfo.h>
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
@@ -80,6 +81,12 @@ static void populateTree(QTreeWidgetItem* parentItem,
 
 void UI::rebuildBookmarkTree()
 {
+    logBookmarkTrace("rebuild tree enter");
+    if (!m_bookmarkTree)
+    {
+        logBookmarkTrace("rebuild tree aborted: bookmark tree is null");
+        return;
+    }
     m_bookmarkTree->clear();
     const auto& root = m_viewer.GetPlotManager().bookmarkMgr.root();
 
@@ -103,6 +110,9 @@ void UI::rebuildBookmarkTree()
         item->setData(0, RoleName, QString::fromStdString(e.name));
         item->setIcon(0, qApp->style()->standardIcon(QStyle::SP_FileIcon));
     }
+    logBookmarkTrace(QString("rebuild tree leave rootFolders=%1 rootEntries=%2 topLevelItems=%3")
+                     .arg(root.subFolders.size()).arg(root.entries.size())
+                     .arg(m_bookmarkTree->topLevelItemCount()));
 }
 
 // ============================================================
@@ -113,22 +123,40 @@ void UI::loadBookmarkFile()
 {
     QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
     QString path = QCoreApplication::applicationDirPath() + "/user/bookmarks.json";
+    logBookmarkTrace(QString("load file enter path=\"%1\" exists=%2 size=%3")
+                     .arg(path).arg(QFile::exists(path)).arg(QFileInfo(path).size()));
     m_viewer.GetPlotManager().bookmarkMgr.loadFromFile(path.toStdString());
+    logBookmarkTrace("load file parsed; rebuilding tree");
     rebuildBookmarkTree();
+    logBookmarkTrace("load file leave");
 }
 
 void UI::saveBookmarkFile()
 {
     QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
     QString path = QCoreApplication::applicationDirPath() + "/user/bookmarks.json";
+    logBookmarkTrace(QString("save file enter path=\"%1\"").arg(path));
     m_viewer.GetPlotManager().bookmarkMgr.saveToFile(path.toStdString());
+    logBookmarkTrace(QString("save file leave exists=%1 size=%2")
+                     .arg(QFile::exists(path)).arg(QFileInfo(path).size()));
 }
 
 void UI::addBookmark(int pageIndex)
 {
     auto& pm = m_viewer.GetPlotManager();
+    logBookmarkTrace(QString("add bookmark enter page=%1 pageCount=%2")
+                     .arg(pageIndex).arg(pm.pageCount()));
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+    {
+        logBookmarkTrace("add bookmark aborted: invalid page index");
+        return;
+    }
     const auto& info = pm.pageInfo(pageIndex);
-    if (info.dataItems.empty()) return;
+    if (info.dataItems.empty())
+    {
+        logBookmarkTrace("add bookmark aborted: page has no data items");
+        return;
+    }
 
     // 输入收藏名称和文件夹
     QDialog dlg(this);
@@ -149,7 +177,11 @@ void UI::addBookmark(int pageIndex)
     connect(btnBox, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
     layout->addRow(btnBox);
 
-    if (dlg.exec() != QDialog::Accepted) return;
+    if (dlg.exec() != QDialog::Accepted)
+    {
+        logBookmarkTrace("add bookmark cancelled by user");
+        return;
+    }
 
     std::string bmName = nameEdit->text().trimmed().toStdString();
     if (bmName.empty())
@@ -182,7 +214,17 @@ void UI::addBookmark(int pageIndex)
 
     auto* container = getPlotContainer(pageIndex);
     auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-    if (!plot) return;
+    if (!plot)
+    {
+        logBookmarkTrace(QString("add bookmark aborted: plot missing container=0x%1")
+                         .arg(reinterpret_cast<quintptr>(container), 0, 16));
+        return;
+    }
+
+    logBookmarkTrace(QString("capturing bookmark name=\"%1\" folder=\"%2\" dataItems=%3 plottables=%4 plot=0x%5")
+                     .arg(QString::fromStdString(bmName), QString::fromStdString(folderPath))
+                     .arg(info.dataItems.size()).arg(plot->plottableCount())
+                     .arg(reinterpret_cast<quintptr>(plot), 0, 16));
 
     viewer::BookmarkEntry entry;
     entry.name = bmName;
@@ -221,15 +263,26 @@ void UI::addBookmark(int pageIndex)
     }
 
     entry.highlights = info.highlightMgr.rules();
-    if (!pm.bookmarkMgr.addBookmark(folderPath, entry)) return;
+    if (!pm.bookmarkMgr.addBookmark(folderPath, entry))
+    {
+        logBookmarkTrace("add bookmark failed in BookmarkMgr::addBookmark");
+        return;
+    }
 
     saveBookmarkFile();
     rebuildBookmarkTree();
+    logBookmarkTrace(QString("add bookmark leave name=\"%1\"").arg(QString::fromStdString(bmName)));
 }
 
 void UI::onBookmarkDoubleClicked(QTreeWidgetItem* item, int /*column*/)
 {
-    if (!item) return;
+    logBookmarkTrace(QString("double click enter item=0x%1")
+                     .arg(reinterpret_cast<quintptr>(item), 0, 16));
+    if (!item)
+    {
+        logBookmarkTrace("double click aborted: null item");
+        return;
+    }
 
     QString type = item->data(0, RoleType).toString();
     if (type != QStringLiteral("bookmark"))
@@ -239,38 +292,71 @@ void UI::onBookmarkDoubleClicked(QTreeWidgetItem* item, int /*column*/)
     std::string name       = item->data(0, RoleName).toString().toStdString();
 
     const auto* entry = m_viewer.GetPlotManager().bookmarkMgr.find(folderPath, name);
-    if (!entry) return;
+    if (!entry)
+    {
+        logBookmarkTrace(QString("double click aborted: bookmark not found folder=\"%1\" name=\"%2\"")
+                         .arg(QString::fromStdString(folderPath), QString::fromStdString(name)));
+        return;
+    }
 
-    restoreBookmark(*entry);
+    // Work on a snapshot so no tree/model mutation can invalidate the lookup pointer.
+    const viewer::BookmarkEntry entrySnapshot = *entry;
+    logBookmarkTrace(QString("double click resolved folder=\"%1\" name=\"%2\" dataItems=%3 graphs=%4 highlights=%5")
+                     .arg(QString::fromStdString(folderPath), QString::fromStdString(name))
+                     .arg(entrySnapshot.dataItems.size()).arg(entrySnapshot.graphs.size())
+                     .arg(entrySnapshot.highlights.size()));
+    restoreBookmark(entrySnapshot);
+    logBookmarkTrace("double click leave");
 }
 
 void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
 {
     auto& pm = m_viewer.GetPlotManager();
     auto& dm = m_viewer.GetDataManager();
+    logBookmarkTrace(QString("restore enter name=\"%1\" xAxis=%2 dataItems=%3 graphs=%4 highlights=%5 pagesBefore=%6")
+                     .arg(QString::fromStdString(entry.name)).arg(entry.xAxisColumn)
+                     .arg(entry.dataItems.size()).arg(entry.graphs.size())
+                     .arg(entry.highlights.size()).arg(pm.pageCount()));
     int newIdx = pm.addPage(entry.name);
+    logBookmarkTrace(QString("restore page added newPage=%1 pageCount=%2").arg(newIdx).arg(pm.pageCount()));
     pm.setXAxisColumn(newIdx, entry.xAxisColumn);
+    logXAxisTrace(QString("bookmark restore set X axis page=%1 column=%2").arg(newIdx).arg(entry.xAxisColumn));
 
     auto* cw = getPlotContainer(newIdx);
     auto* plot = cw ? cw->findChild<QCustomPlot*>() : nullptr;
+    logBookmarkTrace(QString("restore widgets page=%1 container=0x%2 plot=0x%3")
+                     .arg(newIdx).arg(reinterpret_cast<quintptr>(cw), 0, 16)
+                     .arg(reinterpret_cast<quintptr>(plot), 0, 16));
 
     // 抑制中间重绘，全部设置完成后统一 replot
     if (plot) plot->setUpdatesEnabled(false);
 
     for (const auto& it : entry.dataItems)
-        pm.addDataItem(newIdx, it);
+    {
+        const bool added = pm.addDataItem(newIdx, it);
+        logBookmarkTrace(QString("restore data item page=%1 name=\"%2\" added=%3")
+                         .arg(newIdx).arg(QString::fromStdString(it)).arg(added));
+    }
 
     if (plot)
     {
         for (const auto& gs : entry.graphs)
         {
+            logBookmarkTrace(QString("restore graph enter page=%1 name=\"%2\" edited=%3 expressionLength=%4")
+                             .arg(newIdx).arg(QString::fromStdString(gs.dataItemName))
+                             .arg(gs.isEdited).arg(gs.expressionText.size()));
             viewer::QCPColumnGraph* graph = nullptr;
             for (int i = 0; i < plot->plottableCount(); ++i)
             {
                 auto* g = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
                 if (g && g->name().toStdString() == gs.dataItemName) { graph = g; break; }
             }
-            if (!graph) continue;
+            if (!graph)
+            {
+                logBookmarkTrace(QString("restore graph skipped: graph not found name=\"%1\"")
+                                 .arg(QString::fromStdString(gs.dataItemName)));
+                continue;
+            }
 
             int lineStyle = gs.lineStyle;
             if (lineStyle < static_cast<int>(viewer::QCPColumnGraph::lsNone)
@@ -298,8 +384,14 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
             if (gs.isEdited && !gs.expressionText.empty())
             {
                 auto& exprMgr = pm.pageInfo(newIdx).exprMgr;
+                logExpressionTrace(QString("bookmark expression set page=%1 item=\"%2\" text=\"%3\"")
+                                   .arg(newIdx).arg(QString::fromStdString(gs.dataItemName),
+                                                    QString::fromStdString(gs.expressionText)));
                 exprMgr.setExpressionText(gs.dataItemName, gs.expressionText);
-                if (exprMgr.recompute(gs.dataItemName, dm))
+                const bool recomputed = exprMgr.recompute(gs.dataItemName, dm);
+                logExpressionTrace(QString("bookmark expression recompute page=%1 item=\"%2\" success=%3")
+                                   .arg(newIdx).arg(QString::fromStdString(gs.dataItemName)).arg(recomputed));
+                if (recomputed)
                 {
                     // 重新绑定 graph 到表达式计算结果列（recompute 后 computedData 持有新数据）
                     viewer::PlotExpression* pe = exprMgr.get(gs.dataItemName);
@@ -316,9 +408,17 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
                         }
                         graph->setDataColumns(xCol, pe->computedData.get());
                         graph->notifyDataChanged();
+                        logExpressionTrace(QString("bookmark expression rebound page=%1 item=\"%2\" x=0x%3 y=0x%4 rows=%5")
+                                           .arg(newIdx).arg(QString::fromStdString(gs.dataItemName))
+                                           .arg(reinterpret_cast<quintptr>(xCol), 0, 16)
+                                           .arg(reinterpret_cast<quintptr>(pe->computedData.get()), 0, 16)
+                                           .arg(pe->computedData->size()));
                     }
                 }
             }
+            logBookmarkTrace(QString("restore graph leave page=%1 name=\"%2\" graph=0x%3")
+                             .arg(newIdx).arg(QString::fromStdString(gs.dataItemName))
+                             .arg(reinterpret_cast<quintptr>(graph), 0, 16));
         }
 
         // 更新工具栏 ComboList 星号显示（表达式编辑后的名称标记）
@@ -408,6 +508,11 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
         plot->rescaleAxes();
         plot->replot();
     }
+    else
+    {
+        logBookmarkTrace(QString("restore incomplete: plot missing for page=%1").arg(newIdx));
+    }
+    logBookmarkTrace(QString("restore leave page=%1 pagesAfter=%2").arg(newIdx).arg(pm.pageCount()));
 }
 
 // ============================================================

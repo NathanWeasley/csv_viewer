@@ -79,6 +79,12 @@ private:
     void removeAllPlotDocksForShutdown();
     void logShutdownTrace(const QString& message) const;
     void logPlotTrace(const QString& message) const;
+    void logOperationTrace(const QString& message) const;
+    void logFileTrace(const QString& message) const;
+    void logBookmarkTrace(const QString& message) const;
+    void logLayoutTrace(const QString& message) const;
+    void logXAxisTrace(const QString& message) const;
+    void logExpressionTrace(const QString& message) const;
     bool configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
     void applyOpenGlDrawingMode(bool enabled);
     void applyPlotLayoutMode(viewer::PlotLayoutMode mode);

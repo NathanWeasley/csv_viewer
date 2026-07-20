@@ -3,6 +3,7 @@
 #include "code_viewer/datamgr/custom_expr/custom_func.h"
 #include "code_viewer/datamgr/custom_expr/diff_func.h"
 #include "code_viewer/base/exprtk_keywords.h"
+#include "code_viewer/base/trace_logger.h"
 #include "code_exprtk/exprtk.hpp"
 #include <cctype>
 #include <unordered_set>
@@ -17,6 +18,7 @@ namespace viewer
 
 PlotExpression& ExprManager::getOrCreate(const std::string& itemName, DataManager& dm)
 {
+    Q_UNUSED(dm);
     auto it = m_exprs.find(itemName);
     if (it == m_exprs.end())
     {
@@ -26,6 +28,9 @@ PlotExpression& ExprManager::getOrCreate(const std::string& itemName, DataManage
         pe.isEdited = false;
 
         auto [insertedIt, _] = m_exprs.insert({itemName, std::move(pe)});
+        trace::write(trace::Category::Expression,
+                     QString("manager create item=\"%1\" total=%2")
+                         .arg(QString::fromStdString(itemName)).arg(m_exprs.size()));
         return insertedIt->second;
     }
 
@@ -53,7 +58,12 @@ void ExprManager::setExpressionText(const std::string& itemName, const std::stri
 {
     auto it = m_exprs.find(itemName);
     if (it == m_exprs.end())
+    {
+        trace::write(trace::Category::Expression,
+                     QString("manager set text ignored: item missing item=\"%1\"")
+                         .arg(QString::fromStdString(itemName)));
         return;
+    }
 
     it->second.expressionText = text;
     it->second.isEdited = (text != itemName);
@@ -68,6 +78,9 @@ void ExprManager::setExpressionText(const std::string& itemName, const std::stri
 
 bool ExprManager::validate(const std::string& exprStr, DataManager& dm)
 {
+    trace::write(trace::Category::Expression,
+                 QString("manager validate enter length=%1 rows=%2")
+                     .arg(exprStr.size()).arg(dm.GetRowCount()));
     // 空字符串视为无效
     if (exprStr.empty())
         return false;
@@ -78,6 +91,9 @@ bool ExprManager::validate(const std::string& exprStr, DataManager& dm)
 
     // 自定义函数预处理
     std::string processedExpr = preprocessCustomFuncs(exprStr, dm, rowCount);
+    trace::write(trace::Category::Expression,
+                 QString("manager validate preprocessed inputLength=%1 processedLength=%2 tempColumns=%3")
+                     .arg(exprStr.size()).arg(processedExpr.size()).arg(m_tempCols.size()));
 
     // 提取引用列名（从预处理后的表达式中扫描）
     std::vector<std::string> refCols;
@@ -142,16 +158,29 @@ bool ExprManager::validate(const std::string& exprStr, DataManager& dm)
 
     exprtk::parser<double> parser;
     if (!parser.compile(processedExpr, expression))
+    {
+        trace::write(trace::Category::Expression,
+                     QString("manager validate leave result=compile-failed refs=%1")
+                         .arg(refCols.size()));
         return false;
+    }
 
+    trace::write(trace::Category::Expression,
+                 QString("manager validate leave result=valid refs=%1").arg(refCols.size()));
     return true;
 }
 
 bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
 {
+    trace::write(trace::Category::Expression,
+                 QString("manager recompute enter item=\"%1\" rows=%2")
+                     .arg(QString::fromStdString(itemName)).arg(dm.GetRowCount()));
     auto it = m_exprs.find(itemName);
     if (it == m_exprs.end())
+    {
+        trace::write(trace::Category::Expression, "manager recompute leave result=item-missing");
         return false;
+    }
 
     PlotExpression& pe = it->second;
     const std::string& exprStr = pe.expressionText;
@@ -172,6 +201,9 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
 
     // 自定义函数预处理
     std::string processedExpr = preprocessCustomFuncs(exprStr, dm, rowCount);
+    trace::write(trace::Category::Expression,
+                 QString("manager recompute preprocessed item=\"%1\" processedLength=%2 tempColumns=%3")
+                     .arg(QString::fromStdString(itemName)).arg(processedExpr.size()).arg(m_tempCols.size()));
 
     // 提取引用列名（从预处理后的表达式）
     std::vector<std::string> refCols;
@@ -222,13 +254,23 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
 
     exprtk::parser<double> parser;
     if (!parser.compile(processedExpr, expression))
+    {
+        trace::write(trace::Category::Expression,
+                     QString("manager recompute leave item=\"%1\" result=compile-failed refs=%2")
+                         .arg(QString::fromStdString(itemName)).arg(refCols.size()));
         return false;
+    }
 
     // 创建/清零结果列
     if (!pe.computedData)
         pe.computedData = std::make_unique<Column>();
     pe.computedData->clear();
     pe.computedData->reserve(rowCount);
+
+    trace::write(trace::Category::Expression,
+                 QString("manager recompute evaluate item=\"%1\" rows=%2 refs=%3 output=0x%4")
+                     .arg(QString::fromStdString(itemName)).arg(rowCount).arg(refCols.size())
+                     .arg(reinterpret_cast<quintptr>(pe.computedData.get()), 0, 16));
 
     for (size_t row = 0; row < rowCount; ++row)
     {
@@ -254,6 +296,9 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
     if (onExpressionRecomputed)
         onExpressionRecomputed(itemName);
 
+    trace::write(trace::Category::Expression,
+                 QString("manager recompute leave item=\"%1\" result=success outputRows=%2")
+                     .arg(QString::fromStdString(itemName)).arg(pe.computedData->size()));
     return true;
 }
 
@@ -321,6 +366,8 @@ std::unordered_map<std::string, PlotExpression> ExprManager::copyAll() const
 
 void ExprManager::insertAll(std::unordered_map<std::string, PlotExpression>&& exprs)
 {
+    trace::write(trace::Category::Expression,
+                 QString("manager insert all expressions count=%1").arg(exprs.size()));
     m_exprs = std::move(exprs);
 }
 
@@ -330,11 +377,17 @@ void ExprManager::insertAll(std::unordered_map<std::string, PlotExpression>&& ex
 
 void ExprManager::removeItem(const std::string& itemName)
 {
+    trace::write(trace::Category::Expression,
+                 QString("manager remove item=\"%1\" existed=%2 totalBefore=%3")
+                     .arg(QString::fromStdString(itemName)).arg(m_exprs.count(itemName) != 0)
+                     .arg(m_exprs.size()));
     m_exprs.erase(itemName);
 }
 
 void ExprManager::clearAll()
 {
+    trace::write(trace::Category::Expression,
+                 QString("manager clear all count=%1").arg(m_exprs.size()));
     m_exprs.clear();
 }
 

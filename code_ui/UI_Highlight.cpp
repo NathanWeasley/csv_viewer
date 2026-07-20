@@ -36,8 +36,13 @@
 
 void UI::showHighlightDialog(int pageIndex)
 {
+    logOperationTrace(QString("highlight dialog enter page=%1 pages=%2")
+                      .arg(pageIndex).arg(plotPageCount()));
     if (pageIndex < 0 || pageIndex >= plotPageCount())
+    {
+        logOperationTrace("highlight dialog aborted: invalid page");
         return;
+    }
 
     auto& pm = m_viewer.GetPlotManager();
     auto& dm = m_viewer.GetDataManager();
@@ -54,7 +59,10 @@ void UI::showHighlightDialog(int pageIndex)
     dlg.setRules(hlMgr.rules());
 
     if (dlg.exec() != QDialog::Accepted)
+    {
+        logOperationTrace(QString("highlight dialog cancelled page=%1").arg(pageIndex));
         return;
+    }
 
     // 写入规则
     auto newRules = dlg.getRules();
@@ -64,6 +72,8 @@ void UI::showHighlightDialog(int pageIndex)
 
     // 渲染高亮
     renderHighlights(pageIndex);
+    logOperationTrace(QString("highlight dialog accepted page=%1 rules=%2")
+                      .arg(pageIndex).arg(newRules.size()));
 }
 
 // ============================================================
@@ -72,6 +82,7 @@ void UI::showHighlightDialog(int pageIndex)
 
 void UI::renderHighlights(int pageIndex)
 {
+    logOperationTrace(QString("highlight render enter page=%1").arg(pageIndex));
     if (pageIndex < 0 || pageIndex >= plotPageCount())
         return;
 
@@ -115,6 +126,8 @@ void UI::renderHighlights(int pageIndex)
     auto& hlMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr;
     auto& dm = m_viewer.GetDataManager();
     auto intervals = hlMgr.computeIntervals(dm);
+    logOperationTrace(QString("highlight intervals computed page=%1 rules=%2 intervals=%3")
+                      .arg(pageIndex).arg(hlMgr.rules().size()).arg(intervals.size()));
 
     // ---- 为每个区间创建 QCPItemRect + QCPItemText ----
     for (const auto& interval : intervals)
@@ -191,5 +204,7 @@ void UI::renderHighlights(int pageIndex)
     m_highlightReplotConns[pageIndex] = conn;
 
     plot->replot();
+    logOperationTrace(QString("highlight render leave page=%1 rects=%2 labels=%3")
+                      .arg(pageIndex).arg(rects.size()).arg(labels.size()));
 }
 
