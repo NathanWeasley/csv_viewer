@@ -159,6 +159,15 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 {
     const bool isFirstLoad = m_columns.empty();
 
+    const auto parseValue = [](const std::string& text) noexcept
+    {
+        char* end = nullptr;
+        const double value = std::strtod(text.c_str(), &end);
+        return (end != text.c_str() && *end == '\0')
+            ? value
+            : std::numeric_limits<double>::quiet_NaN();
+    };
+
     const auto reportProgress = [&](float p, const std::string& stage, const std::string& detail)
     {
         if (config.progressCb)
@@ -213,8 +222,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     if (config.hasHeader && totalDataRows > 0)
     {
-        if (static_cast<uint64_t>(config.headerRow) < totalDataRows)
-            totalDataRows -= 1;
+        const uint64_t headerRows = static_cast<uint64_t>(config.headerRow) + 1;
+        totalDataRows = (headerRows < totalDataRows) ? (totalDataRows - headerRows) : 0;
     }
 
     if (totalDataRows == 0)
@@ -316,6 +325,11 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         }
         validator.close();
 
+        const size_t oldRowCount = GetRowCount();
+        const size_t newRowCount = oldRowCount + static_cast<size_t>(validationCount);
+        for (auto& column : m_columns)
+            column->beginOverwrite(newRowCount);
+
         while (scanner.readRow(rowFields))
         {
             size_t n = rowFields.size();
@@ -324,7 +338,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
             for (size_t c = 0; c < colCount; ++c)
             {
-                m_columns[c]->pushFromString(rowFields[c]);
+                (*m_columns[c])[oldRowCount + static_cast<size_t>(appendedRows)] =
+                    parseValue(rowFields[c]);
             }
 
             ++appendedRows;
@@ -366,7 +381,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     m_columns.resize(colCount);
     for (size_t c = 0; c < colCount; ++c)
     {
-        m_columns[c] = std::make_unique<Column>();
+        m_columns[c] = std::make_unique<Column>(static_cast<size_t>(totalDataRows));
+        m_columns[c]->beginOverwrite();
     }
 
     scanner.reset();
@@ -388,12 +404,13 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         size_t n = std::min(rowFields.size(), colCount);
         for (size_t c = 0; c < n; ++c)
         {
-            m_columns[c]->pushFromString(rowFields[c]);
+            (*m_columns[c])[static_cast<size_t>(loadedRows)] = parseValue(rowFields[c]);
         }
 
         for (size_t c = n; c < colCount; ++c)
         {
-            m_columns[c]->pushFromString("");
+            (*m_columns[c])[static_cast<size_t>(loadedRows)] =
+                std::numeric_limits<double>::quiet_NaN();
         }
 
         ++loadedRows;
@@ -501,7 +518,8 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
         return false;
 
     // ---- 创建结果列 ----
-    auto resultCol = std::make_unique<Column>();
+    auto resultCol = std::make_unique<Column>(rowCount);
+    resultCol->beginOverwrite();
 
     for (size_t row = 0; row < rowCount; ++row)
     {
@@ -512,8 +530,7 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
             varValues[i] = m_columns[colIdx]->getDouble(row);
         }
 
-        double val = expression.value();
-        resultCol->push_back(val);
+        (*resultCol)[row] = expression.value();
     }
 
     // ---- 注册结果列 ----
@@ -739,11 +756,12 @@ void DataManager::ensureIndexColumnBuilt()
     if (m_indexColumn)
         return;
 
-    auto idxCol = std::make_unique<Column>();
     size_t rowCount = GetRowCount();
-    idxCol->reserve(rowCount);
+    auto idxCol = std::make_unique<Column>(rowCount);
+    idxCol->beginOverwrite();
     for (size_t i = 0; i < rowCount; ++i)
-        idxCol->push_back(static_cast<double>(i));
+        (*idxCol)[i] = static_cast<double>(i);
+    idxCol->recalcMinMax();
     m_indexColumn = std::move(idxCol);
 }
 

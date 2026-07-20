@@ -210,7 +210,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     auto resolveFFTSourceColumn = [&dm, &pm, pageIndex](const std::string& itemName) -> const viewer::Column*
     {
         viewer::PlotExpression* pe = pm.pageInfo(pageIndex).exprMgr.get(itemName);
-        if (pe && pe->computedData)
+        if (pe && pe->isEdited && pe->computedData)
             return pe->computedData.get();
 
         return dm.GetColumn(itemName);
@@ -308,18 +308,18 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
                       .arg(reinterpret_cast<quintptr>(fftContainer.data()), 0, 16));
 
     // ---- 准备两列数据 ----
-    auto realCol = std::make_unique<viewer::Column>();
-    auto imagCol = std::make_unique<viewer::Column>();
-    realCol->reserve(fftN);
-    imagCol->reserve(fftN);
+    auto realCol = std::make_unique<viewer::Column>(fftN);
+    auto imagCol = std::make_unique<viewer::Column>(fftN);
+    realCol->beginOverwrite();
+    imagCol->beginOverwrite();
 
     size_t copyCount = (dataCount > fftN) ? fftN : dataCount;
     for (size_t i = 0; i < copyCount; ++i)
-        realCol->push_back((*srcCol)[startIdx + i]);
+        (*realCol)[i] = (*srcCol)[startIdx + i];
     for (size_t i = copyCount; i < fftN; ++i)
-        realCol->push_back(0.0);
+        (*realCol)[i] = 0.0;
     for (size_t i = 0; i < fftN; ++i)
-        imagCol->push_back(0.0);
+        (*imagCol)[i] = 0.0;
 
     viewer::Column* realPtr = realCol.get();
     viewer::Column* imagPtr = imagCol.get();
@@ -377,10 +377,6 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
             // 持有列生命周期
             viewer::Column* magPtr = realCol.get();
             viewer::Column* freqPtr = imagCol.get();
-
-            // FFT 通过裸指针原地修改了数据，Column 的 min/max 缓存已过期
-            magPtr->recalcMinMax();
-            freqPtr->recalcMinMax();
 
             // 创建 graph：key=频率列, data=幅值列
             auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
@@ -480,7 +476,7 @@ void UI::showSTFTDialog(int pageIndex)
     auto resolveSTFTSourceColumn = [&dm, &pm, pageIndex](const std::string& itemName) -> const viewer::Column*
     {
         viewer::PlotExpression* pe = pm.pageInfo(pageIndex).exprMgr.get(itemName);
-        if (pe && pe->computedData)
+        if (pe && pe->isEdited && pe->computedData)
             return pe->computedData.get();
 
         return dm.GetColumn(itemName);

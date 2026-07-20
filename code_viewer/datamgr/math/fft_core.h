@@ -184,13 +184,15 @@ inline void fftCompute(
 
     // 将结果写回 Column（real=幅值, imag=频率，仅 DC ~ Fs/2）
     size_t halfN = fftN / 2;
-    outMag.reserve(halfN + 1);
-    outFreq.reserve(halfN + 1);
+    outMag.beginOverwrite(halfN + 1);
+    outFreq.beginOverwrite(halfN + 1);
     for (size_t i = 0; i <= halfN; ++i)
     {
-        outMag.push_back(real[i]);
-        outFreq.push_back(imag[i]);
+        outMag[i] = real[i];
+        outFreq[i] = imag[i];
     }
+    outMag.recalcMinMax();
+    outFreq.recalcMinMax();
 }
 
 } // namespace viewer

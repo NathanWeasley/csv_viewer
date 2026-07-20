@@ -164,25 +164,16 @@ void FFTManager::startFFT(
         double fs = 1.0 / sampleInterval;
         size_t halfN = fftN / 2;
 
-        // 先计算所有 bin 的幅值和频率，存到临时缓冲区
-        std::vector<double> magBuf(halfN + 1);
-        std::vector<double> freqBuf(halfN + 1);
+        // 结果长度只保留 DC ~ Nyquist；容量来自 FFT 输入，不会在此重新分配。
+        realCol->beginOverwrite(halfN + 1);
+        imagCol->beginOverwrite(halfN + 1);
         for (size_t i = 0; i <= halfN; ++i)
         {
             if (self && (i % 4096 == 0) && self->m_cancelled)
                 return;
 
-            magBuf[i] = std::sqrt(real[i] * real[i] + imag[i] * imag[i]);
-            freqBuf[i] = static_cast<double>(i) * fs / static_cast<double>(fftN);
-        }
-
-        // 截断 Column 并重新填充（只保留 DC ~ Nyquist）
-        realCol->clear();
-        imagCol->clear();
-        for (size_t i = 0; i <= halfN; ++i)
-        {
-            realCol->push_back(magBuf[i]);
-            imagCol->push_back(freqBuf[i]);
+            real[i] = std::sqrt(real[i] * real[i] + imag[i] * imag[i]);
+            imag[i] = static_cast<double>(i) * fs / static_cast<double>(fftN);
         }
         realCol->recalcMinMax();
         imagCol->recalcMinMax();

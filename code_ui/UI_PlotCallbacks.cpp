@@ -829,23 +829,28 @@ void UI::bindPlotManagerCallbacks()
                     }
                     if (graph)
                     {
-                        // 重新绑定到更新后的本地数据拷贝
+                        // 编辑状态使用计算缓冲区；回退原表达式时重新绑定原始列，
+                        // 但保留计算缓冲区供下次编辑复用。
                         viewer::PlotExpression* pe = exprMgr.get(selName);
-                        if (pe && pe->computedData)
+                        const viewer::Column* yCol =
+                            (pe && pe->isEdited && pe->computedData)
+                                ? pe->computedData.get()
+                                : dm.GetColumn(selName);
+                        if (yCol)
                         {
                             size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(pageIndex);
                             if (xIdx == static_cast<size_t>(-1))
                                 dm.ensureIndexColumnBuilt();
                             const viewer::Column* xCol = (xIdx != static_cast<size_t>(-1))
                                 ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
-                            graph->setDataColumns(xCol, pe->computedData.get());
+                            graph->setDataColumns(xCol, yCol);
                             graph->notifyDataChanged();
                             logExpressionTrace(QString("rebind page=%1 item=\"%2\" graph=0x%3 x=0x%4 y=0x%5 rows=%6")
                                                .arg(pageIndex).arg(QString::fromStdString(selName))
                                                .arg(reinterpret_cast<quintptr>(graph), 0, 16)
                                                .arg(reinterpret_cast<quintptr>(xCol), 0, 16)
-                                               .arg(reinterpret_cast<quintptr>(pe->computedData.get()), 0, 16)
-                                               .arg(pe->computedData->size()));
+                                               .arg(reinterpret_cast<quintptr>(yCol), 0, 16)
+                                               .arg(yCol->size()));
                             plot->rescaleAxes(true); // 仅扩大不放缩，保持用户当前视图
                             plot->replot();
                         }
@@ -1001,7 +1006,7 @@ void UI::bindPlotManagerCallbacks()
                 // 通过 graph name 查找 Y 列
                 auto& exprMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).exprMgr;
                 viewer::PlotExpression* pe = exprMgr.get(graph->name().toStdString());
-                if (pe && pe->computedData)
+                if (pe && pe->isEdited && pe->computedData)
                     yCol = pe->computedData.get();
                 else
                     yCol = dm.GetColumn(graph->name().toStdString());
@@ -1095,10 +1100,8 @@ void UI::bindPlotManagerCallbacks()
         logExpressionTrace(QString("expression created/resolved page=%1 item=\"%2\" edited=%3 computed=0x%4")
                            .arg(pageIndex).arg(QString::fromStdString(yColName)).arg(pe.isEdited)
                            .arg(reinterpret_cast<quintptr>(pe.computedData.get()), 0, 16));
-        // 未编辑时 computedData 为 nullptr，直接从 DataManager 读取原始列
-        const viewer::Column* yDataSource = pe.computedData.get();
-        if (!yDataSource)
-            yDataSource = dm.GetColumn(yColName);
+        const viewer::Column* yDataSource =
+            (pe.isEdited && pe.computedData) ? pe.computedData.get() : dm.GetColumn(yColName);
         graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
 

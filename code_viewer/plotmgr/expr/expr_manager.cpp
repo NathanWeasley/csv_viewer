@@ -22,7 +22,7 @@ PlotExpression& ExprManager::getOrCreate(const std::string& itemName, DataManage
     auto it = m_exprs.find(itemName);
     if (it == m_exprs.end())
     {
-        // 未编辑时 computedData 保持 nullptr，graph 直接从 DataManager 读取原始列
+        // 首次创建时没有计算缓冲区，graph 直接从 DataManager 读取原始列。
         PlotExpression pe;
         pe.expressionText = itemName;
         pe.isEdited = false;
@@ -67,10 +67,6 @@ void ExprManager::setExpressionText(const std::string& itemName, const std::stri
 
     it->second.expressionText = text;
     it->second.isEdited = (text != itemName);
-
-    // 撤销表达式时释放 computedData，graph 将回退到 DataManager 原始列
-    if (!it->second.isEdited)
-        it->second.computedData.reset();
 
     if (onExpressionTextChanged)
         onExpressionTextChanged(itemName, text);
@@ -189,7 +185,7 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
     if (rowCount == 0)
         return false;
 
-    // 未编辑时 computedData 为 nullptr，graph 直接从 DataManager 读取；无需拷贝
+    // 未编辑时 graph 直接从 DataManager 读取；保留已有缓冲区供后续编辑复用。
     if (!pe.isEdited)
     {
         if (onExpressionRecomputed)
@@ -261,11 +257,10 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
         return false;
     }
 
-    // 创建/清零结果列
+    // 结果列只在首次计算或数据长度变化时分配；频繁重算复用原缓冲区。
     if (!pe.computedData)
-        pe.computedData = std::make_unique<Column>();
-    pe.computedData->clear();
-    pe.computedData->reserve(rowCount);
+        pe.computedData = std::make_unique<Column>(rowCount);
+    pe.computedData->beginOverwrite(rowCount);
 
     trace::write(trace::Category::Expression,
                  QString("manager recompute evaluate item=\"%1\" rows=%2 refs=%3 output=0x%4")
@@ -289,9 +284,9 @@ bool ExprManager::recompute(const std::string& itemName, DataManager& dm)
                     varValues[i] = tcIt->second->getDouble(row);
             }
         }
-        double val = expression.value();
-        pe.computedData->push_back(val);
+        (*pe.computedData)[row] = expression.value();
     }
+    pe.computedData->recalcMinMax();
 
     if (onExpressionRecomputed)
         onExpressionRecomputed(itemName);
@@ -318,17 +313,10 @@ PlotExpression ExprManager::copy(const std::string& itemName) const
     result.expressionText = src.expressionText;
     result.isEdited = src.isEdited;
 
-    // 仅已编辑且非空时深拷贝；未编辑时 computedData 为 nullptr
-    if (src.computedData && src.computedData->size() > 0)
+    // 仅复制当前正在使用的计算结果；未编辑状态不复制闲置缓冲区。
+    if (src.isEdited && src.computedData && src.computedData->size() > 0)
     {
-        size_t n = src.computedData->size();
-        auto col = std::make_unique<Column>();
-        col->reserve(n);
-        for (size_t i = 0; i < n; ++i)
-        {
-            col->push_back(static_cast<double>(src.computedData->getDouble(i)));
-        }
-        result.computedData = std::move(col);
+        result.computedData = std::make_unique<Column>(*src.computedData);
     }
     // else: 保持 nullptr
 
@@ -345,16 +333,9 @@ std::unordered_map<std::string, PlotExpression> ExprManager::copyAll() const
         copyPE.expressionText = pe.expressionText;
         copyPE.isEdited = pe.isEdited;
 
-        if (pe.computedData && pe.computedData->size() > 0)
+        if (pe.isEdited && pe.computedData && pe.computedData->size() > 0)
         {
-            size_t n = pe.computedData->size();
-            auto col = std::make_unique<Column>();
-            col->reserve(n);
-            for (size_t i = 0; i < n; ++i)
-            {
-                col->push_back(static_cast<double>(pe.computedData->getDouble(i)));
-            }
-            copyPE.computedData = std::move(col);
+            copyPE.computedData = std::make_unique<Column>(*pe.computedData);
         }
         // else: 保持 nullptr（未编辑时 graph 应从 DataManager 读取）
 

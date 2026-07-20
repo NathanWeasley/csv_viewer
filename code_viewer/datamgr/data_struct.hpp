@@ -107,6 +107,12 @@ public:
 
     // ---------- 构造 ----------
     Column() noexcept = default;
+    explicit Column(size_t size)
+        : m_data(size > 0 ? new double[size] : nullptr)
+        , m_size(size)
+        , m_capacity(size)
+    {
+    }
     ~Column() { delete[] m_data; }
 
     // ---- 拷贝 ----
@@ -189,6 +195,20 @@ public:
         m_data = nullptr;
         m_size = 0;
         m_capacity = 0;
+        m_minMaxValid = false;
+    }
+
+    // 整列覆盖：一次性准备有效长度，随后通过 operator[] 写入，
+    // 全部写完后调用 recalcMinMax()。容量足够时不会重新分配。
+    void beginOverwrite(size_t size)
+    {
+        reserve(size);
+        m_size = size;
+        m_minMaxValid = false;
+    }
+
+    void beginOverwrite() noexcept
+    {
         m_minMaxValid = false;
     }
 

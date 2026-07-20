@@ -20,16 +20,18 @@ struct FdiffFunc
         Column* const* cols, uint8_t /*colCount*/, size_t rowCount)
     {
         auto* col = cols[0];
-        auto result = std::make_unique<Column>();
+        auto result = std::make_unique<Column>(rowCount);
 
         if (rowCount == 0)
             return result;
 
+        result->beginOverwrite();
         for (size_t i = 0; i + 1 < rowCount; ++i)
-            result->push_back(col->getDouble(i + 1) - col->getDouble(i));
+            (*result)[i] = col->getDouble(i + 1) - col->getDouble(i);
 
         // 最后一行填充 0.0
-        result->push_back(0.0);
+        (*result)[rowCount - 1] = 0.0;
+        result->recalcMinMax();
 
         return result;
     }
@@ -48,16 +50,19 @@ struct BdiffFunc
         Column* const* cols, uint8_t /*colCount*/, size_t rowCount)
     {
         auto* col = cols[0];
-        auto result = std::make_unique<Column>();
+        auto result = std::make_unique<Column>(rowCount);
 
         if (rowCount == 0)
             return result;
 
+        result->beginOverwrite();
         // 第一行填充 0.0
-        result->push_back(0.0);
+        (*result)[0] = 0.0;
 
         for (size_t i = 1; i < rowCount; ++i)
-            result->push_back(col->getDouble(i) - col->getDouble(i - 1));
+            (*result)[i] = col->getDouble(i) - col->getDouble(i - 1);
+
+        result->recalcMinMax();
 
         return result;
     }
