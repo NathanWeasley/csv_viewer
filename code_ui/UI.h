@@ -5,6 +5,7 @@
 #include <QtWidgets/QTreeWidget>
 #include <QtWidgets/QTabWidget>
 #include <QtWidgets/QComboBox>
+#include <QtWidgets/QCheckBox>
 #include <QtWidgets/QSpinBox>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QHBoxLayout>
@@ -87,6 +88,11 @@ private:
     void logExpressionTrace(const QString& message) const;
     bool configurePlotDrawingMode(QCustomPlot* plot, bool enabled) const;
     void applyOpenGlDrawingMode(bool enabled);
+    bool selectPageXAxis(int pageIndex, size_t* selectedColumn, const QString& prompt);
+    bool resolvePageXAxis(int pageIndex, size_t* selectedColumn, bool promptIfMissing);
+    void setPageUseIndexEnabled(int pageIndex, bool enabled, QCheckBox* sourceCheckBox = nullptr);
+    void updatePageXAxisToolbarState(int pageIndex);
+    void updateXAxisStatus(int pageIndex);
     void applyPlotLayoutMode(viewer::PlotLayoutMode mode);
     void restoreTabbedPlotLayout();
     void arrangePlotsInRowLayout();
@@ -182,6 +188,7 @@ private:
     QAction* m_actionLinkX = nullptr;
     QAction* m_actionAutoGrouping = nullptr;
     QAction* m_actionOpenGl = nullptr;
+    QAction* m_actionPlotByIndex = nullptr;
     QList<ads::CDockWidget*> m_layoutPlaceholderDocks;
     QHash<int, bool> m_pageToolbarBaseVisible;
     QHash<int, bool> m_pageExprBaseVisible;
@@ -204,6 +211,7 @@ private:
     // Expression bar state
     QHash<int, QLineEdit*> m_exprLineEdits;
     QHash<int, QComboBox*> m_toolbarCombos;
+    QHash<int, QCheckBox*> m_useIndexChecks;
 
     // Alias state
     std::unordered_map<std::string, std::string> m_aliasMap;
@@ -229,6 +237,7 @@ private:
     bool m_antiAliasingEnabled = false;
     bool m_autoGroupingEnabled = false;
     bool m_forceDataGrouping = false;
+    bool m_defaultPlotByIndex = true;
 
     viewer::Viewer m_viewer;
 };

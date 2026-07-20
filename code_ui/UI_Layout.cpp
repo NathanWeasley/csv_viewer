@@ -317,6 +317,9 @@ void UI::createStatusbar()
 
         rebuildDataTree();
         const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
+        const size_t detectedXAxis = m_viewer.GetDataManager().GetXAxisColumn();
+        m_viewer.GetPlotManager().setNewPageXAxisDefaults(
+            m_defaultPlotByIndex, detectedXAxis);
 
         // Update X-axis label
         if (m_viewer.GetDataManager().GetColumnCount() > 0)
@@ -355,6 +358,8 @@ void UI::createStatusbar()
         m_progressBar->setValue(0);
         m_progressBar->hide();
         m_dataTree->clear();
+        m_viewer.GetPlotManager().setNewPageXAxisDefaults(
+            m_defaultPlotByIndex, static_cast<size_t>(-1));
         m_xAxisLabel->setText("X: (none)");
         QMessageBox::critical(this, "CSV载入错误", message);
     });
@@ -742,6 +747,37 @@ void UI::showLinkXAxisDialog()
             return;
         }
 
+        const bool referenceUsesIndex = pm.usesIndexXAxis(selectedPages.first());
+        const size_t referenceColumn = pm.selectedXAxisColumn(selectedPages.first());
+        if (!referenceUsesIndex &&
+            referenceColumn >= m_viewer.GetDataManager().GetColumnNames().size())
+        {
+            logXAxisTrace(QString("link dialog rejected unresolved X-axis page=%1")
+                          .arg(selectedPages.first()));
+            QMessageBox::warning(
+                &dlg, QString::fromUtf8("无法关联 X 轴"),
+                QString::fromUtf8("所选图窗尚未指定有效的 X 轴，请先使用“更改X轴”完成设置。"));
+            return;
+        }
+        for (int pageIndex : selectedPages)
+        {
+            const bool sameMode = pm.usesIndexXAxis(pageIndex) == referenceUsesIndex;
+            const bool sameColumn = referenceUsesIndex ||
+                pm.selectedXAxisColumn(pageIndex) == referenceColumn;
+            if (!sameMode || !sameColumn)
+            {
+                logXAxisTrace(QString("link dialog rejected mismatched X-axis referencePage=%1 page=%2 referenceUseIndex=%3 referenceColumn=%4 pageUseIndex=%5 pageColumn=%6")
+                              .arg(selectedPages.first()).arg(pageIndex)
+                              .arg(referenceUsesIndex).arg(referenceColumn)
+                              .arg(pm.usesIndexXAxis(pageIndex))
+                              .arg(pm.selectedXAxisColumn(pageIndex)));
+                QMessageBox::warning(
+                    &dlg, QString::fromUtf8("无法关联 X 轴"),
+                    QString::fromUtf8("所选图窗当前使用的 X 轴不一致。请先将它们设置为相同的数据项或都设为使用索引。"));
+                return;
+            }
+        }
+
         workingGroups.append(selectedPages);
         QStringList pageTexts;
         for (int pageIndex : selectedPages)
@@ -842,6 +878,19 @@ void UI::createMenu()
             QString jsonPath = QCoreApplication::applicationDirPath() + "/user/xaxis.json";
             dm.SaveXAxisRules(jsonPath.toStdString());
         }
+    });
+
+    m_actionPlotByIndex = settingsMenu->addAction(QString::fromUtf8("按索引绘制"));
+    m_actionPlotByIndex->setCheckable(true);
+    m_actionPlotByIndex->setChecked(m_defaultPlotByIndex);
+    m_actionPlotByIndex->setToolTip(QString::fromUtf8("仅设置新建图窗的默认 X 轴，不改变已有图窗"));
+    connect(m_actionPlotByIndex, &QAction::toggled, this, [this](bool checked)
+    {
+        m_defaultPlotByIndex = checked;
+        const size_t detectedXAxis = m_viewer.GetDataManager().GetXAxisColumn();
+        m_viewer.GetPlotManager().setNewPageXAxisDefaults(checked, detectedXAxis);
+        logXAxisTrace(QString("new-page index plotting default changed enabled=%1 detectedColumn=%2")
+                      .arg(checked).arg(detectedXAxis));
     });
 
     settingsMenu->addSeparator();
@@ -1668,6 +1717,7 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
 
     m_exprLineEdits.remove(pageIndex);
     m_toolbarCombos.remove(pageIndex);
+    m_useIndexChecks.remove(pageIndex);
     m_pageToolbarBaseVisible.remove(pageIndex);
     m_pageExprBaseVisible.remove(pageIndex);
     m_fftMagCols.erase(pageIndex);
@@ -1739,6 +1789,7 @@ void UI::reindexPlotPageStateAfterRemoval(int removedPageIndex)
     reindexQHashAfterRemoval(m_pageDocks, removedPageIndex);
     reindexQHashAfterRemoval(m_exprLineEdits, removedPageIndex);
     reindexQHashAfterRemoval(m_toolbarCombos, removedPageIndex);
+    reindexQHashAfterRemoval(m_useIndexChecks, removedPageIndex);
     reindexQHashAfterRemoval(m_pageToolbarBaseVisible, removedPageIndex);
     reindexQHashAfterRemoval(m_pageExprBaseVisible, removedPageIndex);
     reindexQHashAfterRemoval(m_highlightRects, removedPageIndex);

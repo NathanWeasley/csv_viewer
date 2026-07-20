@@ -33,6 +33,7 @@ struct BookmarkEntry
 {
     std::string                    name;            // 收藏项名称（全局唯一）
     size_t                         xAxisColumn = static_cast<size_t>(-1);
+    bool                           useIndexXAxis = false;
     bool                           legendVisible = false;
     bool                           logX = false;    // X 轴对数显示
     bool                           logY = false;    // Y 轴对数显示

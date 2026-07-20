@@ -220,12 +220,14 @@ void UI::bindPlotManagerCallbacks()
                     const auto& srcDataItems = pm.pageInfo(pageIndex).dataItems;
                     std::vector<std::string> itemsToCopy(srcDataItems.begin(), srcDataItems.end());
                     bool legendOn = pm.pageInfo(pageIndex).legendVisible;
+                    const bool sourceUsesIndex = pm.usesIndexXAxis(pageIndex);
+                    const size_t sourceXAxisColumn = pm.selectedXAxisColumn(pageIndex);
 
                     // 创建新图窗
                     int newIdx = pm.addPage();
 
                     // ---- 复制 X 轴配置 ----
-                    pm.setXAxisColumn(newIdx, pm.pageInfo(pageIndex).xAxisColumn);
+                    pm.setXAxisState(newIdx, sourceUsesIndex, sourceXAxisColumn);
 
                     // ---- 先复制表达式数据（在 addDataItem 之前，避免 getOrCreate 创建的本地拷贝被替换）----
                     {
@@ -417,11 +419,13 @@ void UI::bindPlotManagerCallbacks()
         auto* spnLineWidth = new QSpinBox();
         spnLineWidth->setRange(1, 20);
         spnLineWidth->setValue(1);
+        spnLineWidth->setFixedWidth(72);
         hbox->addWidget(spnLineWidth);
 
         // 4. 线色下拉（色块+图标）
         auto* cmbLineColor = new QComboBox();
         populateColorCombo(cmbLineColor, 8);
+        cmbLineColor->setFixedWidth(60);
         hbox->addWidget(cmbLineColor);
 
         // 5. 数据点类型下拉
@@ -433,6 +437,7 @@ void UI::bindPlotManagerCallbacks()
         auto* spnScatterSize = new QSpinBox();
         spnScatterSize->setRange(0, 50);
         spnScatterSize->setValue(0);
+        spnScatterSize->setFixedWidth(52);
         hbox->addWidget(spnScatterSize);
 
         // 7. 数据点颜色（色块+图标）
@@ -460,6 +465,16 @@ void UI::bindPlotManagerCallbacks()
         btnDelete->setEnabled(false);
         btnDelete->setToolTip("删除当前选中的数据曲线");
         hbox->addWidget(btnDelete);
+
+        // 当前图窗独立的 X 轴控制，稍后放入下方表达式栏。
+        auto* chkUseIndex = new QCheckBox(QString::fromUtf8("使用索引"));
+        chkUseIndex->setToolTip(QString::fromUtf8("使用数据行索引作为当前图窗的 X 轴"));
+        chkUseIndex->setChecked(m_viewer.GetPlotManager().usesIndexXAxis(index));
+        chkUseIndex->setFixedSize(chkUseIndex->sizeHint());
+
+        auto* btnChangeXAxis = new QPushButton(QString::fromUtf8("更改X轴"));
+        btnChangeXAxis->setToolTip(QString::fromUtf8("从所有数据项中选择当前图窗的 X 轴"));
+        btnChangeXAxis->setFixedSize(btnChangeXAxis->sizeHint());
 
         // ---- 表达式编辑栏 ----
         auto* exprBar = new QWidget();
@@ -501,7 +516,13 @@ void UI::bindPlotManagerCallbacks()
         auto* exprLineEdit = new QLineEdit();
         exprLineEdit->setPlaceholderText("expression...");
         exprLineEdit->setStyleSheet(exprStyleNormal());
+        exprLineEdit->setMinimumWidth(120);
+        exprLineEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
         exprHBox->addWidget(exprLineEdit, 1);
+
+        exprHBox->addSpacing(8);
+        exprHBox->addWidget(chkUseIndex, 0, Qt::AlignRight | Qt::AlignVCenter);
+        exprHBox->addWidget(btnChangeXAxis, 0, Qt::AlignRight | Qt::AlignVCenter);
 
         // ---- 容器 ----
         auto* container = new QWidget();
@@ -536,6 +557,28 @@ void UI::bindPlotManagerCallbacks()
                 int pageIndex = m_plotToPageIndex.value(plot, -1);
                 if (pageIndex < 0 || pageIndex >= pm.pageCount()) return;
                 pm.removeDataItem(pageIndex, selName);
+            });
+
+        connect(chkUseIndex, &QCheckBox::toggled, this,
+            [this, plot, chkUseIndex](bool checked)
+            {
+                const int pageIndex = m_plotToPageIndex.value(plot, -1);
+                logXAxisTrace(QString("page use-index toggled page=%1 enabled=%2")
+                              .arg(pageIndex).arg(checked));
+                setPageUseIndexEnabled(pageIndex, checked, chkUseIndex);
+            });
+
+        connect(btnChangeXAxis, &QPushButton::clicked, this,
+            [this, plot]()
+            {
+                const int pageIndex = m_plotToPageIndex.value(plot, -1);
+                size_t selectedColumn = static_cast<size_t>(-1);
+                if (!selectPageXAxis(
+                        pageIndex, &selectedColumn,
+                        QString::fromUtf8("请选择当前图窗使用的 X 轴数据项：")))
+                    return;
+
+                m_viewer.GetPlotManager().setXAxisColumn(pageIndex, selectedColumn);
             });
 
         // ---- 工具栏控件→graph 回写辅助 ----
@@ -716,6 +759,7 @@ void UI::bindPlotManagerCallbacks()
         // ---- 存储 widget 引用 ----
         m_exprLineEdits[index] = exprLineEdit;
         m_toolbarCombos[index] = cmbDataItem;
+        m_useIndexChecks[index] = chkUseIndex;
         setPlotPageBaseChrome(index, true, true);
 
         // ---- 表达式编辑框 textChanged → 合法性检查 + 计算 ----
@@ -905,13 +949,7 @@ void UI::bindPlotManagerCallbacks()
         if (dock && m_plotDockManager)
             m_plotDockManager->setDockWidgetFocused(dock);
 
-        // 更新状态栏 X 轴标签
-        size_t xIdx = m_viewer.GetPlotManager().xAxisColumn(index);
-        const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
-        if (xIdx != static_cast<size_t>(-1) && xIdx < colNames.size())
-            m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[xIdx])));
-        else
-            m_xAxisLabel->setText("X: (none)");
+        updateXAxisStatus(index);
     };
 
     // X 轴变更 → 更新状态栏 + 重新绑定所有 graph 的 X 列
@@ -921,14 +959,9 @@ void UI::bindPlotManagerCallbacks()
                       .arg(pageIndex).arg(colIdx)
                       .arg(m_viewer.GetPlotManager().activePageIndex()).arg(plotPageCount()));
         // 更新状态栏标签
-        const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
         if (m_viewer.GetPlotManager().activePageIndex() == pageIndex)
-        {
-            if (colIdx != static_cast<size_t>(-1) && colIdx < colNames.size())
-                m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(colNames[colIdx])));
-            else
-                m_xAxisLabel->setText("X: (none)");
-        }
+            updateXAxisStatus(pageIndex);
+        updatePageXAxisToolbarState(pageIndex);
 
         // 重新绑定当前图窗所有 graph 的 X 列数据
         if (pageIndex < 0 || pageIndex >= plotPageCount())
@@ -1504,6 +1537,7 @@ void UI::bindPlotManagerCallbacks()
         m_rearrangingPlotLayout = false;
         m_exprLineEdits.clear();
         m_toolbarCombos.clear();
+        m_useIndexChecks.clear();
         m_pageToolbarBaseVisible.clear();
         m_pageExprBaseVisible.clear();
         m_linkedXAxisGroups.clear();

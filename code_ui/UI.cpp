@@ -83,7 +83,13 @@ UI::UI(QWidget *parent)
 
         // 读取自动分组设置（默认 false）
         m_autoGroupingEnabled = settings.value("autoGrouping", false).toBool();
+
+        // 新图窗是否默认按数据索引绘图（仅影响随后创建的图窗）。
+        m_defaultPlotByIndex = settings.value("plotByIndexByDefault", true).toBool();
     }
+
+    m_viewer.GetPlotManager().setNewPageXAxisDefaults(
+        m_defaultPlotByIndex, static_cast<size_t>(-1));
 
     init();
 
@@ -198,6 +204,7 @@ void UI::beginShutdownCleanup(bool persistUiState)
         settings.setValue("openglEnabled", m_openglEnabled);
         settings.setValue("antiAliasing", m_antiAliasingEnabled);
         settings.setValue("autoGrouping", m_autoGroupingEnabled);
+        settings.setValue("plotByIndexByDefault", m_defaultPlotByIndex);
 
         saveState();
         logShutdownTrace("beginShutdownCleanup saved UI state");
@@ -362,6 +369,156 @@ void UI::applyOpenGlDrawingMode(bool enabled)
     logPlotTrace(QString("apply drawing mode leave activeOpenGl=%1 rejected=%2")
                  .arg(m_openglEnabled).arg(rejected));
 }
+
+bool UI::selectPageXAxis(int pageIndex, size_t* selectedColumn, const QString& prompt)
+{
+    if (!selectedColumn)
+        return false;
+
+    auto& dm = m_viewer.GetDataManager();
+    const auto& columnNames = dm.GetColumnNames();
+    if (columnNames.empty())
+    {
+        QMessageBox::warning(this, QString::fromUtf8("选择 X 轴"),
+                             QString::fromUtf8("当前没有可用的数据项。"));
+        return false;
+    }
+
+    QStringList items;
+    items.reserve(static_cast<qsizetype>(columnNames.size()));
+    for (const auto& name : columnNames)
+        items.append(QString::fromStdString(name));
+
+    auto& pm = m_viewer.GetPlotManager();
+    size_t defaultColumn = pm.selectedXAxisColumn(pageIndex);
+    if (defaultColumn >= columnNames.size())
+        defaultColumn = dm.GetXAxisColumn();
+    const int defaultIndex = defaultColumn < columnNames.size()
+        ? static_cast<int>(defaultColumn) : 0;
+
+    bool ok = false;
+    const QString choice = QInputDialog::getItem(
+        this, QString::fromUtf8("选择 X 轴"), prompt,
+        items, defaultIndex, false, &ok);
+    if (!ok || choice.isEmpty())
+    {
+        logXAxisTrace(QString("page X-axis selection cancelled page=%1").arg(pageIndex));
+        return false;
+    }
+
+    const size_t column = dm.GetColumnIndex(choice.toStdString());
+    if (column == static_cast<size_t>(-1))
+        return false;
+
+    *selectedColumn = column;
+    logXAxisTrace(QString("page X-axis selected page=%1 column=%2 name=\"%3\"")
+                  .arg(pageIndex).arg(column).arg(choice));
+    return true;
+}
+
+bool UI::resolvePageXAxis(int pageIndex, size_t* selectedColumn, bool promptIfMissing)
+{
+    if (!selectedColumn)
+        return false;
+
+    auto& pm = m_viewer.GetPlotManager();
+    auto& dm = m_viewer.GetDataManager();
+    const size_t columnCount = dm.GetColumnNames().size();
+
+    size_t column = pm.selectedXAxisColumn(pageIndex);
+    if (column < columnCount)
+    {
+        *selectedColumn = column;
+        return true;
+    }
+
+    column = dm.GetXAxisColumn();
+    if (column < columnCount)
+    {
+        *selectedColumn = column;
+        return true;
+    }
+
+    if (!promptIfMissing)
+        return false;
+
+    return selectPageXAxis(
+        pageIndex, selectedColumn,
+        QString::fromUtf8("未识别到默认 X 轴，请为当前图窗指定一个数据项："));
+}
+
+void UI::setPageUseIndexEnabled(int pageIndex, bool enabled, QCheckBox* sourceCheckBox)
+{
+    auto& pm = m_viewer.GetPlotManager();
+    if (pageIndex < 0 || pageIndex >= pm.pageCount() || pm.isFFTPage(pageIndex))
+        return;
+
+    if (enabled)
+    {
+        pm.setUseIndexXAxis(pageIndex, true);
+        return;
+    }
+
+    size_t selectedColumn = static_cast<size_t>(-1);
+    if (!resolvePageXAxis(pageIndex, &selectedColumn, true))
+    {
+        if (sourceCheckBox)
+        {
+            const QSignalBlocker blocker(sourceCheckBox);
+            sourceCheckBox->setChecked(true);
+        }
+        return;
+    }
+
+    pm.setXAxisColumn(pageIndex, selectedColumn);
+}
+
+void UI::updatePageXAxisToolbarState(int pageIndex)
+{
+    auto* checkBox = m_useIndexChecks.value(pageIndex, nullptr);
+    if (!checkBox)
+        return;
+
+    const auto& pm = m_viewer.GetPlotManager();
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+        return;
+
+    const QSignalBlocker blocker(checkBox);
+    checkBox->setChecked(pm.usesIndexXAxis(pageIndex));
+}
+
+void UI::updateXAxisStatus(int pageIndex)
+{
+    if (!m_xAxisLabel)
+        return;
+
+    const auto& pm = m_viewer.GetPlotManager();
+    if (pageIndex < 0 || pageIndex >= pm.pageCount())
+    {
+        m_xAxisLabel->setText("X: (none)");
+        return;
+    }
+
+    const auto& page = pm.pageInfo(pageIndex);
+    if (page.isFFT && page.title.rfind("STFT:", 0) != 0)
+    {
+        m_xAxisLabel->setText(QString::fromUtf8("X: [频率坐标]"));
+        return;
+    }
+
+    if (pm.usesIndexXAxis(pageIndex))
+    {
+        m_xAxisLabel->setText(QString::fromUtf8("X: [数据索引]"));
+        return;
+    }
+
+    const size_t column = pm.selectedXAxisColumn(pageIndex);
+    const auto& columnNames = m_viewer.GetDataManager().GetColumnNames();
+    if (column < columnNames.size())
+        m_xAxisLabel->setText(QString("X: %1").arg(QString::fromStdString(columnNames[column])));
+    else
+        m_xAxisLabel->setText("X: (none)");
+}
 // ============================================================
 // 双击数据树项 → 添加到激活图窗
 // ============================================================
@@ -395,53 +552,17 @@ void UI::plotDataColumnByName(const QString& dataName)
         pm.addPage();
     }
 
-    // ---- X 轴自动/手动设置 ----
+    // 非索引模式必须具有真实 X 轴；优先恢复本图窗上次选择，其次使用自动识别结果。
     const int pageIdx = pm.activePageIndex();
-    size_t xIdx = pm.xAxisColumn(pageIdx);
-    if (xIdx == static_cast<size_t>(-1))
+    if (!pm.usesIndexXAxis(pageIdx))
     {
-        // 1. 尝试使用全局检测结果
-        const size_t globalX = dm.GetXAxisColumn();
-        if (globalX != static_cast<size_t>(-1))
+        size_t selectedColumn = static_cast<size_t>(-1);
+        if (!resolvePageXAxis(pageIdx, &selectedColumn, true))
         {
-            logXAxisTrace(QString("plot data auto X-axis page=%1 column=%2").arg(pageIdx).arg(globalX));
-            pm.setXAxisColumn(pageIdx, globalX);
+            logXAxisTrace(QString("plot data aborted: page has no X-axis page=%1").arg(pageIdx));
+            return;
         }
-        else
-        {
-            // 2. 全局也没检测到 -> 弹出对话框让用户选择
-            const auto& colNames = dm.GetColumnNames();
-            QStringList items;
-            items << QString::fromUtf8("[数据索引]");
-            for (const auto& name : colNames)
-                items << QString::fromStdString(name);
-
-            bool ok = false;
-            const QString choice = QInputDialog::getItem(
-                this,
-                QString::fromUtf8("选择 X 轴"),
-                QString::fromUtf8("未检测到默认 X 轴变量，请手动选择："),
-                items, 0, false, &ok);
-
-            if (!ok || choice.isEmpty())
-            {
-                logXAxisTrace(QString("plot data X-axis selection cancelled page=%1").arg(pageIdx));
-                return;
-            }
-
-            if (choice == QString::fromUtf8("[数据索引]"))
-            {
-                pm.setXAxisColumn(pageIdx, static_cast<size_t>(-1));
-                logXAxisTrace(QString("plot data X-axis set to index page=%1").arg(pageIdx));
-            }
-            else
-            {
-                const size_t selIdx = dm.GetColumnIndex(choice.toStdString());
-                pm.setXAxisColumn(pageIdx, selIdx);
-                logXAxisTrace(QString("plot data X-axis selected page=%1 column=%2 name=\"%3\"")
-                              .arg(pageIdx).arg(selIdx).arg(choice));
-            }
-        }
+        pm.setXAxisColumn(pageIdx, selectedColumn);
     }
 
     // 如果当前 Y 列就是当前图窗的 X 轴列，则跳过

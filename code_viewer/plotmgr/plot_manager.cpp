@@ -18,6 +18,8 @@ int PlotManager::addPage(const std::string& title)
 
     PlotPageInfo info;
     info.title = title.empty() ? generatePageTitle() : title;
+    info.useIndexXAxis = m_newPageUseIndexXAxis;
+    info.xAxisColumn = m_newPageXAxisColumn;
     m_pages.push_back(std::move(info));
 
     // 如果之前没有激活页面，将新页面设为激活
@@ -210,27 +212,77 @@ size_t PlotManager::xAxisColumn(int pageIndex) const
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
         return static_cast<size_t>(-1);
-    return m_pages[pageIndex].xAxisColumn;
+    return m_pages[pageIndex].useIndexXAxis
+        ? static_cast<size_t>(-1)
+        : m_pages[pageIndex].xAxisColumn;
 }
 
 void PlotManager::setXAxisColumn(int pageIndex, size_t colIdx)
 {
     if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
         return;
-    if (m_pages[pageIndex].xAxisColumn == colIdx)
+
+    if (colIdx == static_cast<size_t>(-1))
+    {
+        setUseIndexXAxis(pageIndex, true);
+        return;
+    }
+
+    setXAxisState(pageIndex, false, colIdx);
+}
+
+bool PlotManager::usesIndexXAxis(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return true;
+    return m_pages[pageIndex].useIndexXAxis;
+}
+
+size_t PlotManager::selectedXAxisColumn(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return static_cast<size_t>(-1);
+    return m_pages[pageIndex].xAxisColumn;
+}
+
+void PlotManager::setUseIndexXAxis(int pageIndex, bool useIndex)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
+        return;
+    setXAxisState(pageIndex, useIndex, m_pages[pageIndex].xAxisColumn);
+}
+
+void PlotManager::setXAxisState(int pageIndex, bool useIndex, size_t colIdx)
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(m_pages.size()))
         return;
 
-    m_pages[pageIndex].xAxisColumn = colIdx;
+    auto& page = m_pages[pageIndex];
+    if (page.useIndexXAxis == useIndex && page.xAxisColumn == colIdx)
+        return;
+
+    page.useIndexXAxis = useIndex;
+    page.xAxisColumn = colIdx;
+    const size_t activeColumn = useIndex ? static_cast<size_t>(-1) : colIdx;
 
     trace::write(trace::Category::XAxis,
-                 QString("plot manager set X-axis enter page=%1 column=%2")
-                     .arg(pageIndex).arg(colIdx));
+                 QString("plot manager set X-axis enter page=%1 useIndex=%2 selectedColumn=%3 activeColumn=%4")
+                     .arg(pageIndex).arg(useIndex).arg(colIdx).arg(activeColumn));
 
     if (onXAxisChanged)
-        onXAxisChanged(pageIndex, colIdx);
+        onXAxisChanged(pageIndex, activeColumn);
     trace::write(trace::Category::XAxis,
-                 QString("plot manager set X-axis leave page=%1 column=%2")
-                     .arg(pageIndex).arg(colIdx));
+                 QString("plot manager set X-axis leave page=%1 useIndex=%2 selectedColumn=%3")
+                     .arg(pageIndex).arg(useIndex).arg(colIdx));
+}
+
+void PlotManager::setNewPageXAxisDefaults(bool useIndex, size_t colIdx)
+{
+    m_newPageUseIndexXAxis = useIndex;
+    m_newPageXAxisColumn = colIdx;
+    trace::write(trace::Category::XAxis,
+                 QString("plot manager new-page X-axis defaults useIndex=%1 column=%2")
+                     .arg(useIndex).arg(colIdx));
 }
 
 size_t PlotManager::activeXAxisColumn() const

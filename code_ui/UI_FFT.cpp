@@ -528,6 +528,8 @@ void UI::showSTFTDialog(int pageIndex)
                       .arg(windowSize).arg(overlap).arg(fftSize)
                       .arg(sampleFrequency, 0, 'g', 16).arg(static_cast<int>(windowType)));
     const size_t xIdx = pm.xAxisColumn(pageIndex);
+    const bool sourceUsesIndex = pm.usesIndexXAxis(pageIndex);
+    const size_t sourceXAxisColumn = pm.selectedXAxisColumn(pageIndex);
     const viewer::Column* stftXCol = (xIdx != static_cast<size_t>(-1)) ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
     const std::vector<double> alignedTimeAxis =
         buildAlignedSTFTTimeAxis(stftXCol, srcCol->size(), windowSize, overlap);
@@ -537,7 +539,8 @@ void UI::showSTFTDialog(int pageIndex)
 
     auto* watcher = new QFutureWatcher<viewer::STFTResult>(this);
     connect(watcher, &QFutureWatcher<viewer::STFTResult>::finished, this,
-        [this, watcher, pageIndex, chosenItem, alignedTimeAxis]()
+        [this, watcher, pageIndex, chosenItem, alignedTimeAxis,
+         sourceUsesIndex, sourceXAxisColumn]()
         {
             logOperationTrace(QString("STFT finished signal sourcePage=%1 item=\"%2\"")
                               .arg(pageIndex).arg(QString::fromStdString(chosenItem)));
@@ -560,6 +563,7 @@ void UI::showSTFTDialog(int pageIndex)
             m_pendingDockTargetPage = pageIndex;
             m_pendingDockArea = ads::BottomDockWidgetArea;
             const int stftPageIndex = pm.addFFTPage("STFT: " + chosenItem);
+            pm.setXAxisState(stftPageIndex, sourceUsesIndex, sourceXAxisColumn);
             logOperationTrace(QString("STFT output page created sourcePage=%1 outputPage=%2 timeBins=%3 freqBins=%4")
                               .arg(pageIndex).arg(stftPageIndex)
                               .arg(result.timeBinCount).arg(result.freqBinCount));

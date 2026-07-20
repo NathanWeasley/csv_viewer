@@ -33,7 +33,8 @@ struct PlotPageInfo
     std::string selectedDataItem;                // 当前选中的数据项名称（空=无选中）
     bool isFFT = false;                          // 是否为 FFT 图窗（禁止添加数据项/收藏/复制）
 
-    // 每个图窗独立的 X 轴列索引（npox = 未设置）
+    // 每个图窗独立的 X 轴状态；索引模式下仍保留最近一次真实 X 轴列。
+    bool useIndexXAxis = true;
     size_t xAxisColumn = static_cast<size_t>(-1);
 
     // 表达式管理器（每个图窗独立持有）
@@ -124,6 +125,12 @@ public:
 
     // 设置指定图窗的 X 轴列索引
     void setXAxisColumn(int pageIndex, size_t colIdx);
+
+    bool usesIndexXAxis(int pageIndex) const;
+    size_t selectedXAxisColumn(int pageIndex) const;
+    void setUseIndexXAxis(int pageIndex, bool useIndex);
+    void setXAxisState(int pageIndex, bool useIndex, size_t colIdx);
+    void setNewPageXAxisDefaults(bool useIndex, size_t colIdx);
 
     // 获取当前激活图窗的 X 轴列索引
     size_t activeXAxisColumn() const;
@@ -237,6 +244,8 @@ private:
     int m_activeIndex = -1;
     int m_nextPageNumber = 1;
     PlotLayoutMode m_layoutMode = PlotLayoutMode::Tabbed;
+    bool m_newPageUseIndexXAxis = true;
+    size_t m_newPageXAxisColumn = static_cast<size_t>(-1);
 };
 
 } // namespace viewer
