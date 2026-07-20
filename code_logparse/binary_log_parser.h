@@ -8,7 +8,9 @@
 namespace viewer::logparse
 {
 
-// Standalone parser core. It has no Viewer, DataManager, or UI dependency.
+// Standalone parser core. Files are parsed sequentially in caller-provided
+// order into one continuous result; the first file defines the master schema.
+// It has no Viewer, DataManager, or UI dependency.
 class BinaryLogParser
 {
 public:

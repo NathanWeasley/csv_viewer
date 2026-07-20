@@ -877,6 +877,7 @@ ParseResult BinaryLogParser::parseFiles(
 
     for (const auto& filePath : filePaths)
     {
+        const size_t firstRow = session.result.timestampCount;
         try
         {
             parseOneFile(session, filePath);
@@ -891,6 +892,8 @@ ParseResult BinaryLogParser::parseFiles(
             addDiagnostic(session, DiagnosticSeverity::Error, filePath, 0,
                           "unexpected parser failure: " + std::string(error.what()));
         }
+        session.result.fileRanges.push_back(
+            {filePath, firstRow, session.result.timestampCount - firstRow});
     }
 
     // Every column keeps one trailing seed row; remove it after all files.

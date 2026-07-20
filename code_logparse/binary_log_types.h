@@ -82,11 +82,21 @@ struct ParseDiagnostic
     std::string message;
 };
 
+// Row interval contributed by one input file in a sequential parse. Ranges
+// follow the caller-provided file order and use [firstRow, firstRow+rowCount).
+struct ParsedFileRange
+{
+    std::filesystem::path filePath;
+    size_t firstRow = 0;
+    size_t rowCount = 0;
+};
+
 struct ParseResult
 {
     std::vector<PacketDefinition> packetTypes;
     std::vector<ParsedColumn> columns;
     std::vector<ParseDiagnostic> diagnostics;
+    std::vector<ParsedFileRange> fileRanges;
     size_t timestampCount = 0;
 
     bool success() const noexcept

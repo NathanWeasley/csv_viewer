@@ -2,6 +2,7 @@
 
 #include "code_logparse/binary_log_parser.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <filesystem>
@@ -160,6 +161,17 @@ const viewer::logparse::ParsedColumn* findColumn(
     return nullptr;
 }
 
+const viewer::logparse::ParsedColumn* findPacketColumn(
+    const viewer::logparse::ParseResult& result, uint32_t packetId)
+{
+    for (const auto& column : result.columns)
+    {
+        if (column.packetId == packetId)
+            return &column;
+    }
+    return nullptr;
+}
+
 void writeCsvCell(std::ostream& output, const std::string& text)
 {
     const bool needsQuotes = text.find_first_of(",\"\r\n") != std::string::npos;
@@ -298,6 +310,13 @@ TEST(BinaryLogParser, KeepsMasterSchemaAcrossFilesAndIgnoresAdditionalType)
     const auto result = parser.parseFiles({first, second});
 
     TEST_ASSERT_EQ(result.timestampCount, 3u);
+    TEST_ASSERT_EQ(result.fileRanges.size(), 2u);
+    TEST_ASSERT_EQ(result.fileRanges[0].filePath, first);
+    TEST_ASSERT_EQ(result.fileRanges[0].firstRow, 0u);
+    TEST_ASSERT_EQ(result.fileRanges[0].rowCount, 2u);
+    TEST_ASSERT_EQ(result.fileRanges[1].filePath, second);
+    TEST_ASSERT_EQ(result.fileRanges[1].firstRow, 2u);
+    TEST_ASSERT_EQ(result.fileRanges[1].rowCount, 1u);
     TEST_ASSERT_EQ(result.columns.size(), 6u);
     TEST_ASSERT_TRUE(findColumn(result, "extra_value") == nullptr);
     const auto* x = findColumn(result, "packet_position_0");
@@ -349,18 +368,52 @@ TEST(BinaryLogParser, AcceptsCommaSeparatedFieldNameBlock)
     TEST_ASSERT_TRUE(findColumn(result, "dc_system_jitter") != nullptr);
 }
 
-TEST(BinaryLogParser, ParsesOptionalRepositorySampleAndExportsCsv)
+TEST(BinaryLogParser, ParsesOptionalRepositorySamplesSequentiallyAndExportsCsv)
 {
-    const std::filesystem::path sample =
-        std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "164006.hiklog";
-    if (!std::filesystem::exists(sample))
+    const std::filesystem::path dataDirectory =
+        std::filesystem::path(TEST_PROJECT_ROOT) / "data";
+    std::vector<std::filesystem::path> samples;
+    for (const auto& entry : std::filesystem::directory_iterator(dataDirectory))
+    {
+        if (entry.is_regular_file() && entry.path().extension() == ".hiklog")
+            samples.push_back(entry.path());
+    }
+    std::sort(samples.begin(), samples.end());
+    if (samples.size() < 2)
         return;
 
     viewer::logparse::BinaryLogParser parser;
-    const auto result = parser.parseFiles({sample});
+    struct FileBoundary
+    {
+        size_t rowOffset = 0;
+        size_t rowCount = 0;
+        double firstTimestamp = 0.0;
+        double lastTimestamp = 0.0;
+    };
+    std::vector<FileBoundary> boundaries;
+    size_t expectedRows = 0;
+    for (const auto& sample : samples)
+    {
+        const auto singleResult = parser.parseFiles({sample});
+        TEST_ASSERT_TRUE(singleResult.success());
+        TEST_ASSERT_TRUE(singleResult.timestampCount > 0);
+        const auto* timestamp = findPacketColumn(singleResult, 2);
+        TEST_ASSERT_TRUE(timestamp != nullptr);
+        TEST_ASSERT_EQ(timestamp->values.size(), singleResult.timestampCount);
+
+        boundaries.push_back({
+            expectedRows,
+            singleResult.timestampCount,
+            timestamp->values.front(),
+            timestamp->values.back()
+        });
+        expectedRows += singleResult.timestampCount;
+    }
+
+    const auto result = parser.parseFiles(samples);
     if (!result.success())
     {
-        std::string details = "actual sample parse failed:";
+        std::string details = "sequential sample parse failed:";
         for (const auto& diagnostic : result.diagnostics)
         {
             if (diagnostic.severity == viewer::logparse::DiagnosticSeverity::Error)
@@ -373,9 +426,24 @@ TEST(BinaryLogParser, ParsesOptionalRepositorySampleAndExportsCsv)
     }
 
     TEST_ASSERT_TRUE(!result.packetTypes.empty());
-    TEST_ASSERT_TRUE(result.timestampCount > 0);
+    TEST_ASSERT_EQ(result.timestampCount, expectedRows);
+    TEST_ASSERT_EQ(result.fileRanges.size(), samples.size());
     for (const auto& column : result.columns)
         TEST_ASSERT_EQ(column.values.size(), result.timestampCount);
+
+    const auto* timestamp = findPacketColumn(result, 2);
+    TEST_ASSERT_TRUE(timestamp != nullptr);
+    for (size_t index = 0; index < boundaries.size(); ++index)
+    {
+        const auto& boundary = boundaries[index];
+        TEST_ASSERT_EQ(result.fileRanges[index].filePath, samples[index]);
+        TEST_ASSERT_EQ(result.fileRanges[index].firstRow, boundary.rowOffset);
+        TEST_ASSERT_EQ(result.fileRanges[index].rowCount, boundary.rowCount);
+        TEST_ASSERT_EQ(timestamp->values[boundary.rowOffset], boundary.firstTimestamp);
+        TEST_ASSERT_EQ(
+            timestamp->values[boundary.rowOffset + boundary.rowCount - 1],
+            boundary.lastTimestamp);
+    }
 
     const std::filesystem::path csvPath =
         std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "hiklog_parsed.csv";
