@@ -4,10 +4,10 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <cstring>
 #include <cstdint>
 #include <cmath>
 #include <cstdlib>
+#include <utility>
 
 namespace viewer
 {
@@ -108,93 +108,49 @@ public:
     // ---------- 构造 ----------
     Column() noexcept = default;
     explicit Column(size_t size)
-        : m_data(size > 0 ? new double[size] : nullptr)
-        , m_size(size)
-        , m_capacity(size)
+        : m_data(size)
     {
     }
-    ~Column() { delete[] m_data; }
+    explicit Column(std::vector<double>&& values) noexcept
+        : m_data(std::move(values))
+    {
+    }
+    ~Column() = default;
 
     // ---- 拷贝 ----
-    Column(const Column& other)
-        : m_size(other.m_size)
-        , m_capacity(other.m_size)
-        , m_cachedMin(other.m_cachedMin)
-        , m_cachedMax(other.m_cachedMax)
-        , m_minMaxValid(other.m_minMaxValid)
-    {
-        if (m_capacity > 0)
-        {
-            m_data = new double[m_capacity];
-            std::memcpy(m_data, other.m_data, m_size * sizeof(double));
-        }
-    }
-
-    Column& operator=(const Column& other)
-    {
-        if (this != &other)
-        {
-            delete[] m_data;
-            m_data = nullptr;
-            m_size = other.m_size;
-            m_capacity = other.m_size;
-            m_cachedMin = other.m_cachedMin;
-            m_cachedMax = other.m_cachedMax;
-            m_minMaxValid = other.m_minMaxValid;
-            if (m_capacity > 0)
-            {
-                m_data = new double[m_capacity];
-                std::memcpy(m_data, other.m_data, m_size * sizeof(double));
-            }
-        }
-        return *this;
-    }
+    Column(const Column&) = default;
+    Column& operator=(const Column&) = default;
 
     // ---- 移动 ----
     Column(Column&& other) noexcept
-        : m_data(other.m_data)
-        , m_size(other.m_size)
-        , m_capacity(other.m_capacity)
+        : m_data(std::move(other.m_data))
         , m_cachedMin(other.m_cachedMin)
         , m_cachedMax(other.m_cachedMax)
         , m_minMaxValid(other.m_minMaxValid)
     {
-        other.m_data = nullptr;
-        other.m_size = 0;
-        other.m_capacity = 0;
         other.m_minMaxValid = false;
     }
-
     Column& operator=(Column&& other) noexcept
     {
         if (this != &other)
         {
-            delete[] m_data;
-            m_data = other.m_data;
-            m_size = other.m_size;
-            m_capacity = other.m_capacity;
+            m_data = std::move(other.m_data);
             m_cachedMin = other.m_cachedMin;
             m_cachedMax = other.m_cachedMax;
             m_minMaxValid = other.m_minMaxValid;
-            other.m_data = nullptr;
-            other.m_size = 0;
-            other.m_capacity = 0;
             other.m_minMaxValid = false;
         }
         return *this;
     }
 
     // -------- 容量 --------
-    size_t size()     const noexcept { return m_size; }
-    bool   empty()    const noexcept { return m_size == 0; }
-    size_t capacity() const noexcept { return m_capacity; }
+    size_t size()     const noexcept { return m_data.size(); }
+    bool   empty()    const noexcept { return m_data.empty(); }
+    size_t capacity() const noexcept { return m_data.capacity(); }
 
     void clear()
     {
-        delete[] m_data;
-        m_data = nullptr;
-        m_size = 0;
-        m_capacity = 0;
+        std::vector<double>().swap(m_data);
         m_minMaxValid = false;
     }
 
@@ -202,8 +158,7 @@ public:
     // 全部写完后调用 recalcMinMax()。容量足够时不会重新分配。
     void beginOverwrite(size_t size)
     {
-        reserve(size);
-        m_size = size;
+        m_data.resize(size);
         m_minMaxValid = false;
     }
 
@@ -221,31 +176,21 @@ public:
     const double& back() const noexcept
     {
         static const double s_empty = 0.0;
-        return (m_size > 0) ? m_data[m_size - 1] : s_empty;
+        return !m_data.empty() ? m_data.back() : s_empty;
     }
 
-    double& back() noexcept { return m_data[m_size - 1]; }
+    double& back() noexcept { return m_data.back(); }
 
     // 裸指针访问（零开销内联遍历，用于绘图热路径）
-    const double* data() const noexcept { return m_data; }
-    double*       data()       noexcept { return m_data; }
+    const double* data() const noexcept { return m_data.data(); }
+    double*       data()       noexcept { return m_data.data(); }
 
     // -------- 修改 --------
     void push_back(double val)
     {
-        if (m_size >= m_capacity)
-        {
-            size_t newCap = (m_capacity == 0) ? 4096 : m_capacity * 2;
-            double* newData = new double[newCap];
-            if (m_data)
-            {
-                std::memcpy(newData, m_data, m_size * sizeof(double));
-                delete[] m_data;
-            }
-            m_data = newData;
-            m_capacity = newCap;
-        }
-        m_data[m_size++] = val;
+        if (m_data.size() == m_data.capacity())
+            m_data.reserve(m_data.empty() ? 4096 : m_data.capacity() * 2);
+        m_data.push_back(val);
 
         // 增量更新 min/max 缓存（O(1)）
         if (!std::isnan(val))
@@ -277,24 +222,22 @@ public:
 
     void reserve(size_t cap)
     {
-        if (cap > m_capacity)
-        {
-            double* newData = new double[cap];
-            if (m_data)
-            {
-                std::memcpy(newData, m_data, m_size * sizeof(double));
-                delete[] m_data;
-            }
-            m_data = newData;
-            m_capacity = cap;
-        }
+        m_data.reserve(cap);
     }
 
     // -------- 迭代器 --------
-    const_iterator begin()  const noexcept { return const_iterator(m_data); }
-    const_iterator end()    const noexcept { return const_iterator(m_data + m_size); }
-    iterator       begin()        noexcept { return iterator(m_data); }
-    iterator       end()          noexcept { return iterator(m_data + m_size); }
+    const_iterator begin()  const noexcept { return const_iterator(m_data.data()); }
+    const_iterator end()    const noexcept
+    {
+        const double* pointer = m_data.data();
+        return const_iterator(pointer ? pointer + m_data.size() : pointer);
+    }
+    iterator       begin()        noexcept { return iterator(m_data.data()); }
+    iterator       end()          noexcept
+    {
+        double* pointer = m_data.data();
+        return iterator(pointer ? pointer + m_data.size() : pointer);
+    }
 
     // 批量追加
     template <typename InputIt>
@@ -335,14 +278,14 @@ public:
     void recalcMinMax()
     {
         m_minMaxValid = false;
-        if (m_size == 0)
+        if (m_data.empty())
             return;
 
         double vmin = std::numeric_limits<double>::max();
         double vmax = -std::numeric_limits<double>::max();
         bool hasValid = false;
 
-        for (size_t i = 0; i < m_size; ++i)
+        for (size_t i = 0; i < m_data.size(); ++i)
         {
             if (std::isnan(m_data[i]))
                 continue;
@@ -361,9 +304,7 @@ public:
     }
 
 private:
-    double* m_data     = nullptr;
-    size_t  m_size     = 0;
-    size_t  m_capacity = 0;
+    std::vector<double> m_data;
 
     // min/max 缓存（全列，加载/表达式后自动计算）
     double  m_cachedMin = 0.0;

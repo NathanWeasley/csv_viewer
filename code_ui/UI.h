@@ -13,6 +13,7 @@
 #include <QAction>
 #include <QByteArray>
 #include <QEvent>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QKeyEvent>
 #include <QLabel>
@@ -220,6 +221,9 @@ private:
     QStringList m_pendingSkippedFiles;
     bool m_binaryLogLoading = false;
     std::shared_ptr<std::atomic_bool> m_binaryLogCancel;
+    bool m_binaryLogProgressActive = false;
+    quint64 m_binaryLogProgressGeneration = 0;
+    QElapsedTimer m_binaryLogProgressTimer;
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;

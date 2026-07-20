@@ -2,6 +2,7 @@
 
 #include "code_logparse/binary_log_parser.h"
 #include "code_logparse/ziplog/zip_archive.h"
+#include "code_viewer/datamgr/data_struct.hpp"
 
 #include <zip.h>
 
@@ -679,6 +680,16 @@ TEST(BinaryLogParser, ReportsCancellationSeparatelyFromParseFailure)
     const auto result = parser.parseFiles({file}, options);
     TEST_ASSERT_TRUE(result.cancelled);
     TEST_ASSERT_EQ(result.fileRanges.size(), 1u);
+}
+
+TEST(BinaryLogParser, ColumnAdoptsDecodedVectorStorageWithoutCopy)
+{
+    std::vector<double> values = {1.0, 2.0, 3.0, 4.0};
+    const double* originalStorage = values.data();
+    viewer::Column column(std::move(values));
+    TEST_ASSERT_TRUE(column.data() == originalStorage);
+    TEST_ASSERT_EQ(column.size(), 4u);
+    TEST_ASSERT_EQ(column[2], 3.0);
 }
 
 } // TEST_GROUP(BinaryLogParser)

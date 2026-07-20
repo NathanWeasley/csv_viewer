@@ -143,8 +143,8 @@ public:
 
     // Replace the current dataset with already-decoded numeric columns.
     // All columns must have the same row count.
-    bool LoadFromColumns(const std::vector<std::string>& columnNames,
-                         const std::vector<std::vector<double>>& values,
+    bool LoadFromColumns(std::vector<std::string> columnNames,
+                         std::vector<std::vector<double>> values,
                          const std::string& sourcePath);
 
     // ============================================================

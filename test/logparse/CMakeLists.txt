@@ -23,7 +23,7 @@ target_compile_definitions(logparse_test PRIVATE
 )
 
 if(MSVC)
-    target_compile_options(logparse_test PRIVATE /bigobj)
+    target_compile_options(logparse_test PRIVATE /bigobj /wd4819)
 endif()
 
 add_custom_command(TARGET logparse_test POST_BUILD

@@ -517,12 +517,27 @@ void UI::onLoadHiklogClicked()
         return;
 
     const std::filesystem::path archivePath(selectedArchive.toStdWString());
-    QApplication::setOverrideCursor(Qt::WaitCursor);
+    m_progressBar->setRange(0, 0);
+    m_progressBar->setTextVisible(true);
+    m_progressBar->setFormat(QString::fromUtf8(u8"正在读取 ZIP 目录…"));
+    m_progressBar->setMinimumWidth(180);
+    m_progressBar->show();
+    statusBar()->showMessage(QString::fromUtf8(u8"正在读取 ZIP 目录结构…"));
+    statusBar()->repaint();
+    m_progressBar->repaint();
+    QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+    logFileTrace(QString("ZIP catalog read started archive=\"%1\" progressVisible=%2")
+                 .arg(selectedArchive).arg(m_progressBar->isVisible()));
     std::vector<viewer::logparse::ziplog::ZipEntryInfo> entries;
     std::string catalogError;
     const bool catalogOk = viewer::Viewer::ReadZipCatalog(
         archivePath, entries, catalogError);
-    QApplication::restoreOverrideCursor();
+    logFileTrace(QString("ZIP catalog read finished archive=\"%1\" success=%2 entries=%3")
+                 .arg(selectedArchive).arg(catalogOk).arg(entries.size()));
+    m_progressBar->hide();
+    m_progressBar->setRange(0, 1000);
+    m_progressBar->setValue(0);
+    m_progressBar->setFormat(QStringLiteral("%p%"));
     if (!catalogOk)
     {
         QMessageBox::critical(
@@ -556,6 +571,9 @@ void UI::onLoadHiklogClicked()
     auto cancelled = std::make_shared<std::atomic_bool>(false);
     m_binaryLogCancel = cancelled;
     m_binaryLogLoading = true;
+    m_binaryLogProgressActive = true;
+    ++m_binaryLogProgressGeneration;
+    m_binaryLogProgressTimer.restart();
     m_progressBar->setRange(0, 1000);
     m_progressBar->setValue(0);
     m_progressBar->setTextVisible(true);
@@ -634,7 +652,7 @@ void UI::onLoadHiklogClicked()
         [this, watcher, cancelled, selectedArchive]()
         {
             m_binaryLogLoading = false;
-            ParseResult result = watcher->result();
+            ParseResult result = watcher->future().takeResult();
             watcher->deleteLater();
             const bool cancelRequested = cancelled->load(std::memory_order_relaxed);
             m_binaryLogCancel.reset();
@@ -672,6 +690,8 @@ void UI::onLoadHiklogClicked()
 
             if (result.cancelled)
             {
+                m_binaryLogProgressActive = false;
+                ++m_binaryLogProgressGeneration;
                 m_progressBar->hide();
                 m_progressBar->setFormat(QStringLiteral("%p%"));
                 statusBar()->showMessage(QString::fromUtf8(u8"HikLog 解析已取消。"), 4000);
@@ -699,6 +719,8 @@ void UI::onLoadHiklogClicked()
             }
             if (!result.success())
             {
+                m_binaryLogProgressActive = false;
+                ++m_binaryLogProgressGeneration;
                 m_progressBar->hide();
                 m_progressBar->setFormat(QStringLiteral("%p%"));
                 statusBar()->showMessage(QString::fromUtf8(u8"HikLog 解析失败。"), 5000);
@@ -717,6 +739,8 @@ void UI::onLoadHiklogClicked()
             if (!m_viewer.AdoptBinaryLog(
                     std::move(result), selectedArchive.toUtf8().toStdString()))
             {
+                m_binaryLogProgressActive = false;
+                ++m_binaryLogProgressGeneration;
                 m_progressBar->hide();
                 m_progressBar->setFormat(QStringLiteral("%p%"));
                 statusBar()->showMessage(QString::fromUtf8(u8"HikLog 载入失败。"), 5000);

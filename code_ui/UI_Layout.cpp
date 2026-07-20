@@ -290,6 +290,8 @@ void UI::createStatusbar()
         logFileTrace(QString("load started files=%1 autoGrouping=%2 forceGrouping=%3")
                      .arg(totalFiles).arg(m_autoGroupingEnabled).arg(m_forceDataGrouping));
         m_pendingSkippedFiles.clear();
+        m_binaryLogProgressActive = false;
+        ++m_binaryLogProgressGeneration;
         m_progressBar->setValue(0);
         m_progressBar->show();
     });
@@ -313,8 +315,33 @@ void UI::createStatusbar()
                      .arg(m_viewer.GetDataManager().GetRowCount())
                      .arg(m_pendingSkippedFiles.size()));
         m_progressBar->setValue(1000);
-        m_progressBar->hide();
-        m_progressBar->setFormat(QStringLiteral("%p%"));
+        if (m_binaryLogProgressActive)
+        {
+            constexpr qint64 kMinimumHikLogProgressMs = 1200;
+            const quint64 progressGeneration = m_binaryLogProgressGeneration;
+            const int remainingMs = static_cast<int>(std::max<qint64>(
+                0, kMinimumHikLogProgressMs - m_binaryLogProgressTimer.elapsed()));
+            logFileTrace(QString("ZIP hiklog progress completion elapsedMs=%1 remainingVisibleMs=%2 generation=%3")
+                         .arg(m_binaryLogProgressTimer.elapsed())
+                         .arg(remainingMs)
+                         .arg(progressGeneration));
+            QTimer::singleShot(remainingMs, this, [this, progressGeneration]()
+            {
+                if (!m_binaryLogProgressActive
+                    || progressGeneration != m_binaryLogProgressGeneration)
+                {
+                    return;
+                }
+                m_progressBar->hide();
+                m_progressBar->setFormat(QStringLiteral("%p%"));
+                m_binaryLogProgressActive = false;
+            });
+        }
+        else
+        {
+            m_progressBar->hide();
+            m_progressBar->setFormat(QStringLiteral("%p%"));
+        }
 
         rebuildDataTree();
         const auto& colNames = m_viewer.GetDataManager().GetColumnNames();

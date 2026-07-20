@@ -155,8 +155,8 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
 // DataManager 实现
 // ============================================================
 
-bool DataManager::LoadFromColumns(const std::vector<std::string>& columnNames,
-                                  const std::vector<std::vector<double>>& values,
+bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
+                                  std::vector<std::vector<double>> values,
                                   const std::string& sourcePath)
 {
     if (columnNames.empty() || columnNames.size() != values.size())
@@ -189,21 +189,16 @@ bool DataManager::LoadFromColumns(const std::vector<std::string>& columnNames,
 
     std::vector<std::unique_ptr<Column>> columns;
     columns.reserve(values.size());
-    for (const auto& valuesForColumn : values)
+    for (auto& valuesForColumn : values)
     {
-        auto column = std::make_unique<Column>(valuesForColumn.size());
-        if (!valuesForColumn.empty())
-        {
-            std::memcpy(column->data(), valuesForColumn.data(),
-                        valuesForColumn.size() * sizeof(double));
-        }
+        auto column = std::make_unique<Column>(std::move(valuesForColumn));
         column->recalcMinMax();
         columns.push_back(std::move(column));
     }
 
     Clear();
     m_columns = std::move(columns);
-    m_rawColumnNames = columnNames;
+    m_rawColumnNames = std::move(columnNames);
     m_columnNames = std::move(displayNames);
     m_nameIndex = std::move(nameIndex);
     m_filePath = sourcePath;

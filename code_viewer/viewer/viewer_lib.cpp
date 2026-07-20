@@ -198,9 +198,13 @@ bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
         values.push_back(std::move(parsedColumn.values));
     }
 
+    // All large column buffers have moved out. Release schema/diagnostic/range
+    // storage before handing ownership to DataManager.
+    result = logparse::ParseResult{};
+
     if (GetDataManager().GetColumnCount() > 0)
         Clear();
-    if (!m_data.LoadFromColumns(names, values, sourcePath))
+    if (!m_data.LoadFromColumns(std::move(names), std::move(values), sourcePath))
     {
         m_lastError = "Failed to import parsed binary-log columns.";
         return false;
