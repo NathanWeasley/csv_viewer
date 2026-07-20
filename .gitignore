@@ -1,7 +1,7 @@
 *~
 ~*
-bin
-lib
+**/bin/*
+**/lib/*
 .vscode
 .vs
 .opensdf
@@ -18,3 +18,7 @@ build
 builds
 .agents
 *.hiklog
+!extra/libzip/bin/*
+!extra/libzip/lib/*
+!extra/zlib/bin/*
+!extra/zlib/lib/*

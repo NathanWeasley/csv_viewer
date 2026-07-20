@@ -21,6 +21,7 @@
 #include <QSet>
 #include <QWheelEvent>
 #include <map>
+#include <atomic>
 #include <memory>
 #include <unordered_map>
 
@@ -121,6 +122,7 @@ private:
 private Q_SLOTS:
     void onLoadCSVClicked();
     void onLoadFolderClicked();
+    void onLoadHiklogClicked();
     void onDataItemDoubleClicked(QTreeWidgetItem* item, int column);
 
     QPair<viewer::QCPColumnGraph*, size_t> findNearestDataPoint(
@@ -216,6 +218,8 @@ private:
     // Alias state
     std::unordered_map<std::string, std::string> m_aliasMap;
     QStringList m_pendingSkippedFiles;
+    bool m_binaryLogLoading = false;
+    std::shared_ptr<std::atomic_bool> m_binaryLogCancel;
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;

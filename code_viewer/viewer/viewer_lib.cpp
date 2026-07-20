@@ -1,5 +1,6 @@
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/datamgr/data_struct.hpp"
+#include "code_logparse/ziplog/zip_archive.h"
 #include <algorithm>
 #include <cctype>
 #include <unordered_set>
@@ -175,6 +176,91 @@ bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
     config.preSanitizedNames = cleanNames;  // Pass pre-sanitized names
 
     return m_data.LoadFromCSV(config);
+}
+
+bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
+                            const std::string& sourcePath)
+{
+    m_lastError.clear();
+    if (!result.success() || result.columns.empty() || result.timestampCount == 0)
+    {
+        m_lastError = "Binary log parsing did not produce a valid dataset.";
+        return false;
+    }
+
+    std::vector<std::string> names;
+    std::vector<std::vector<double>> values;
+    names.reserve(result.columns.size());
+    values.reserve(result.columns.size());
+    for (auto& parsedColumn : result.columns)
+    {
+        names.push_back(std::move(parsedColumn.name));
+        values.push_back(std::move(parsedColumn.values));
+    }
+
+    if (GetDataManager().GetColumnCount() > 0)
+        Clear();
+    if (!m_data.LoadFromColumns(names, values, sourcePath))
+    {
+        m_lastError = "Failed to import parsed binary-log columns.";
+        return false;
+    }
+
+    emit LoadFinished();
+    return true;
+}
+
+bool Viewer::ReadZipCatalog(
+    const std::filesystem::path& archivePath,
+    std::vector<logparse::ziplog::ZipEntryInfo>& entries,
+    std::string& error)
+{
+    logparse::ziplog::ZipArchive archive;
+    if (!archive.open(archivePath))
+    {
+        error = archive.lastError();
+        entries.clear();
+        return false;
+    }
+    entries = archive.entries();
+    error.clear();
+    return true;
+}
+
+logparse::ParseResult Viewer::ParseZipEntries(
+    const std::filesystem::path& archivePath,
+    const std::vector<uint64_t>& entryIndices,
+    const logparse::ParseOptions& options)
+{
+    logparse::ziplog::ZipArchive archive;
+    if (!archive.open(archivePath))
+    {
+        logparse::ParseResult result;
+        result.diagnostics.push_back({
+            logparse::DiagnosticSeverity::Error, archivePath, 0,
+            "failed to open ZIP archive: " + archive.lastError()});
+        return result;
+    }
+
+    std::vector<std::unique_ptr<logparse::BinaryInput>> inputs;
+    inputs.reserve(entryIndices.size());
+    for (const uint64_t index : entryIndices)
+    {
+        auto input = archive.createInput(index);
+        if (!input)
+        {
+            logparse::ParseResult result;
+            result.diagnostics.push_back({
+                logparse::DiagnosticSeverity::Error, archivePath, 0,
+                "selected ZIP entry cannot be opened (index "
+                    + std::to_string(index) + ")"});
+            return result;
+        }
+        inputs.push_back(std::move(input));
+    }
+
+    logparse::BinaryLogParser parser;
+    return parser.parseInputs(std::move(inputs), options);
 }
 
 // ============================================================

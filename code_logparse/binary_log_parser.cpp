@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <chrono>
 #include <cstring>
 #include <exception>
 #include <limits>
@@ -745,24 +746,49 @@ bool readFileHeader(BinaryReader& reader, ParseSession& session)
     return true;
 }
 
-void parseOneFile(ParseSession& session, const std::filesystem::path& filePath)
+bool parseOneInput(ParseSession& session,
+                   std::unique_ptr<BinaryInput> input,
+                   const ParseOptions& options,
+                   size_t inputIndex,
+                   size_t inputCount)
 {
-    BinaryReader reader(filePath);
+    const std::filesystem::path filePath = input ? input->displayPath() : std::filesystem::path{};
+    BinaryReader reader(std::move(input));
     if (!reader.open())
     {
         addDiagnostic(session, DiagnosticSeverity::Error, filePath, 0,
-                      "failed to open binary file");
-        return;
+                      "failed to open binary file"
+                          + (reader.lastError().empty()
+                              ? std::string{} : ": " + reader.lastError()));
+        return false;
     }
+
+    uint64_t lastReportedOffset = 0;
+    auto lastReportedTime = std::chrono::steady_clock::now();
+    const auto reportProgress = [&]()
+    {
+        if (options.progress)
+            options.progress(filePath, reader.offset(), reader.size(), inputIndex, inputCount);
+        lastReportedOffset = reader.offset();
+        lastReportedTime = std::chrono::steady_clock::now();
+    };
+    reportProgress();
 
     ParserState state = ParserState::ExpectFileHeader;
     if (!readFileHeader(reader, session))
-        return;
+        return false;
     state = ParserState::CollectTypeDefinitions;
 
     FileSchema fileSchema;
     while (reader.remaining() > 0)
     {
+        if (options.isCancelled && options.isCancelled())
+            return true;
+        if (reader.offset() - lastReportedOffset >= 1024ull * 1024ull
+            || std::chrono::steady_clock::now() - lastReportedTime
+                >= std::chrono::milliseconds(100))
+            reportProgress();
+
         const uint64_t searchOffset = reader.offset();
         uint64_t frameOffset = 0;
         if (!reader.seekNextFrameMagic(frameOffset))
@@ -860,6 +886,8 @@ void parseOneFile(ParseSession& session, const std::filesystem::path& filePath)
 
     if (state == ParserState::CollectTypeDefinitions && !session.masterReady)
         establishMasterSchema(session, fileSchema, filePath, reader.offset());
+    reportProgress();
+    return false;
 }
 
 } // namespace
@@ -867,20 +895,42 @@ void parseOneFile(ParseSession& session, const std::filesystem::path& filePath)
 ParseResult BinaryLogParser::parseFiles(
     const std::vector<std::filesystem::path>& filePaths) const
 {
+    return parseFiles(filePaths, {});
+}
+
+ParseResult BinaryLogParser::parseFiles(
+    const std::vector<std::filesystem::path>& filePaths,
+    const ParseOptions& options) const
+{
+    std::vector<std::unique_ptr<BinaryInput>> inputs;
+    inputs.reserve(filePaths.size());
+    for (const auto& filePath : filePaths)
+        inputs.push_back(std::make_unique<LocalFileBinaryInput>(filePath));
+    return parseInputs(std::move(inputs), options);
+}
+
+ParseResult BinaryLogParser::parseInputs(
+    std::vector<std::unique_ptr<BinaryInput>> inputs,
+    const ParseOptions& options) const
+{
     ParseSession session;
-    if (filePaths.empty())
+    if (inputs.empty())
     {
         addDiagnostic(session, DiagnosticSeverity::Error, {}, 0,
                       "no binary input file was provided");
         return std::move(session.result);
     }
 
-    for (const auto& filePath : filePaths)
+    for (size_t inputIndex = 0; inputIndex < inputs.size(); ++inputIndex)
     {
+        const std::filesystem::path filePath = inputs[inputIndex]
+            ? inputs[inputIndex]->displayPath() : std::filesystem::path{};
         const size_t firstRow = session.result.timestampCount;
+        bool cancelled = false;
         try
         {
-            parseOneFile(session, filePath);
+            cancelled = parseOneInput(session, std::move(inputs[inputIndex]), options,
+                                      inputIndex, inputs.size());
         }
         catch (const std::bad_alloc&)
         {
@@ -894,6 +944,11 @@ ParseResult BinaryLogParser::parseFiles(
         }
         session.result.fileRanges.push_back(
             {filePath, firstRow, session.result.timestampCount - firstRow});
+        if (cancelled)
+        {
+            session.result.cancelled = true;
+            break;
+        }
     }
 
     // Every column keeps one trailing seed row; remove it after all files.

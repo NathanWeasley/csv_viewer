@@ -38,7 +38,16 @@
     <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp">
       <Filter>logparse</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\binary_input.cpp">
+      <Filter>logparse</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp">
+      <Filter>logparse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp">
+      <Filter>logparse</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp">
       <Filter>logparse</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\viewer\viewer_cb.cpp">
@@ -82,10 +91,22 @@
     <ClInclude Include="..\..\..\code_logparse\binary_log_parser.h">
       <Filter>logparse</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\binary_input.h">
+      <Filter>logparse</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\..\code_logparse\binary_log_types.h">
       <Filter>logparse</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_logparse\binary_reader.h">
+      <Filter>logparse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_archive.h">
+      <Filter>logparse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.h">
+      <Filter>logparse</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_info.h">
       <Filter>logparse</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h">

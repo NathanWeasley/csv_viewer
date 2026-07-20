@@ -1,6 +1,9 @@
 #include "test_case.h"
 
 #include "code_logparse/binary_log_parser.h"
+#include "code_logparse/ziplog/zip_archive.h"
+
+#include <zip.h>
 
 #include <algorithm>
 #include <cmath>
@@ -252,6 +255,49 @@ Bytes makePrimaryFile()
     return bytes;
 }
 
+std::filesystem::path writeZipFixture(
+    const std::string& name,
+    const std::vector<std::pair<std::string, Bytes>>& files)
+{
+    const auto directory = std::filesystem::temp_directory_path()
+        / "csv_viewer_logparse_tests";
+    std::filesystem::create_directories(directory);
+    const auto path = directory / name;
+
+    int errorCode = 0;
+    zip_t* archive = zip_open(path.string().c_str(), ZIP_CREATE | ZIP_TRUNCATE, &errorCode);
+    if (!archive)
+        throw test::TestFailure("failed to create ZIP fixture");
+
+    if (zip_dir_add(archive, "nested/", ZIP_FL_ENC_UTF_8) < 0)
+    {
+        const std::string error = zip_strerror(archive);
+        zip_discard(archive);
+        throw test::TestFailure("failed to add ZIP directory: " + error);
+    }
+    for (const auto& file : files)
+    {
+        zip_source_t* source = zip_source_buffer(
+            archive, file.second.data(), file.second.size(), 0);
+        if (!source
+            || zip_file_add(archive, file.first.c_str(), source,
+                            ZIP_FL_ENC_UTF_8 | ZIP_FL_OVERWRITE) < 0)
+        {
+            if (source)
+                zip_source_free(source);
+            const std::string error = zip_strerror(archive);
+            zip_discard(archive);
+            throw test::TestFailure("failed to add ZIP file: " + error);
+        }
+    }
+    if (zip_close(archive) != 0)
+    {
+        zip_discard(archive);
+        throw test::TestFailure("failed to close ZIP fixture");
+    }
+    return path;
+}
+
 } // namespace
 
 TEST_GROUP(BinaryLogParser)
@@ -497,6 +543,142 @@ TEST(BinaryLogParser, IgnoresTypeDefinitionsAfterDataState)
     TEST_ASSERT_EQ(result.columns.size(), 1u);
     TEST_ASSERT_TRUE(findColumn(result, "late_value") == nullptr);
     TEST_ASSERT_EQ(result.timestampCount, 2u);
+}
+
+TEST(BinaryLogParser, CatalogsAndReadsZipEntriesWithoutExtraction)
+{
+    const Bytes first = makePrimaryFile();
+    Bytes unsafe = {1, 2, 3};
+    const auto zipPath = writeZipFixture(
+        "binary_inputs.zip",
+        {{"nested/first.hiklog", first}, {"../unsafe.hiklog", unsafe}});
+
+    viewer::logparse::ziplog::ZipArchive archive;
+    TEST_ASSERT_TRUE(archive.open(zipPath));
+    TEST_ASSERT_EQ(archive.entries().size(), 3u);
+
+    const viewer::logparse::ziplog::ZipEntryInfo* logEntry = nullptr;
+    const viewer::logparse::ziplog::ZipEntryInfo* unsafeEntry = nullptr;
+    for (const auto& entry : archive.entries())
+    {
+        if (entry.pathUtf8 == "nested/first.hiklog")
+            logEntry = &entry;
+        if (entry.pathUtf8 == "../unsafe.hiklog")
+            unsafeEntry = &entry;
+    }
+    TEST_ASSERT_TRUE(logEntry != nullptr);
+    TEST_ASSERT_TRUE(logEntry->canRead());
+    TEST_ASSERT_TRUE(unsafeEntry != nullptr);
+    TEST_ASSERT_TRUE(unsafeEntry->hasUnsafePath);
+    TEST_ASSERT_FALSE(unsafeEntry->canRead());
+
+    auto input = archive.createInput(logEntry->index);
+    TEST_ASSERT_TRUE(input != nullptr);
+    TEST_ASSERT_TRUE(input->open());
+    TEST_ASSERT_EQ(input->size(), first.size());
+
+    std::vector<uint8_t> head(19);
+    TEST_ASSERT_TRUE(input->read(head.data(), head.size()));
+    TEST_ASSERT_TRUE(std::equal(head.begin(), head.end(), first.begin()));
+    TEST_ASSERT_TRUE(input->seek(2));
+    std::vector<uint8_t> middle(31);
+    TEST_ASSERT_TRUE(input->read(middle.data(), middle.size()));
+    TEST_ASSERT_TRUE(std::equal(middle.begin(), middle.end(), first.begin() + 2));
+
+    TEST_ASSERT_FALSE(std::filesystem::exists(
+        zipPath.parent_path() / "nested" / "first.hiklog"));
+}
+
+TEST(BinaryLogParser, ParsesMultipleHiklogsDirectlyFromZipInSelectedOrder)
+{
+    const Bytes first = makePrimaryFile();
+    const Bytes second = makePrimaryFile();
+    const auto zipPath = writeZipFixture(
+        "sequential_inputs.zip",
+        {{"nested/second.hiklog", second}, {"nested/first.hiklog", first}});
+
+    viewer::logparse::ziplog::ZipArchive archive;
+    TEST_ASSERT_TRUE(archive.open(zipPath));
+    uint64_t firstIndex = 0;
+    uint64_t secondIndex = 0;
+    for (const auto& entry : archive.entries())
+    {
+        if (entry.pathUtf8 == "nested/first.hiklog")
+            firstIndex = entry.index;
+        if (entry.pathUtf8 == "nested/second.hiklog")
+            secondIndex = entry.index;
+    }
+
+    std::vector<std::unique_ptr<viewer::logparse::BinaryInput>> inputs;
+    inputs.push_back(archive.createInput(firstIndex));
+    inputs.push_back(archive.createInput(secondIndex));
+    viewer::logparse::BinaryLogParser parser;
+    const auto result = parser.parseInputs(std::move(inputs));
+    TEST_ASSERT_TRUE(result.success());
+    TEST_ASSERT_EQ(result.timestampCount, 4u);
+    TEST_ASSERT_EQ(result.fileRanges.size(), 2u);
+    TEST_ASSERT_EQ(result.fileRanges[0].firstRow, 0u);
+    TEST_ASSERT_EQ(result.fileRanges[0].rowCount, 2u);
+    TEST_ASSERT_EQ(result.fileRanges[1].firstRow, 2u);
+    TEST_ASSERT_EQ(result.fileRanges[1].rowCount, 2u);
+    TEST_ASSERT_TRUE(result.fileRanges[0].filePath.wstring().find(L"first.hiklog")
+                     != std::wstring::npos);
+    TEST_ASSERT_TRUE(result.fileRanges[1].filePath.wstring().find(L"second.hiklog")
+                     != std::wstring::npos);
+}
+
+TEST(BinaryLogParser, ParsesRepositoryServoLogsDirectlyFromZip)
+{
+    const std::filesystem::path zipPath =
+        std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "Dev_Log_20260502_185203.zip";
+    if (!std::filesystem::exists(zipPath))
+        return;
+
+    viewer::logparse::ziplog::ZipArchive archive;
+    TEST_ASSERT_TRUE(archive.open(zipPath));
+    std::vector<const viewer::logparse::ziplog::ZipEntryInfo*> servoLogs;
+    for (const auto& entry : archive.entries())
+    {
+        if (entry.canRead()
+            && entry.pathUtf8.find("rcd_servo_") != std::string::npos
+            && entry.pathUtf8.size() >= 7
+            && entry.pathUtf8.substr(entry.pathUtf8.size() - 7) == ".hiklog")
+        {
+            servoLogs.push_back(&entry);
+        }
+    }
+    std::sort(servoLogs.begin(), servoLogs.end(),
+        [](const auto* lhs, const auto* rhs) { return lhs->pathUtf8 < rhs->pathUtf8; });
+    if (servoLogs.size() < 2)
+        return;
+
+    std::vector<std::unique_ptr<viewer::logparse::BinaryInput>> inputs;
+    inputs.push_back(archive.createInput(servoLogs[0]->index));
+    inputs.push_back(archive.createInput(servoLogs[1]->index));
+    viewer::logparse::BinaryLogParser parser;
+    const auto result = parser.parseInputs(std::move(inputs));
+    TEST_ASSERT_TRUE(result.success());
+    TEST_ASSERT_EQ(result.columns.size(), 268u);
+    TEST_ASSERT_EQ(result.timestampCount, 115941u);
+    TEST_ASSERT_EQ(result.fileRanges.size(), 2u);
+    TEST_ASSERT_TRUE(result.fileRanges[0].rowCount > 0);
+    TEST_ASSERT_TRUE(result.fileRanges[1].rowCount > 0);
+    TEST_ASSERT_EQ(result.timestampCount,
+                   result.fileRanges[0].rowCount + result.fileRanges[1].rowCount);
+    for (const auto& column : result.columns)
+        TEST_ASSERT_EQ(column.values.size(), result.timestampCount);
+}
+
+TEST(BinaryLogParser, ReportsCancellationSeparatelyFromParseFailure)
+{
+    const auto file = writeFixture("cancelled.hiklog", makePrimaryFile());
+    viewer::logparse::ParseOptions options;
+    options.isCancelled = []() { return true; };
+
+    viewer::logparse::BinaryLogParser parser;
+    const auto result = parser.parseFiles({file}, options);
+    TEST_ASSERT_TRUE(result.cancelled);
+    TEST_ASSERT_EQ(result.fileRanges.size(), 1u);
 }
 
 } // TEST_GROUP(BinaryLogParser)

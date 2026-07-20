@@ -98,6 +98,7 @@ struct ParseResult
     std::vector<ParseDiagnostic> diagnostics;
     std::vector<ParsedFileRange> fileRanges;
     size_t timestampCount = 0;
+    bool cancelled = false;
 
     bool success() const noexcept
     {

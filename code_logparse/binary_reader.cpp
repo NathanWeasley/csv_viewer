@@ -1,6 +1,8 @@
 #include "code_logparse/binary_reader.h"
 
 #include <limits>
+#include <algorithm>
+#include <cstring>
 #include <new>
 #include <stdexcept>
 
@@ -8,35 +10,38 @@ namespace viewer::logparse
 {
 
 BinaryReader::BinaryReader(std::filesystem::path filePath)
-    : m_filePath(std::move(filePath))
+    : BinaryReader(std::make_unique<LocalFileBinaryInput>(std::move(filePath)))
 {
+}
+
+BinaryReader::BinaryReader(std::unique_ptr<BinaryInput> input)
+    : m_input(std::move(input))
+{
+    if (m_input)
+        m_displayPath = m_input->displayPath();
 }
 
 bool BinaryReader::open()
 {
-    m_stream.close();
-    m_stream.clear();
-    m_stream.open(m_filePath, std::ios::binary);
-    if (!m_stream.is_open())
-        return false;
-
-    m_stream.seekg(0, std::ios::end);
-    const std::streamoff end = m_stream.tellg();
-    if (end < 0)
-    {
-        m_stream.close();
-        return false;
-    }
-
-    m_size = static_cast<uint64_t>(end);
     m_offset = 0;
-    m_stream.seekg(0, std::ios::beg);
-    return static_cast<bool>(m_stream);
+    m_size = 0;
+    m_bufferPosition = 0;
+    m_bufferSize = 0;
+    if (!m_input || !m_input->open())
+        return false;
+    m_size = m_input->size();
+    return true;
 }
 
 bool BinaryReader::isOpen() const noexcept
 {
-    return m_stream.is_open();
+    return m_input && m_input->isOpen();
+}
+
+const std::string& BinaryReader::lastError() const noexcept
+{
+    static const std::string empty;
+    return m_input ? m_input->lastError() : empty;
 }
 
 bool BinaryReader::readUInt8(uint8_t& value)
@@ -82,17 +87,44 @@ bool BinaryReader::readBytes(void* destination, size_t byteCount)
 {
     if (byteCount == 0)
         return true;
-    if (!destination || byteCount > remaining()
-        || byteCount > static_cast<size_t>(std::numeric_limits<std::streamsize>::max()))
+    if (!m_input || !m_input->isOpen() || !destination || byteCount > remaining())
     {
         return false;
     }
 
-    m_stream.read(static_cast<char*>(destination), static_cast<std::streamsize>(byteCount));
-    if (!m_stream)
-        return false;
+    auto* output = static_cast<uint8_t*>(destination);
+    size_t bytesLeft = byteCount;
+    while (bytesLeft > 0)
+    {
+        const size_t buffered = m_bufferSize - m_bufferPosition;
+        if (buffered > 0)
+        {
+            const size_t copied = std::min(buffered, bytesLeft);
+            std::memcpy(output, m_buffer.data() + m_bufferPosition, copied);
+            output += copied;
+            bytesLeft -= copied;
+            m_bufferPosition += copied;
+            m_offset += copied;
+            continue;
+        }
 
-    m_offset += static_cast<uint64_t>(byteCount);
+        m_bufferPosition = 0;
+        m_bufferSize = 0;
+        if (bytesLeft >= m_buffer.size())
+        {
+            if (!m_input || !m_input->read(output, bytesLeft))
+                return false;
+            m_offset += bytesLeft;
+            return true;
+        }
+
+        const uint64_t physicalRemaining = m_size - m_input->tell();
+        const size_t refillSize = static_cast<size_t>(
+            std::min<uint64_t>(m_buffer.size(), physicalRemaining));
+        if (refillSize == 0 || !m_input->read(m_buffer.data(), refillSize))
+            return false;
+        m_bufferSize = refillSize;
+    }
     return true;
 }
 
@@ -115,17 +147,25 @@ bool BinaryReader::readBytes(std::vector<uint8_t>& destination, size_t byteCount
 
 bool BinaryReader::skip(uint64_t byteCount)
 {
-    if (byteCount > remaining()
-        || byteCount > static_cast<uint64_t>(std::numeric_limits<std::streamoff>::max()))
+    if (byteCount > remaining())
     {
         return false;
     }
 
-    m_stream.seekg(static_cast<std::streamoff>(byteCount), std::ios::cur);
-    if (!m_stream)
-        return false;
+    const size_t buffered = m_bufferSize - m_bufferPosition;
+    if (byteCount <= buffered)
+    {
+        m_bufferPosition += static_cast<size_t>(byteCount);
+        m_offset += byteCount;
+        return true;
+    }
 
-    m_offset += byteCount;
+    const uint64_t target = m_offset + byteCount;
+    if (!m_input || !m_input->seek(target))
+        return false;
+    m_bufferPosition = 0;
+    m_bufferSize = 0;
+    m_offset = target;
     return true;
 }
 

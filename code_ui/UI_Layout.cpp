@@ -314,10 +314,18 @@ void UI::createStatusbar()
                      .arg(m_pendingSkippedFiles.size()));
         m_progressBar->setValue(1000);
         m_progressBar->hide();
+        m_progressBar->setFormat(QStringLiteral("%p%"));
 
         rebuildDataTree();
         const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
         const size_t detectedXAxis = m_viewer.GetDataManager().GetXAxisColumn();
+        logXAxisTrace(QString("load finished detected X-axis column=%1 valid=%2 name=\"%3\" useIndexDefault=%4")
+                      .arg(detectedXAxis)
+                      .arg(detectedXAxis < colNames.size())
+                      .arg(detectedXAxis < colNames.size()
+                               ? QString::fromStdString(colNames[detectedXAxis])
+                               : QStringLiteral("<none>"))
+                      .arg(m_defaultPlotByIndex));
         m_viewer.GetPlotManager().setNewPageXAxisDefaults(
             m_defaultPlotByIndex, detectedXAxis);
 
@@ -357,6 +365,7 @@ void UI::createStatusbar()
         logFileTrace(QString("load error: %1").arg(message));
         m_progressBar->setValue(0);
         m_progressBar->hide();
+        m_progressBar->setFormat(QStringLiteral("%p%"));
         m_dataTree->clear();
         m_viewer.GetPlotManager().setNewPageXAxisDefaults(
             m_defaultPlotByIndex, static_cast<size_t>(-1));
@@ -839,7 +848,8 @@ void UI::createMenu()
     auto* openCSV = fileMenu->addAction("载入多个CSV文件");
     connect(openCSV, &QAction::triggered, this, &UI::onLoadCSVClicked);
     auto* openFolder = fileMenu->addAction("载入多个文件夹下的全部CSV文件");
-    auto* openBinary = fileMenu->addAction("载入JSON+二进制文件");
+    auto* openBinary = fileMenu->addAction(QString::fromUtf8(u8"从 ZIP 载入 HikLog"));
+    connect(openBinary, &QAction::triggered, this, &UI::onLoadHiklogClicked);
     connect(openFolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
     fileMenu->addSeparator();
     auto* clearAll = fileMenu->addAction("清空全部数据");
@@ -1094,6 +1104,7 @@ void UI::createToolbar()
 
 	QAction* action_loadcsv  = nullptr;
     QAction* action_loadfolder = nullptr;
+    QAction* action_loadhiklog = nullptr;
 	QAction* action_clearall = nullptr;
 	QAction* action_varrename = nullptr;
     QAction* action_newplot = nullptr;
@@ -1122,6 +1133,7 @@ void UI::createToolbar()
 		{
 		case IconIdx::LOADCSV:  action_loadcsv  = action; break;
         case IconIdx::LOADFOLDER: action_loadfolder = action; break;
+        case IconIdx::LOADHIKLOG: action_loadhiklog = action; break;
 		case IconIdx::CLEAR:    action_clearall = action; break;
 		case IconIdx::VARRENAME: action_varrename = action; break;
         case IconIdx::NEWPLOT: action_newplot = action; break;
@@ -1142,6 +1154,8 @@ void UI::createToolbar()
 		connect(action_loadcsv, &QAction::triggered, this, &UI::onLoadCSVClicked);
     if (action_loadfolder)
         connect(action_loadfolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
+    if (action_loadhiklog)
+        connect(action_loadhiklog, &QAction::triggered, this, &UI::onLoadHiklogClicked);
 	if (action_clearall)
 		connect(action_clearall, &QAction::triggered, this, [this]()
 		{

@@ -13,7 +13,10 @@
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\base\trace_logger.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\binary_input.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp" />
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.cpp" />
@@ -30,7 +33,11 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\code_logparse\binary_log_parser.h" />
     <ClInclude Include="..\..\..\code_logparse\binary_log_types.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_input.h" />
     <ClInclude Include="..\..\..\code_logparse\binary_reader.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_archive.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_info.h" />
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h" />
     <ClInclude Include="..\..\..\code_viewer\base\trace_logger.h" />
     <ClInclude Include="..\..\..\code_viewer\base\exprtk_keywords.h" />

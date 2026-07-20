@@ -8,6 +8,9 @@
 #include "code_viewer/plotmgr/plot_manager.h"
 #include "code_viewer/plotmgr/cursor/cursor_manager.h"
 #include "code_viewer/stylemgr/style_manager.h"
+#include "code_logparse/binary_log_types.h"
+#include "code_logparse/binary_log_parser.h"
+#include "code_logparse/ziplog/zip_entry_info.h"
 
 namespace viewer
 {
@@ -25,6 +28,16 @@ public:
     // Returns true on success, false on failure
     bool LoadCSV(const std::string& path);
     bool LoadCSV(const std::string& path, char delimiter, char quote = '"');
+    bool AdoptBinaryLog(logparse::ParseResult&& result, const std::string& sourcePath);
+
+    static bool ReadZipCatalog(
+        const std::filesystem::path& archivePath,
+        std::vector<logparse::ziplog::ZipEntryInfo>& entries,
+        std::string& error);
+    static logparse::ParseResult ParseZipEntries(
+        const std::filesystem::path& archivePath,
+        const std::vector<uint64_t>& entryIndices,
+        const logparse::ParseOptions& options = {});
 
     DataManager&       GetDataManager()       noexcept { return m_data; }
     const DataManager& GetDataManager() const noexcept { return m_data; }

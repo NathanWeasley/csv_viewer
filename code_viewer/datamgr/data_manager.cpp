@@ -155,6 +155,62 @@ bool CsvRowReader::parseLine(const std::string& line, std::vector<std::string>& 
 // DataManager 实现
 // ============================================================
 
+bool DataManager::LoadFromColumns(const std::vector<std::string>& columnNames,
+                                  const std::vector<std::vector<double>>& values,
+                                  const std::string& sourcePath)
+{
+    if (columnNames.empty() || columnNames.size() != values.size())
+        return false;
+
+    const size_t rowCount = values.front().size();
+    if (rowCount == 0)
+        return false;
+    for (const auto& column : values)
+    {
+        if (column.size() != rowCount)
+            return false;
+    }
+
+    std::vector<std::string> displayNames = columnNames;
+    for (auto& name : displayNames)
+    {
+        const auto alias = m_aliasMap.find(name);
+        if (alias != m_aliasMap.end())
+            name = alias->second;
+    }
+
+    std::unordered_map<std::string, size_t> nameIndex;
+    for (size_t index = 0; index < displayNames.size(); ++index)
+    {
+        if (displayNames[index].empty() || nameIndex.count(displayNames[index]) != 0)
+            return false;
+        nameIndex.emplace(displayNames[index], index);
+    }
+
+    std::vector<std::unique_ptr<Column>> columns;
+    columns.reserve(values.size());
+    for (const auto& valuesForColumn : values)
+    {
+        auto column = std::make_unique<Column>(valuesForColumn.size());
+        if (!valuesForColumn.empty())
+        {
+            std::memcpy(column->data(), valuesForColumn.data(),
+                        valuesForColumn.size() * sizeof(double));
+        }
+        column->recalcMinMax();
+        columns.push_back(std::move(column));
+    }
+
+    Clear();
+    m_columns = std::move(columns);
+    m_rawColumnNames = columnNames;
+    m_columnNames = std::move(displayNames);
+    m_nameIndex = std::move(nameIndex);
+    m_filePath = sourcePath;
+    m_xAxisColumn = AutoDetectXAxis();
+    return true;
+}
+
 bool DataManager::LoadFromCSV(const LoadConfig& config)
 {
     const bool isFirstLoad = m_columns.empty();
