@@ -13,6 +13,7 @@ x64
 doc
 documentation
 test_output.txt
+data/hiklog_parsed.csv
 build
 builds
 .agents

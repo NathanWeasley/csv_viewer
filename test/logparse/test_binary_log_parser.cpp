@@ -6,7 +6,9 @@
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <limits>
+#include <locale>
 #include <string>
 #include <vector>
 
@@ -158,6 +160,69 @@ const viewer::logparse::ParsedColumn* findColumn(
     return nullptr;
 }
 
+void writeCsvCell(std::ostream& output, const std::string& text)
+{
+    const bool needsQuotes = text.find_first_of(",\"\r\n") != std::string::npos;
+    if (!needsQuotes)
+    {
+        output << text;
+        return;
+    }
+
+    output.put('"');
+    for (const char c : text)
+    {
+        if (c == '"')
+            output.put('"');
+        output.put(c);
+    }
+    output.put('"');
+}
+
+void writeParsedCsv(const viewer::logparse::ParseResult& result,
+                    const std::filesystem::path& outputPath)
+{
+    std::ofstream output(outputPath, std::ios::binary | std::ios::trunc);
+    if (!output.is_open())
+        throw test::TestFailure("failed to create parsed CSV: " + outputPath.string());
+
+    output.imbue(std::locale::classic());
+    output << std::setprecision(std::numeric_limits<double>::max_digits10);
+
+    for (size_t column = 0; column < result.columns.size(); ++column)
+    {
+        if (column > 0)
+            output.put(',');
+        writeCsvCell(output, result.columns[column].name);
+    }
+    output.put('\n');
+
+    for (size_t row = 0; row < result.timestampCount; ++row)
+    {
+        for (size_t column = 0; column < result.columns.size(); ++column)
+        {
+            if (column > 0)
+                output.put(',');
+
+            if (row >= result.columns[column].values.size())
+                throw test::TestFailure("parsed columns have inconsistent row counts");
+
+            const double value = result.columns[column].values[row];
+            if (std::isnan(value))
+                output << "NaN";
+            else if (std::isinf(value))
+                output << (value < 0.0 ? "-Inf" : "Inf");
+            else
+                output << value;
+        }
+        output.put('\n');
+    }
+
+    output.close();
+    if (!output)
+        throw test::TestFailure("failed while writing parsed CSV: " + outputPath.string());
+}
+
 Bytes makePrimaryFile()
 {
     Bytes bytes;
@@ -284,7 +349,7 @@ TEST(BinaryLogParser, AcceptsCommaSeparatedFieldNameBlock)
     TEST_ASSERT_TRUE(findColumn(result, "dc_system_jitter") != nullptr);
 }
 
-TEST(BinaryLogParser, ParsesOptionalRepositorySample)
+TEST(BinaryLogParser, ParsesOptionalRepositorySampleAndExportsCsv)
 {
     const std::filesystem::path sample =
         std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "test.hiklog";
@@ -311,6 +376,12 @@ TEST(BinaryLogParser, ParsesOptionalRepositorySample)
     TEST_ASSERT_TRUE(result.timestampCount > 0);
     for (const auto& column : result.columns)
         TEST_ASSERT_EQ(column.values.size(), result.timestampCount);
+
+    const std::filesystem::path csvPath =
+        std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "hiklog_parsed.csv";
+    writeParsedCsv(result, csvPath);
+    TEST_ASSERT_TRUE(std::filesystem::exists(csvPath));
+    TEST_ASSERT_TRUE(std::filesystem::file_size(csvPath) > 0);
 }
 
 TEST(BinaryLogParser, RejectsCharacterTypeWithoutLength)
