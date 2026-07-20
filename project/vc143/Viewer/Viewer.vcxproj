@@ -11,6 +11,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_viewer\base\trace_logger.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp" />
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
@@ -31,6 +32,7 @@
     <ClInclude Include="..\..\..\code_logparse\binary_log_types.h" />
     <ClInclude Include="..\..\..\code_logparse\binary_reader.h" />
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h" />
+    <ClInclude Include="..\..\..\code_viewer\base\trace_logger.h" />
     <ClInclude Include="..\..\..\code_viewer\base\exprtk_keywords.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\custom_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h" />

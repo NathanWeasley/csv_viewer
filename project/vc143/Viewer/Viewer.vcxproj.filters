@@ -32,6 +32,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_viewer\base\trace_logger.cpp">
+      <Filter>base</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp">
       <Filter>logparse</Filter>
     </ClCompile>
@@ -98,6 +101,9 @@
       <Filter>datamgr\cexpr</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h">
+      <Filter>base</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\base\trace_logger.h">
       <Filter>base</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\plotmgr\plot_manager.h">

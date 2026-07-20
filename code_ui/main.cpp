@@ -31,8 +31,16 @@ int main(int argc, char *argv[])
 
     a.setApplicationDisplayName("Viewer V1.0");
 
-    UI w;
-    w.setWindowTitle("Viewer V1.0");
-    w.show();
-    return a.exec();
+    int exitCode = 0;
+    {
+        UI w;
+        w.setWindowTitle("Viewer V1.0");
+        w.show();
+        exitCode = a.exec();
+    }
+
+    // UI destruction emits the final shutdown diagnostics, so close the
+    // persistent log only after the window has been destroyed.
+    viewer::trace::shutdown();
+    return exitCode;
 }

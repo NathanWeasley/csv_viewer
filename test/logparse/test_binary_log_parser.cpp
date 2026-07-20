@@ -352,7 +352,7 @@ TEST(BinaryLogParser, AcceptsCommaSeparatedFieldNameBlock)
 TEST(BinaryLogParser, ParsesOptionalRepositorySampleAndExportsCsv)
 {
     const std::filesystem::path sample =
-        std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "test.hiklog";
+        std::filesystem::path(TEST_PROJECT_ROOT) / "data" / "164006.hiklog";
     if (!std::filesystem::exists(sample))
         return;
 
