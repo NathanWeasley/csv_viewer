@@ -17,3 +17,4 @@ endif()
 # Subdirectories
 add_subdirectory(base)
 add_subdirectory(datamgr)
+add_subdirectory(logparse)

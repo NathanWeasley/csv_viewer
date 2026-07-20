@@ -16,3 +16,4 @@ test_output.txt
 build
 builds
 .agents
+*.hiklog

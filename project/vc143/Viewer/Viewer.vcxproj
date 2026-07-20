@@ -11,6 +11,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp" />
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.cpp" />
@@ -25,6 +27,9 @@
     <ClCompile Include="..\..\..\code_viewer\viewer\viewer_lib.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\..\code_logparse\binary_log_parser.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_log_types.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_reader.h" />
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h" />
     <ClInclude Include="..\..\..\code_viewer\base\exprtk_keywords.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\custom_func.h" />
