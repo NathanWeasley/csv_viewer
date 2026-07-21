@@ -437,7 +437,7 @@ void UI::bindPlotManagerCallbacks()
         auto* spnScatterSize = new QSpinBox();
         spnScatterSize->setRange(0, 50);
         spnScatterSize->setValue(0);
-        spnScatterSize->setFixedWidth(52);
+        spnScatterSize->setFixedWidth(60);
         hbox->addWidget(spnScatterSize);
 
         // 7. 数据点颜色（色块+图标）

@@ -26,6 +26,7 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QFileInfo>
+#include <QFont>
 #include <QFutureWatcher>
 #include <QHeaderView>
 #include <QListWidget>
@@ -121,10 +122,13 @@ public:
                                  QString::fromUtf8(u8"压缩大小"),
                                  QString::fromUtf8(u8"状态")});
         m_tree->setAlternatingRowColors(true);
-        m_tree->header()->setSectionResizeMode(0, QHeaderView::Stretch);
-        m_tree->header()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
-        m_tree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-        m_tree->header()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
+        m_tree->header()->setSectionResizeMode(QHeaderView::Interactive);
+        m_tree->header()->setStretchLastSection(false);
+        m_tree->header()->setMinimumSectionSize(72);
+        m_tree->setColumnWidth(0, 360);
+        m_tree->setColumnWidth(1, 110);
+        m_tree->setColumnWidth(2, 110);
+        m_tree->setColumnWidth(3, 120);
 
         auto* orderPanel = new QWidget(splitter);
         auto* orderLayout = new QVBoxLayout(orderPanel);
@@ -213,15 +217,18 @@ public:
             if (entry.canRead() && isHiklog)
             {
                 item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-                item->setCheckState(0, Qt::Checked);
-                addOrderItem(entry.index, path);
+                item->setCheckState(0, Qt::Unchecked);
+                QFont candidateFont = item->font(0);
+                candidateFont.setBold(true);
+                item->setFont(0, candidateFont);
+                item->setToolTip(0, QString::fromUtf8(u8"可选择的 HikLog 文件"));
             }
             else
             {
                 item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
             }
         }
-        m_tree->expandToDepth(1);
+        m_tree->collapseAll();
 
         connect(m_tree, &QTreeWidget::itemChanged, this,
             [this](QTreeWidgetItem* item, int column)

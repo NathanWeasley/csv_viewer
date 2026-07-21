@@ -40,6 +40,21 @@ namespace {
     constexpr int RoleType = Qt::UserRole + 1;
     constexpr int RolePath = Qt::UserRole + 2;
     constexpr int RoleName = Qt::UserRole + 3;
+
+    void appendBookmarkFolderChoices(QComboBox* combo,
+                                     const viewer::BookmarkFolder& parent,
+                                     const QString& parentPath)
+    {
+        for (const auto& folder : parent.subFolders)
+        {
+            const QString folderName = QString::fromStdString(folder.name);
+            const QString folderPath = parentPath.isEmpty()
+                ? folderName
+                : parentPath + QStringLiteral("/") + folderName;
+            combo->addItem(folderPath, folderPath);
+            appendBookmarkFolderChoices(combo, folder, folderPath);
+        }
+    }
 }
 
 // ============================================================
@@ -167,9 +182,12 @@ void UI::addBookmark(int pageIndex)
     nameEdit->setPlaceholderText(QString::fromUtf8("收藏名称（必填）"));
     layout->addRow(QString::fromUtf8("收藏名称："), nameEdit);
 
-    auto* folderEdit = new QLineEdit(&dlg);
-    folderEdit->setPlaceholderText(QString::fromUtf8("文件夹路径，如 folder/sub，留空则放在根目录"));
-    layout->addRow(QString::fromUtf8("文件夹："), folderEdit);
+    auto* folderCombo = new QComboBox(&dlg);
+    folderCombo->addItem(QString::fromUtf8("根目录"), QString());
+    appendBookmarkFolderChoices(folderCombo, pm.bookmarkMgr.root(), QString());
+    folderCombo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    folderCombo->setMinimumContentsLength(24);
+    layout->addRow(QString::fromUtf8("文件夹："), folderCombo);
 
     auto* btnBox = new QDialogButtonBox(
         QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dlg);
@@ -191,7 +209,7 @@ void UI::addBookmark(int pageIndex)
         return;
     }
 
-    std::string folderPath = folderEdit->text().trimmed().toStdString();
+    std::string folderPath = folderCombo->currentData().toString().toStdString();
 
     // 如果指定了文件夹，检查文件夹是否存在
     if (!folderPath.empty())

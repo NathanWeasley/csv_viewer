@@ -477,7 +477,8 @@ void UI::rebuildDataTree()
         }
     }
 
-    m_dataTree->expandAll();
+    // 自动分组仅组织数据项，不替用户展开文件夹。
+    m_dataTree->collapseAll();
 }
 
 void UI::onDataTreeContextMenu(const QPoint& pos)
