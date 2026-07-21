@@ -169,6 +169,10 @@ public:
     // 数据项移除后触发，参数为 (页面索引, 列名)
     std::function<void(int pageIndex, const std::string& yColName)> onDataItemRemoved;
 
+    // 所有页面即将清空时触发；此时页面和其数据仍然有效。
+    // UI 应在此回调中停止重绘并解除图形对数据列的引用。
+    std::function<void()> onAboutToClear;
+
     // 所有页面清空后触发
     std::function<void()> onCleared;
     std::function<void(PlotLayoutMode mode)> onLayoutModeChanged;

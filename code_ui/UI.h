@@ -208,6 +208,7 @@ private:
     QHash<int, QCPItemLine*> m_cursorConnectorLines;
     QPoint m_mousePressPos;
     bool m_mousePressOnPlot = false;
+    bool m_clearingAllPlots = false;
     int m_draggingCursorLabelIdx = -1;
     QPointF m_cursorLabelDragOffset;
 

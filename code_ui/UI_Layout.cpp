@@ -1733,6 +1733,11 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
 
     if (plot)
     {
+        // Dock 的 widget 可能通过 deleteLater 延迟析构。先同步删除曲线，
+        // 确保随后释放表达式/FFT/原始数据时不会留下 Column* 悬空引用。
+        plot->setUpdatesEnabled(false);
+        plot->clearPlottables();
+
         if (!m_isShuttingDown && m_fftSelectRect && m_fftSelectRect->parentPlot() == plot)
         {
             plot->removeItem(m_fftSelectRect);

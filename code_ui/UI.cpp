@@ -249,6 +249,7 @@ void UI::disconnectViewerCallbacks()
     pm.onActivePageChanged = nullptr;
     pm.onDataItemAdded = nullptr;
     pm.onDataItemRemoved = nullptr;
+    pm.onAboutToClear = nullptr;
     pm.onCleared = nullptr;
     pm.onLayoutModeChanged = nullptr;
     pm.onLegendVisibilityChanged = nullptr;

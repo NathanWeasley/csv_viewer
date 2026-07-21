@@ -129,12 +129,14 @@ void UI::bindCursorManagerCallbacks()
         logShutdownTrace(QString("cursor-wrapper onPageAboutToRemove leave index=%1").arg(index));
     };
 
-    // ---- 扩展 onCleared：清理所有 cursor 状态 ----
-    auto originalOnCleared = pm.onCleared;
-    pm.onCleared = [this, originalOnCleared]()
+    // ---- 扩展 onAboutToClear：数据仍有效时先清理所有 cursor 状态 ----
+    auto originalOnAboutToClear = pm.onAboutToClear;
+    pm.onAboutToClear = [this, originalOnAboutToClear]()
     {
-        logShutdownTrace(QString("cursor-wrapper onCleared enter cursorCount=%1")
+        logShutdownTrace(QString("cursor-wrapper onAboutToClear enter cursorCount=%1")
                              .arg(static_cast<int>(m_viewer.GetCursorManager().cursors().size())));
+        // 清理期间的每个游标删除都不需要立即重绘；图窗马上会被删除。
+        m_clearingAllPlots = true;
         auto& cm = m_viewer.GetCursorManager();
         cm.clearAll();
         m_plotToPageIndex.clear();
@@ -144,10 +146,20 @@ void UI::bindCursorManagerCallbacks()
         m_cursorConnectorLines.clear();
         m_highlightRects.clear();
         m_highlightLabels.clear();
+        m_draggingCursorLabelIdx = -1;
 
+        if (originalOnAboutToClear)
+            originalOnAboutToClear();
+        logShutdownTrace("cursor-wrapper onAboutToClear leave");
+    };
+
+    // Dock 和 UI 状态全部清理完成后再退出批量清理状态。
+    auto originalOnCleared = pm.onCleared;
+    pm.onCleared = [this, originalOnCleared]()
+    {
         if (originalOnCleared)
             originalOnCleared();
-        logShutdownTrace("cursor-wrapper onCleared leave");
+        m_clearingAllPlots = false;
     };
 
     // ---- 预选设置 → 显示 tracer + 更新状态栏 ----
@@ -207,7 +219,7 @@ void UI::bindCursorManagerCallbacks()
             {
                 auto* plot = tracer->parentPlot();
                 tracer->setVisible(false);
-                if (plot)
+                if (plot && !m_clearingAllPlots)
                     plot->replot();
             }
         }
@@ -317,7 +329,7 @@ void UI::bindCursorManagerCallbacks()
             if (linePlot)
                 linePlot->removeItem(line);
             m_cursorConnectorLines.erase(lineIt);
-            if (linePlot)
+            if (linePlot && !m_clearingAllPlots)
                 linePlot->replot();
         }
 
@@ -330,7 +342,7 @@ void UI::bindCursorManagerCallbacks()
             if (lplot)
                 lplot->removeItem(label);
             m_cursorLabels.erase(lit);
-            if (lplot)
+            if (lplot && !m_clearingAllPlots)
                 lplot->replot();
         }
 
@@ -343,7 +355,7 @@ void UI::bindCursorManagerCallbacks()
             if (tplot)
                 tplot->removeItem(tracer);
             m_cursorTracers.erase(trIt);
-            if (tplot)
+            if (tplot && !m_clearingAllPlots)
                 tplot->replot();
         }
 

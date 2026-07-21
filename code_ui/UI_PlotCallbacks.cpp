@@ -1530,6 +1530,29 @@ void UI::bindPlotManagerCallbacks()
         });
     };
 
+    // 清空前先同步删除所有 plottable。QCPColumnGraph 仅保存 Column*，
+    // 必须在表达式列、FFT 列和 DataManager 列释放前解除这些引用。
+    pm.onAboutToClear = [this]()
+    {
+        logOperationTrace(QString("clear about-to callback enter docks=%1").arg(m_pageDocks.size()));
+        const auto docks = m_pageDocks.values();
+        for (auto* dock : docks)
+        {
+            QWidget* container = dock ? dock->widget() : nullptr;
+            auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+            if (!plot)
+                continue;
+
+            // 防止 Dock 延迟删除期间的 paint/resize 事件再次绘制。
+            plot->setUpdatesEnabled(false);
+            const int removed = plot->clearPlottables();
+            logPlotTrace(QString("clear detached plot=0x%1 plottables=%2")
+                             .arg(reinterpret_cast<quintptr>(plot), 0, 16)
+                             .arg(removed));
+        }
+        logOperationTrace("clear about-to callback leave");
+    };
+
     // 清空全部图窗 → 清理内层 DockManager 中所有页面
     pm.onCleared = [this]()
     {

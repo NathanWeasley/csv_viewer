@@ -195,6 +195,13 @@ void PlotManager::clearAll()
     trace::write(trace::Category::Operation,
                  QString("plot manager clear enter pages=%1 activePage=%2")
                      .arg(m_pages.size()).arg(m_activeIndex));
+
+    // 先让 UI 停止重绘并解除图形对 Column 的非拥有型引用。
+    // PlotPageInfo 内的表达式结果会在 m_pages.clear() 中被释放，
+    // 因此该回调必须位于其之前。
+    if (onAboutToClear)
+        onAboutToClear();
+
     m_pages.clear();
     m_activeIndex = -1;
     m_nextPageNumber = 1;
