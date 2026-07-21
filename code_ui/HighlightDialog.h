@@ -34,6 +34,7 @@ class HighlightDialog : public QDialog
 public:
     explicit HighlightDialog(const std::vector<std::string>& columnNames,
                               QWidget* parent = nullptr);
+    ~HighlightDialog() override;
 
     // 获取最终确认的规则列表
     std::vector<viewer::HighlightRule> getRules() const;
@@ -44,6 +45,9 @@ public:
 private slots:
     void onAddRule();
     void onRemoveRule();
+    void onClearRules();
+    void onCopyRules();
+    void onPasteRules();
     void onReadRule();
     void onConditionChanged(int index);
     void onRuleListSelectionChanged();
@@ -60,6 +64,11 @@ private:
     // 将规则填入左侧控件
     void fillUIToRule(const viewer::HighlightRule& rule);
 
+    std::vector<int> selectedRuleRows() const;
+    void clearRuleSelection();
+    void updateRuleButtons();
+    bool hasColumn(const std::string& columnName) const;
+
     // ---- 左侧编辑控件 ----
     QComboBox*       m_cmbColumn = nullptr;
     QComboBox*       m_cmbCondition = nullptr;
@@ -74,6 +83,9 @@ private:
     // ---- 右侧列表控件 ----
     QListWidget*     m_listRules = nullptr;
     QPushButton*     m_btnRemove = nullptr;
+    QPushButton*     m_btnClear = nullptr;
+    QPushButton*     m_btnCopy = nullptr;
+    QPushButton*     m_btnPaste = nullptr;
     QPushButton*     m_btnRead = nullptr;
 
     // ---- 数据 ----

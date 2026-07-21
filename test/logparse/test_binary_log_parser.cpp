@@ -511,19 +511,41 @@ TEST(BinaryLogParser, RejectsCharacterTypeWithoutLength)
     TEST_ASSERT_FALSE(result.success());
 }
 
-TEST(BinaryLogParser, ReportsTruncatedKnownPayload)
+TEST(BinaryLogParser, KeepsCompleteRowsWhenKnownPayloadIsTruncated)
 {
     Bytes bytes;
     appendFileHeader(bytes);
     appendTypeDefinition(bytes, 2, 8, "", "Q", {"timestamp"});
     appendTypeDefinition(bytes, 900, 4, "data", "I", {"value"});
     appendFrameHeader(bytes, 900);
-    appendU16(bytes, 12);
+    appendU32(bytes, 12);
+    appendTimestamp(bytes, 100);
+    appendFrameHeader(bytes, 900);
+    appendU16(bytes, 34);
     const auto file = writeFixture("truncated_payload.hiklog", bytes);
 
     viewer::logparse::BinaryLogParser parser;
     const auto result = parser.parseFiles({file});
-    TEST_ASSERT_FALSE(result.success());
+    TEST_ASSERT_TRUE(result.success());
+    TEST_ASSERT_EQ(result.timestampCount, 1u);
+
+    const auto* value = findColumn(result, "data_value");
+    TEST_ASSERT_TRUE(value != nullptr);
+    TEST_ASSERT_EQ(value->values.size(), 1u);
+    TEST_ASSERT_EQ(value->values[0], 12.0);
+
+    bool foundTruncatedWarning = false;
+    for (const auto& diagnostic : result.diagnostics)
+    {
+        if (diagnostic.severity == viewer::logparse::DiagnosticSeverity::Warning
+            && diagnostic.message.find("truncated payload for packet ID 900")
+                != std::string::npos)
+        {
+            foundTruncatedWarning = true;
+            break;
+        }
+    }
+    TEST_ASSERT_TRUE(foundTruncatedWarning);
 }
 
 TEST(BinaryLogParser, IgnoresTypeDefinitionsAfterDataState)

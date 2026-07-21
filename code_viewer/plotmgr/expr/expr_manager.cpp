@@ -4,7 +4,7 @@
 #include "code_viewer/datamgr/custom_expr/diff_func.h"
 #include "code_viewer/base/exprtk_keywords.h"
 #include "code_viewer/base/trace_logger.h"
-#include "code_exprtk/exprtk.hpp"
+#include "extra/exprtk/exprtk.hpp"
 #include <cctype>
 #include <unordered_set>
 #include <algorithm>

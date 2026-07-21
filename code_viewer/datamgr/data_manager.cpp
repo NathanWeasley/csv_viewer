@@ -1,7 +1,7 @@
 #include "code_viewer/datamgr/data_manager.h"
 #include "code_viewer/datamgr/custom_expr/diff_func.h"
 #include "code_viewer/base/exprtk_keywords.h"
-#include "code_exprtk/exprtk.hpp"
+#include "extra/exprtk/exprtk.hpp"
 #include <sstream>
 #include <cstring>
 #include <cctype>

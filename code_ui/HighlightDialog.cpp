@@ -8,6 +8,18 @@
 #include <QDialogButtonBox>
 #include <QPixmap>
 #include <QIcon>
+#include <QKeySequence>
+#include <QShortcut>
+#include <QSignalBlocker>
+
+#include <algorithm>
+
+namespace
+{
+std::vector<viewer::HighlightRule> g_copiedHighlightRules;
+viewer::HighlightRule g_lastHighlightEditorRule;
+bool g_hasLastHighlightEditorRule = false;
+}
 
 // ============================================================
 // 35 色预设（与 UI.cpp 中 colorPresets 保持一致）
@@ -79,6 +91,18 @@ HighlightDialog::HighlightDialog(const std::vector<std::string>& columnNames,
     setWindowTitle(QString::fromUtf8("高亮规则配置"));
     setFixedSize(750, 480);
     buildUI();
+    if (g_hasLastHighlightEditorRule)
+        fillUIToRule(g_lastHighlightEditorRule);
+    updateRuleButtons();
+}
+
+HighlightDialog::~HighlightDialog()
+{
+    if (m_cmbColumn && m_cmbColumn->count() > 0)
+    {
+        g_lastHighlightEditorRule = buildRuleFromUI();
+        g_hasLastHighlightEditorRule = true;
+    }
 }
 
 // ============================================================
@@ -182,19 +206,39 @@ void HighlightDialog::buildUI()
     connect(m_btnRemove, &QPushButton::clicked, this, &HighlightDialog::onRemoveRule);
     btnBar->addWidget(m_btnRemove);
 
+    m_btnClear = new QPushButton(QString::fromUtf8(u8"清空"));
+    connect(m_btnClear, &QPushButton::clicked, this, &HighlightDialog::onClearRules);
+    btnBar->addWidget(m_btnClear);
+
     m_btnRead = new QPushButton(QString::fromUtf8("读取"));
     m_btnRead->setEnabled(false);
     connect(m_btnRead, &QPushButton::clicked, this, &HighlightDialog::onReadRule);
     btnBar->addWidget(m_btnRead);
+
+    m_btnCopy = new QPushButton(QString::fromUtf8(u8"复制"));
+    m_btnCopy->setToolTip(QString::fromUtf8(u8"复制选中的规则；未选择时复制全部规则"));
+    connect(m_btnCopy, &QPushButton::clicked, this, &HighlightDialog::onCopyRules);
+    btnBar->addWidget(m_btnCopy);
+
+    m_btnPaste = new QPushButton(QString::fromUtf8(u8"粘贴"));
+    m_btnPaste->setToolTip(QString::fromUtf8(u8"追加已复制的规则，并自动跳过重复规则"));
+    connect(m_btnPaste, &QPushButton::clicked, this, &HighlightDialog::onPasteRules);
+    btnBar->addWidget(m_btnPaste);
 
     btnBar->addStretch();
     rightLayout->addLayout(btnBar);
 
     // 规则列表
     m_listRules = new QListWidget();
-    connect(m_listRules, &QListWidget::currentRowChanged,
+    m_listRules->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    connect(m_listRules, &QListWidget::itemSelectionChanged,
             this, &HighlightDialog::onRuleListSelectionChanged);
     rightLayout->addWidget(m_listRules, 1);
+
+    auto* copyShortcut = new QShortcut(QKeySequence::Copy, m_listRules);
+    connect(copyShortcut, &QShortcut::activated, this, &HighlightDialog::onCopyRules);
+    auto* pasteShortcut = new QShortcut(QKeySequence::Paste, m_listRules);
+    connect(pasteShortcut, &QShortcut::activated, this, &HighlightDialog::onPasteRules);
 
     splitter->addWidget(rightGroup);
 
@@ -233,8 +277,8 @@ void HighlightDialog::setRules(const std::vector<viewer::HighlightRule>& rules)
         m_listRules->addItem(ruleToString(rule));
     m_listRules->blockSignals(false);
 
-    m_btnRemove->setEnabled(false);
-    m_btnRead->setEnabled(false);
+    clearRuleSelection();
+    updateRuleButtons();
 }
 
 // ============================================================
@@ -258,27 +302,86 @@ void HighlightDialog::onAddRule()
     m_listRules->blockSignals(true);
     m_listRules->addItem(ruleToString(rule));
     m_listRules->blockSignals(false);
+    clearRuleSelection();
+    updateRuleButtons();
 }
 
 void HighlightDialog::onRemoveRule()
 {
-    int idx = m_listRules->currentRow();
-    if (idx < 0 || idx >= static_cast<int>(m_rules.size()))
+    auto rows = selectedRuleRows();
+    if (rows.empty())
         return;
 
-    m_rules.erase(m_rules.begin() + idx);
+    std::sort(rows.rbegin(), rows.rend());
+    const QSignalBlocker blocker(m_listRules);
+    for (const int row : rows)
+    {
+        if (row < 0 || row >= static_cast<int>(m_rules.size()))
+            continue;
+        m_rules.erase(m_rules.begin() + row);
+        delete m_listRules->takeItem(row);
+    }
+    clearRuleSelection();
+    updateRuleButtons();
+}
 
-    m_listRules->blockSignals(true);
-    delete m_listRules->takeItem(idx);
-    m_listRules->blockSignals(false);
+void HighlightDialog::onClearRules()
+{
+    m_rules.clear();
+    const QSignalBlocker blocker(m_listRules);
+    m_listRules->clear();
+    clearRuleSelection();
+    updateRuleButtons();
+}
 
-    m_btnRemove->setEnabled(false);
-    m_btnRead->setEnabled(false);
+void HighlightDialog::onCopyRules()
+{
+    if (m_rules.empty())
+        return;
+
+    const auto rows = selectedRuleRows();
+    g_copiedHighlightRules.clear();
+    if (rows.empty())
+    {
+        g_copiedHighlightRules = m_rules;
+    }
+    else
+    {
+        g_copiedHighlightRules.reserve(rows.size());
+        for (const int row : rows)
+        {
+            if (row >= 0 && row < static_cast<int>(m_rules.size()))
+                g_copiedHighlightRules.push_back(m_rules[row]);
+        }
+    }
+    updateRuleButtons();
+}
+
+void HighlightDialog::onPasteRules()
+{
+    if (g_copiedHighlightRules.empty())
+        return;
+
+    const QSignalBlocker blocker(m_listRules);
+    for (const auto& rule : g_copiedHighlightRules)
+    {
+        if (!hasColumn(rule.dataColumn))
+            continue;
+        if (std::find(m_rules.begin(), m_rules.end(), rule) != m_rules.end())
+            continue;
+        m_rules.push_back(rule);
+        m_listRules->addItem(ruleToString(rule));
+    }
+    clearRuleSelection();
+    updateRuleButtons();
 }
 
 void HighlightDialog::onReadRule()
 {
-    int idx = m_listRules->currentRow();
+    const auto rows = selectedRuleRows();
+    if (rows.size() != 1)
+        return;
+    const int idx = rows.front();
     if (idx < 0 || idx >= static_cast<int>(m_rules.size()))
         return;
 
@@ -290,12 +393,10 @@ void HighlightDialog::onReadRule()
     // 从右侧移除
     m_rules.erase(m_rules.begin() + idx);
 
-    m_listRules->blockSignals(true);
+    const QSignalBlocker blocker(m_listRules);
     delete m_listRules->takeItem(idx);
-    m_listRules->blockSignals(false);
-
-    m_btnRemove->setEnabled(false);
-    m_btnRead->setEnabled(false);
+    clearRuleSelection();
+    updateRuleButtons();
 }
 
 void HighlightDialog::onConditionChanged(int index)
@@ -308,9 +409,7 @@ void HighlightDialog::onConditionChanged(int index)
 
 void HighlightDialog::onRuleListSelectionChanged()
 {
-    bool hasSelection = (m_listRules->currentRow() >= 0);
-    m_btnRemove->setEnabled(hasSelection);
-    m_btnRead->setEnabled(hasSelection);
+    updateRuleButtons();
 }
 
 // ============================================================
@@ -421,4 +520,48 @@ void HighlightDialog::fillUIToRule(const viewer::HighlightRule& rule)
 
     m_spnAlpha->setValue(rule.alpha);
     m_txtLabel->setText(QString::fromStdString(rule.label));
+}
+
+std::vector<int> HighlightDialog::selectedRuleRows() const
+{
+    std::vector<int> rows;
+    if (!m_listRules || !m_listRules->selectionModel())
+        return rows;
+
+    const auto selected = m_listRules->selectionModel()->selectedRows();
+    rows.reserve(static_cast<size_t>(selected.size()));
+    for (const auto& index : selected)
+        rows.push_back(index.row());
+    std::sort(rows.begin(), rows.end());
+    rows.erase(std::unique(rows.begin(), rows.end()), rows.end());
+    return rows;
+}
+
+void HighlightDialog::clearRuleSelection()
+{
+    if (!m_listRules)
+        return;
+    m_listRules->clearSelection();
+    m_listRules->setCurrentItem(nullptr);
+}
+
+void HighlightDialog::updateRuleButtons()
+{
+    const size_t selectedCount = selectedRuleRows().size();
+    if (m_btnRemove)
+        m_btnRemove->setEnabled(selectedCount > 0);
+    if (m_btnRead)
+        m_btnRead->setEnabled(selectedCount == 1);
+    if (m_btnClear)
+        m_btnClear->setEnabled(!m_rules.empty());
+    if (m_btnCopy)
+        m_btnCopy->setEnabled(!m_rules.empty());
+    if (m_btnPaste)
+        m_btnPaste->setEnabled(!g_copiedHighlightRules.empty());
+}
+
+bool HighlightDialog::hasColumn(const std::string& columnName) const
+{
+    return std::find(m_columnNames.begin(), m_columnNames.end(), columnName)
+        != m_columnNames.end();
 }

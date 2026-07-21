@@ -856,8 +856,9 @@ bool parseOneInput(ParseSession& session,
 
         if (payloadLength > reader.remaining())
         {
-            addDiagnostic(session, DiagnosticSeverity::Error, filePath, frameOffset,
-                          "truncated payload for packet ID " + std::to_string(frameType));
+            addDiagnostic(session, DiagnosticSeverity::Warning, filePath, frameOffset,
+                          "truncated payload for packet ID " + std::to_string(frameType)
+                          + "; incomplete trailing frame is ignored");
             break;
         }
 
