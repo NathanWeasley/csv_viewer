@@ -123,11 +123,14 @@ void UI::renderHighlights(int pageIndex)
     }
 
     // ---- 计算新区间 ----
-    auto& hlMgr = m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr;
+    auto& pm = m_viewer.GetPlotManager();
+    auto& hlMgr = pm.pageInfo(pageIndex).highlightMgr;
     auto& dm = m_viewer.GetDataManager();
-    auto intervals = hlMgr.computeIntervals(dm);
-    logOperationTrace(QString("highlight intervals computed page=%1 rules=%2 intervals=%3")
-                      .arg(pageIndex).arg(hlMgr.rules().size()).arg(intervals.size()));
+    const size_t xAxisColumn = pm.xAxisColumn(pageIndex);
+    auto intervals = hlMgr.computeIntervals(dm, xAxisColumn);
+    logOperationTrace(QString("highlight intervals computed page=%1 rules=%2 intervals=%3 useIndex=%4 xColumn=%5")
+                      .arg(pageIndex).arg(hlMgr.rules().size()).arg(intervals.size())
+                      .arg(xAxisColumn == static_cast<size_t>(-1)).arg(xAxisColumn));
 
     // ---- 为每个区间创建 QCPItemRect + QCPItemText ----
     for (const auto& interval : intervals)

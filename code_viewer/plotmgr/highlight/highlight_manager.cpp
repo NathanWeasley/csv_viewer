@@ -62,6 +62,12 @@ void HighlightManager::clearAll()
 
 std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& dm) const
 {
+    return computeIntervals(dm, dm.GetXAxisColumn());
+}
+
+std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& dm,
+                                                                  size_t xAxisColumn) const
+{
     std::vector<HighlightInterval> result;
 
     if (m_rules.empty())
@@ -71,11 +77,16 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
     if (rowCount == 0)
         return result;
 
-    size_t xIdx = dm.GetXAxisColumn();
-    if (xIdx == static_cast<size_t>(-1))
-        return result;
-
-    const Column* xCol = dm.GetColumn(xIdx);
+    const Column* xCol = nullptr;
+    if (xAxisColumn == static_cast<size_t>(-1))
+    {
+        dm.ensureIndexColumnBuilt();
+        xCol = dm.GetIndexColumn();
+    }
+    else
+    {
+        xCol = dm.GetColumn(xAxisColumn);
+    }
     if (!xCol || xCol->size() == 0)
         return result;
 
@@ -90,7 +101,7 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
         if (!dataCol || dataCol->size() == 0)
             continue;
 
-        size_t n = std::min(rowCount, dataCol->size());
+        size_t n = std::min({rowCount, dataCol->size(), xCol->size()});
 
         // 逐行检查条件
         auto checkCondition = [&rule](double val) -> bool

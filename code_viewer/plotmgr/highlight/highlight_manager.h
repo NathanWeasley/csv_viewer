@@ -120,6 +120,11 @@ public:
     // 若所选数据列不存在或行数为 0，返回空列表
     std::vector<HighlightInterval> computeIntervals(DataManager& dm) const;
 
+    // 按指定图窗的 X 轴计算区间。xAxisColumn 为 npos 时使用隐含索引列，
+    // 否则使用 DataManager 中对应的数据列。
+    std::vector<HighlightInterval> computeIntervals(DataManager& dm,
+                                                    size_t xAxisColumn) const;
+
     // ============================================================
     // 深拷贝支持（用于图窗复制）
     // ============================================================

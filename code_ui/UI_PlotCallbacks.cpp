@@ -1018,7 +1018,10 @@ void UI::bindPlotManagerCallbacks()
             }
         }
         plot->rescaleAxes();
-        plot->replot();
+        if (m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.ruleCount() > 0)
+            renderHighlights(pageIndex);
+        else
+            plot->replot();
         logXAxisTrace(QString("X-axis changed callback leave page=%1 column=%2 graphs=%3 xData=0x%4 rows=%5")
                       .arg(pageIndex).arg(colIdx).arg(plot->plottableCount())
                       .arg(reinterpret_cast<quintptr>(newXCol), 0, 16).arg(newXCol->size()));
