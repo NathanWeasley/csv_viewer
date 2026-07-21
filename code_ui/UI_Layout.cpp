@@ -974,6 +974,22 @@ void UI::createMenu()
     {
         m_antiAliasingEnabled = checked;
         viewer::QCPColumnGraph::s_antiAliasingEnabled = checked;
+        for (int pageIndex = 0; pageIndex < plotPageCount(); ++pageIndex)
+        {
+            auto* plot = getPlot(pageIndex);
+            if (!plot)
+                continue;
+            for (int graphIndex = 0; graphIndex < plot->plottableCount(); ++graphIndex)
+            {
+                auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(
+                    plot->plottable(graphIndex));
+                if (!graph)
+                    continue;
+                graph->setAntialiased(checked);
+                graph->setAntialiasedScatters(checked);
+            }
+            plot->replot(QCustomPlot::rpQueuedRefresh);
+        }
     });
 
     auto* aboutAction = menuBar()->addAction("关于");

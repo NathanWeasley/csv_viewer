@@ -25,7 +25,6 @@
 #include <qtreeview.h>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QFont>
 #include <QFutureWatcher>
@@ -33,14 +32,11 @@
 #include <QIcon>
 #include <QListWidget>
 #include <QPointer>
-#include <QShowEvent>
 #include <QSplitter>
-#include <QTimer>
 #include <QToolButton>
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <atomic>
-#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -104,15 +100,9 @@ class ZipLogSelectionDialog final : public QDialog
 public:
     ZipLogSelectionDialog(const std::filesystem::path& archivePath,
                           const std::vector<viewer::logparse::ziplog::ZipEntryInfo>& entries,
-                          std::function<void(const QString&)> logCallback,
                           QWidget* parent)
-        : QDialog(parent), m_logCallback(std::move(logCallback))
+        : QDialog(parent)
     {
-        m_lifetimeTimer.start();
-        logTiming(QString("ZIP selection dialog construct enter entries=%1").arg(entries.size()));
-        QElapsedTimer phaseTimer;
-        phaseTimer.start();
-
         setWindowTitle(QString::fromUtf8(u8"选择 ZIP 中的 HikLog"));
         resize(1050, 680);
 
@@ -170,37 +160,12 @@ public:
         m_buttons->button(QDialogButtonBox::Ok)->setText(QString::fromUtf8(u8"开始解析"));
         layout->addWidget(m_buttons);
 
-        logTiming(QString("ZIP selection dialog widgets created elapsedMs=%1 totalMs=%2")
-                      .arg(elapsedMilliseconds(phaseTimer.nsecsElapsed()))
-                      .arg(elapsedMilliseconds(m_lifetimeTimer.nsecsElapsed())));
-
         QHash<QString, QTreeWidgetItem*> directories;
-        qint64 directoryBuildNs = 0;
-        qint64 directoryIconNs = 0;
-        qint64 pathSplitNs = 0;
-        qint64 fileItemBuildNs = 0;
-        qint64 fileIconNs = 0;
-        int directoryItemCount = 0;
-        int fileItemCount = 0;
-        int selectableHiklogCount = 0;
-        qint64 slowestEntryNs = 0;
-        QString slowestEntryPath;
-
-        QElapsedTimer iconLoadTimer;
-        iconLoadTimer.start();
         const QIcon folderIcon = style()->standardIcon(QStyle::SP_DirIcon);
-        const qint64 folderIconLoadNs = iconLoadTimer.nsecsElapsed();
-        iconLoadTimer.restart();
         const QIcon fileIcon = style()->standardIcon(QStyle::SP_FileIcon);
-        const qint64 fileIconLoadNs = iconLoadTimer.nsecsElapsed();
-        logTiming(QString("ZIP selection shared icons loaded folderIconMs=%1 fileIconMs=%2")
-                      .arg(elapsedMilliseconds(folderIconLoadNs))
-                      .arg(elapsedMilliseconds(fileIconLoadNs)));
 
         const auto ensureDirectory = [&](const QStringList& components, int count)
         {
-            QElapsedTimer directoryTimer;
-            directoryTimer.start();
             QTreeWidgetItem* parentItem = nullptr;
             QString key;
             for (int part = 0; part < count; ++part)
@@ -218,49 +183,26 @@ public:
                     ? new QTreeWidgetItem(parentItem)
                     : new QTreeWidgetItem(m_tree);
                 item->setText(0, components[part]);
-                QElapsedTimer iconTimer;
-                iconTimer.start();
                 item->setIcon(0, folderIcon);
-                directoryIconNs += iconTimer.nsecsElapsed();
                 directories.insert(key, item);
                 parentItem = item;
-                ++directoryItemCount;
             }
-            directoryBuildNs += directoryTimer.nsecsElapsed();
             return parentItem;
         };
 
-        phaseTimer.restart();
-        size_t processedEntries = 0;
         for (const auto& entry : entries)
         {
-            QElapsedTimer entryTimer;
-            entryTimer.start();
-            QElapsedTimer operationTimer;
-            operationTimer.start();
             QString path = QString::fromUtf8(entry.pathUtf8.c_str());
             const QStringList components = path.split('/', Qt::SkipEmptyParts);
-            pathSplitNs += operationTimer.nsecsElapsed();
             if (components.isEmpty())
-            {
-                ++processedEntries;
                 continue;
-            }
             if (entry.isDirectory)
             {
                 ensureDirectory(components, components.size());
-                const qint64 entryNs = entryTimer.nsecsElapsed();
-                if (entryNs > slowestEntryNs)
-                {
-                    slowestEntryNs = entryNs;
-                    slowestEntryPath = path;
-                }
-                ++processedEntries;
                 continue;
             }
 
             QTreeWidgetItem* parentItem = ensureDirectory(components, components.size() - 1);
-            operationTimer.restart();
             auto* item = parentItem
                 ? new QTreeWidgetItem(parentItem)
                 : new QTreeWidgetItem(m_tree);
@@ -268,10 +210,7 @@ public:
             item->setText(1, formatByteCount(entry.uncompressedSize));
             item->setText(2, formatByteCount(entry.compressedSize));
             item->setText(3, zipEntryStatus(entry));
-            QElapsedTimer iconTimer;
-            iconTimer.start();
             item->setIcon(0, fileIcon);
-            fileIconNs += iconTimer.nsecsElapsed();
             item->setData(0, kZipEntryIndexRole,
                           QVariant::fromValue<qulonglong>(entry.index));
             m_entryItems.insert(entry.index, item);
@@ -287,50 +226,14 @@ public:
                 candidateFont.setBold(true);
                 item->setFont(0, candidateFont);
                 item->setToolTip(0, QString::fromUtf8(u8"可选择的 HikLog 文件"));
-                ++selectableHiklogCount;
             }
             else
             {
                 item->setFlags(item->flags() & ~Qt::ItemIsSelectable);
             }
-            fileItemBuildNs += operationTimer.nsecsElapsed();
-            ++fileItemCount;
-
-            const qint64 entryNs = entryTimer.nsecsElapsed();
-            if (entryNs > slowestEntryNs)
-            {
-                slowestEntryNs = entryNs;
-                slowestEntryPath = path;
-            }
-            ++processedEntries;
-            if (processedEntries % 100 == 0 || processedEntries == entries.size())
-            {
-                logTiming(QString("ZIP selection tree populate progress processed=%1 total=%2 elapsedMs=%3")
-                              .arg(processedEntries).arg(entries.size())
-                              .arg(elapsedMilliseconds(phaseTimer.nsecsElapsed())));
-            }
         }
-
-        logTiming(QString("ZIP selection tree populated entries=%1 files=%2 directories=%3 selectableHiklogs=%4 "
-                          "elapsedMs=%5 pathSplitMs=%6 directoryBuildMs=%7 directoryIconMs=%8 "
-                          "fileBuildMs=%9 fileIconMs=%10 slowestEntryMs=%11 slowestEntry=\"%12\"")
-                      .arg(processedEntries).arg(fileItemCount).arg(directoryItemCount)
-                      .arg(selectableHiklogCount)
-                      .arg(elapsedMilliseconds(phaseTimer.nsecsElapsed()))
-                      .arg(elapsedMilliseconds(pathSplitNs))
-                      .arg(elapsedMilliseconds(directoryBuildNs))
-                      .arg(elapsedMilliseconds(directoryIconNs))
-                      .arg(elapsedMilliseconds(fileItemBuildNs))
-                      .arg(elapsedMilliseconds(fileIconNs))
-                      .arg(elapsedMilliseconds(slowestEntryNs))
-                      .arg(slowestEntryPath));
-
-        phaseTimer.restart();
         m_tree->collapseAll();
-        logTiming(QString("ZIP selection tree collapse complete elapsedMs=%1")
-                      .arg(elapsedMilliseconds(phaseTimer.nsecsElapsed())));
 
-        phaseTimer.restart();
         connect(m_tree, &QTreeWidget::itemChanged, this,
             [this](QTreeWidgetItem* item, int column)
             {
@@ -365,9 +268,6 @@ public:
         connect(m_buttons, &QDialogButtonBox::accepted, this, &QDialog::accept);
         connect(m_buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
         updateSummary();
-        logTiming(QString("ZIP selection dialog construct leave connectionsMs=%1 totalMs=%2")
-                      .arg(elapsedMilliseconds(phaseTimer.nsecsElapsed()))
-                      .arg(elapsedMilliseconds(m_lifetimeTimer.nsecsElapsed())));
     }
 
     std::vector<uint64_t> selectedEntryIndices() const
@@ -379,41 +279,7 @@ public:
         return result;
     }
 
-protected:
-    void showEvent(QShowEvent* event) override
-    {
-        QElapsedTimer showTimer;
-        showTimer.start();
-        logTiming(QString("ZIP selection dialog showEvent enter sinceConstructMs=%1")
-                      .arg(elapsedMilliseconds(m_lifetimeTimer.nsecsElapsed())));
-        QDialog::showEvent(event);
-        logTiming(QString("ZIP selection dialog showEvent leave elapsedMs=%1 sinceConstructMs=%2")
-                      .arg(elapsedMilliseconds(showTimer.nsecsElapsed()))
-                      .arg(elapsedMilliseconds(m_lifetimeTimer.nsecsElapsed())));
-        if (!m_firstEventLoopTurnLogged)
-        {
-            m_firstEventLoopTurnLogged = true;
-            QTimer::singleShot(0, this, [this]()
-            {
-                logTiming(QString("ZIP selection dialog first event-loop turn sinceConstructMs=%1 visible=%2")
-                              .arg(elapsedMilliseconds(m_lifetimeTimer.nsecsElapsed()))
-                              .arg(isVisible()));
-            });
-        }
-    }
-
 private:
-    static QString elapsedMilliseconds(qint64 nanoseconds)
-    {
-        return QString::number(static_cast<double>(nanoseconds) / 1000000.0, 'f', 3);
-    }
-
-    void logTiming(const QString& message) const
-    {
-        if (m_logCallback)
-            m_logCallback(message);
-    }
-
     QString fullTreePath(QTreeWidgetItem* item) const
     {
         QStringList parts;
@@ -473,9 +339,6 @@ private:
     QDialogButtonBox* m_buttons = nullptr;
     QHash<qulonglong, QTreeWidgetItem*> m_entryItems;
     QHash<qulonglong, qulonglong> m_entrySizes;
-    std::function<void(const QString&)> m_logCallback;
-    QElapsedTimer m_lifetimeTimer;
-    bool m_firstEventLoopTurnLogged = false;
 };
 
 QString parseDiagnosticsText(const viewer::logparse::ParseResult& result)
@@ -650,33 +513,21 @@ void UI::onLoadFolderClicked()
 
 void UI::onLoadHiklogClicked()
 {
-    QElapsedTimer requestTimer;
-    requestTimer.start();
-    logFileTrace("ZIP load request enter");
     if (m_binaryLogLoading)
     {
         statusBar()->showMessage(QString::fromUtf8(u8"HikLog 正在解析中。"), 3000);
-        logFileTrace("ZIP load request aborted: binary log loading already active");
         return;
     }
 
-    QElapsedTimer fileDialogTimer;
-    fileDialogTimer.start();
-    logFileTrace("ZIP archive file dialog enter");
     const QString selectedArchive = QFileDialog::getOpenFileName(
         this,
         QString::fromUtf8(u8"选择包含 HikLog 的 ZIP 文件"),
         QString(),
         QString::fromUtf8(u8"ZIP 压缩包 (*.zip);;所有文件 (*.*)"));
-    logFileTrace(QString("ZIP archive file dialog leave elapsedMs=%1 selected=%2 path=\"%3\"")
-                     .arg(QString::number(fileDialogTimer.nsecsElapsed() / 1000000.0, 'f', 3))
-                     .arg(!selectedArchive.isEmpty()).arg(selectedArchive));
     if (selectedArchive.isEmpty())
         return;
 
     const std::filesystem::path archivePath(selectedArchive.toStdWString());
-    QElapsedTimer progressUiTimer;
-    progressUiTimer.start();
     m_progressBar->setRange(0, 0);
     m_progressBar->setTextVisible(true);
     m_progressBar->setFormat(QString::fromUtf8(u8"正在读取 ZIP 目录…"));
@@ -685,25 +536,15 @@ void UI::onLoadHiklogClicked()
     statusBar()->showMessage(QString::fromUtf8(u8"正在读取 ZIP 目录结构…"));
     statusBar()->repaint();
     m_progressBar->repaint();
-    const qint64 repaintNs = progressUiTimer.nsecsElapsed();
-    QElapsedTimer processEventsTimer;
-    processEventsTimer.start();
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
-    logFileTrace(QString("ZIP catalog progress UI prepared setupAndRepaintMs=%1 processEventsMs=%2 totalMs=%3")
-                     .arg(QString::number(repaintNs / 1000000.0, 'f', 3))
-                     .arg(QString::number(processEventsTimer.nsecsElapsed() / 1000000.0, 'f', 3))
-                     .arg(QString::number(progressUiTimer.nsecsElapsed() / 1000000.0, 'f', 3)));
     logFileTrace(QString("ZIP catalog read started archive=\"%1\" progressVisible=%2")
                  .arg(selectedArchive).arg(m_progressBar->isVisible()));
     std::vector<viewer::logparse::ziplog::ZipEntryInfo> entries;
     std::string catalogError;
-    QElapsedTimer catalogTimer;
-    catalogTimer.start();
     const bool catalogOk = viewer::Viewer::ReadZipCatalog(
         archivePath, entries, catalogError);
-    logFileTrace(QString("ZIP catalog read finished archive=\"%1\" success=%2 entries=%3 elapsedMs=%4")
-                 .arg(selectedArchive).arg(catalogOk).arg(entries.size())
-                 .arg(QString::number(catalogTimer.nsecsElapsed() / 1000000.0, 'f', 3)));
+    logFileTrace(QString("ZIP catalog read finished archive=\"%1\" success=%2 entries=%3")
+                 .arg(selectedArchive).arg(catalogOk).arg(entries.size()));
     m_progressBar->hide();
     m_progressBar->setRange(0, 1000);
     m_progressBar->setValue(0);
@@ -717,24 +558,8 @@ void UI::onLoadHiklogClicked()
         return;
     }
 
-    QElapsedTimer dialogConstructTimer;
-    dialogConstructTimer.start();
-    logFileTrace("ZIP selection dialog construction dispatch");
-    ZipLogSelectionDialog selectionDialog(
-        archivePath, entries,
-        [this](const QString& message) { logFileTrace(message); }, this);
-    logFileTrace(QString("ZIP selection dialog construction returned elapsedMs=%1 requestElapsedMs=%2")
-                     .arg(QString::number(dialogConstructTimer.nsecsElapsed() / 1000000.0, 'f', 3))
-                     .arg(QString::number(requestTimer.nsecsElapsed() / 1000000.0, 'f', 3)));
-    QElapsedTimer dialogExecTimer;
-    dialogExecTimer.start();
-    logFileTrace("ZIP selection dialog exec enter");
-    const int dialogResult = selectionDialog.exec();
-    logFileTrace(QString("ZIP selection dialog exec leave result=%1 elapsedMs=%2 requestElapsedMs=%3")
-                     .arg(dialogResult)
-                     .arg(QString::number(dialogExecTimer.nsecsElapsed() / 1000000.0, 'f', 3))
-                     .arg(QString::number(requestTimer.nsecsElapsed() / 1000000.0, 'f', 3)));
-    if (dialogResult != QDialog::Accepted)
+    ZipLogSelectionDialog selectionDialog(archivePath, entries, this);
+    if (selectionDialog.exec() != QDialog::Accepted)
         return;
     const std::vector<uint64_t> selectedIndices =
         selectionDialog.selectedEntryIndices();

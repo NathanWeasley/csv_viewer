@@ -77,8 +77,8 @@ UI::UI(QWidget *parent)
         // 读取 OpenGL 设置（默认 true）
         m_openglEnabled = settings.value("openglEnabled", true).toBool();
 
-        // 读取抗锯齿设置（默认 false）
-        m_antiAliasingEnabled = settings.value("antiAliasing", false).toBool();
+        // 读取抗锯齿设置（无历史配置时默认开启）
+        m_antiAliasingEnabled = settings.value("antiAliasing", true).toBool();
         viewer::QCPColumnGraph::s_antiAliasingEnabled = m_antiAliasingEnabled;
 
         // 读取自动分组设置（默认 false）
@@ -139,6 +139,7 @@ void UI::init()
         {
             sm.initializeDefaults(dark);
         }
+        sm.applySystemTheme(dark);
     }
 
     createMenu();

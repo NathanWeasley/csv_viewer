@@ -242,7 +242,7 @@ private:
     // Settings state
     bool m_adaptiveDownsampling = true;
     bool m_openglEnabled = true;
-    bool m_antiAliasingEnabled = false;
+    bool m_antiAliasingEnabled = true;
     bool m_autoGroupingEnabled = false;
     bool m_forceDataGrouping = false;
     bool m_defaultPlotByIndex = true;

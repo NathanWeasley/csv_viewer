@@ -40,7 +40,7 @@ public:
     // ---- 自适应降采样全局开关 ----
     static bool s_adaptiveSamplingEnabled;
 
-    // ---- 抗锯齿全局开关（降采样开启时强制生效） ----
+    // ---- 曲线与散点抗锯齿全局开关 ----
     static bool s_antiAliasingEnabled;
 
     // ---- 设置数据列 ----

@@ -7,8 +7,8 @@ namespace viewer
 // 静态成员定义：默认启用自适应降采样
 bool QCPColumnGraph::s_adaptiveSamplingEnabled = true;
 
-// 静态成员定义：默认关闭抗锯齿（降采样开启时强制生效）
-bool QCPColumnGraph::s_antiAliasingEnabled = false;
+// 静态成员定义：默认开启，由 UI 配置在创建曲线前设置
+bool QCPColumnGraph::s_antiAliasingEnabled = true;
 
 // ============================================================
 // 构造 / 析构
@@ -19,7 +19,8 @@ QCPColumnGraph::QCPColumnGraph(QCPAxis* keyAxis, QCPAxis* valueAxis)
     mName = "ColumnGraph";
     // 默认散点样式：不显示散点
     mScatterStyle = QCPScatterStyle(QCPScatterStyle::ssNone);
-    setAntialiased(false);
+    setAntialiased(s_antiAliasingEnabled);
+    setAntialiasedScatters(s_antiAliasingEnabled);
 }
 
 QCPColumnGraph::~QCPColumnGraph()
@@ -496,10 +497,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mLineStyle != lsNone)
     {
-        if (!useLineAA && ratio > 1.0)
-            painter->setAntialiasing(false);
-        else
-            applyDefaultAntialiasingHint(painter);
+        applyAntialiasingHint(painter, useLineAA, QCP::aePlottables);
         painter->setPen(mPen);
         painter->setBrush(Qt::NoBrush);
         drawLinePlot(painter, m_lineBuffer);
@@ -507,10 +505,7 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     if (mScatterStyle.shape() != QCPScatterStyle::ssNone)
     {
-        if (!useScatterAA)
-            painter->setAntialiasing(false);
-        else
-            applyDefaultAntialiasingHint(painter);
+        applyAntialiasingHint(painter, useScatterAA, QCP::aeScatters);
         drawScatterPlot(painter, m_scatterBuffer);
     }
 }

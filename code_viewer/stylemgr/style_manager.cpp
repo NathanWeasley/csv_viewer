@@ -552,6 +552,70 @@ void StyleManager::initializeDefaults(bool isDarkMode)
 // 色板管理
 // ============================================================
 
+void StyleManager::applySystemTheme(bool isDarkMode)
+{
+    auto temporaryIt = m_cursorStyles.find("temporary");
+    if (temporaryIt == m_cursorStyles.end())
+    {
+        CursorStyleDef style;
+        style.id = "temporary";
+        style.size = 8.0f;
+        style.strokeWidthActive = 2.5f;
+        style.strokeWidthInactive = 0.0f;
+        temporaryIt = m_cursorStyles.emplace(style.id, std::move(style)).first;
+    }
+
+    auto permanentIt = m_cursorStyles.find("permanent");
+    if (permanentIt == m_cursorStyles.end())
+    {
+        CursorStyleDef style;
+        style.id = "permanent";
+        style.size = 7.0f;
+        style.strokeWidthActive = 1.5f;
+        style.strokeWidthInactive = 0.0f;
+        permanentIt = m_cursorStyles.emplace(style.id, std::move(style)).first;
+    }
+
+    auto& temporary = temporaryIt->second;
+    auto& permanent = permanentIt->second;
+    if (isDarkMode)
+    {
+        temporary.fillActive = Color(0xFF, 0xD7, 0x00, 180);
+        temporary.fillInactive = Color(0xFF, 0xD7, 0x00, 80);
+        temporary.strokeActive = Color(0x44, 0x44, 0x44);
+        temporary.strokeInactive = Color(0, 0, 0, 0);
+
+        permanent.fillActive = Color(0xFF, 0xD7, 0x00);
+        permanent.fillInactive = Color(0xFF, 0xD7, 0x00, 80);
+        permanent.strokeActive = Color(0xFF, 0xD7, 0x00);
+        permanent.strokeInactive = Color(0, 0, 0, 0);
+
+        m_dataBoxStyle.textColor = Color(0xFF, 0xD7, 0x00);
+        m_dataBoxStyle.bgColor = Color(0x2d, 0x2d, 0x2d, 220);
+        m_dataBoxStyle.bgAlpha = 220;
+        m_dataBoxStyle.borderActive = Color(0xFF, 0xD7, 0x00);
+        m_dataBoxStyle.borderInactive = Color(0x88, 0x88, 0x88);
+    }
+    else
+    {
+        temporary.fillActive = Color(0x22, 0x66, 0xcc, 120);
+        temporary.fillInactive = Color(0x22, 0x66, 0xcc, 60);
+        temporary.strokeActive = Color(0x22, 0x66, 0xcc);
+        temporary.strokeInactive = Color(0, 0, 0, 0);
+
+        permanent.fillActive = Color(0x22, 0x66, 0xcc);
+        permanent.fillInactive = Color(0x22, 0x66, 0xcc, 80);
+        permanent.strokeActive = Color(0x22, 0x66, 0xcc);
+        permanent.strokeInactive = Color(0, 0, 0, 0);
+
+        m_dataBoxStyle.textColor = Color(0x22, 0x66, 0xcc);
+        m_dataBoxStyle.bgColor = Color(245, 245, 245, 230);
+        m_dataBoxStyle.bgAlpha = 230;
+        m_dataBoxStyle.borderActive = Color(0x22, 0x66, 0xcc);
+        m_dataBoxStyle.borderInactive = Color(0x88, 0x88, 0x88);
+    }
+}
+
 const ColorPalette& StyleManager::activePalette() const
 {
     for (const auto& cp : m_palettes)
