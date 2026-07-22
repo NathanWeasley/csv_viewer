@@ -67,7 +67,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Plugin_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -81,7 +81,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Plugin_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -155,6 +155,9 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
     <QtMoc Include="..\..\..\code_ui\FFTDialog.h" />
     <QtMoc Include="..\..\..\code_ui\STFTDialog.h" />
     <ClInclude Include="..\..\..\code_ui\icons_base64.h" />
+    <ClInclude Include="..\..\..\code_plugin\PluginHost.h" />
+    <ClInclude Include="..\..\..\code_plugin\PluginManager.h" />
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_plugin_sdk.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">

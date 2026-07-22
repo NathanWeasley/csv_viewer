@@ -187,11 +187,11 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
         nameIndex.emplace(displayNames[index], index);
     }
 
-    std::vector<std::unique_ptr<Column>> columns;
+    std::vector<std::shared_ptr<Column>> columns;
     columns.reserve(values.size());
     for (auto& valuesForColumn : values)
     {
-        auto column = std::make_unique<Column>(std::move(valuesForColumn));
+        auto column = std::make_shared<Column>(std::move(valuesForColumn));
         column->recalcMinMax();
         columns.push_back(std::move(column));
     }
@@ -204,6 +204,27 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
     m_filePath = sourcePath;
     m_xAxisColumn = AutoDetectXAxis();
     return true;
+}
+
+AddDerivedColumnStatus DataManager::AddDerivedColumn(std::string name,
+                                                      std::vector<double>&& values)
+{
+    if (name.empty())
+        return AddDerivedColumnStatus::InvalidName;
+    if (m_nameIndex.find(name) != m_nameIndex.end())
+        return AddDerivedColumnStatus::DuplicateName;
+    if (m_columns.empty() || values.size() != GetRowCount())
+        return AddDerivedColumnStatus::RowCountMismatch;
+
+    auto column = std::make_shared<Column>(std::move(values));
+    column->recalcMinMax();
+
+    const size_t index = m_columns.size();
+    m_columns.push_back(std::move(column));
+    m_columnNames.push_back(name);
+    m_rawColumnNames.push_back(name);
+    m_nameIndex.emplace(std::move(name), index);
+    return AddDerivedColumnStatus::Success;
 }
 
 bool DataManager::LoadFromCSV(const LoadConfig& config)
@@ -432,7 +453,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     m_columns.resize(colCount);
     for (size_t c = 0; c < colCount; ++c)
     {
-        m_columns[c] = std::make_unique<Column>(static_cast<size_t>(totalDataRows));
+        m_columns[c] = std::make_shared<Column>(static_cast<size_t>(totalDataRows));
         m_columns[c]->beginOverwrite();
     }
 
@@ -569,7 +590,7 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
         return false;
 
     // ---- 创建结果列 ----
-    auto resultCol = std::make_unique<Column>(rowCount);
+    auto resultCol = std::make_shared<Column>(rowCount);
     resultCol->beginOverwrite();
 
     for (size_t row = 0; row < rowCount; ++row)
@@ -782,7 +803,7 @@ std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_
 
             // 注册临时列
             size_t tempIdx = m_columns.size();
-            m_columns.push_back(std::move(tempCol));
+            m_columns.push_back(std::shared_ptr<Column>(std::move(tempCol)));
             m_columnNames.push_back(uniqueName);
             m_nameIndex[uniqueName] = tempIdx;
             m_rawColumnNames.push_back(uniqueName);
@@ -858,6 +879,13 @@ const Column* DataManager::GetColumn(const std::string& name) const
     size_t idx = GetColumnIndex(name);
     if (idx == npos) return nullptr;
     return GetColumn(idx);
+}
+
+std::shared_ptr<const Column> DataManager::GetColumnShared(size_t idx) const
+{
+    if (idx >= m_columns.size())
+        return {};
+    return m_columns[idx];
 }
 
 size_t DataManager::GetColumnIndex(const std::string& name) const

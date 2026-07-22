@@ -121,6 +121,14 @@ struct LoadConfig
 // 前向声明
 class CsvRowReader;
 
+enum class AddDerivedColumnStatus
+{
+    Success,
+    InvalidName,
+    DuplicateName,
+    RowCountMismatch
+};
+
 // ============================================================
 // DataManager: CSV 数据管理器
 // ============================================================
@@ -147,6 +155,11 @@ public:
                          std::vector<std::vector<double>> values,
                          const std::string& sourcePath);
 
+    // Adds one plugin-produced column without copying its numeric buffer.
+    // Existing columns remain valid because column storage is shared.
+    AddDerivedColumnStatus AddDerivedColumn(std::string name,
+                                            std::vector<double>&& values);
+
     // ============================================================
     // 表达式加载接口
     // ============================================================
@@ -171,6 +184,10 @@ public:
     // 通过列名获取列
     Column* GetColumn(const std::string& name);
     const Column* GetColumn(const std::string& name) const;
+
+    // Stable ownership used by plugin data snapshots. A snapshot keeps the
+    // column alive even after another dataset is loaded.
+    std::shared_ptr<const Column> GetColumnShared(size_t idx) const;
 
     // 总列数
     size_t GetColumnCount() const noexcept { return m_columns.size(); }
@@ -263,7 +280,7 @@ private:
     std::string PreprocessCustomFuncs(const std::string& exprStr, size_t rowCount);
 
     // ---- 内部数据 ----
-    std::vector<std::unique_ptr<Column>> m_columns;
+    std::vector<std::shared_ptr<Column>> m_columns;
 
     std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名

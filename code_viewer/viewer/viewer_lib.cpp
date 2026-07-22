@@ -1,8 +1,11 @@
 #include "code_viewer/viewer/viewer_lib.h"
 #include "code_viewer/datamgr/data_struct.hpp"
 #include "code_logparse/ziplog/zip_archive.h"
+#include <QFileInfo>
 #include <algorithm>
 #include <cctype>
+#include <limits>
+#include <new>
 #include <unordered_set>
 
 namespace viewer
@@ -175,7 +178,12 @@ bool Viewer::LoadCSV(const std::string& path, char delimiter, char quote)
     config.progressCb       = nullptr;
     config.preSanitizedNames = cleanNames;  // Pass pre-sanitized names
 
-    return m_data.LoadFromCSV(config);
+    const bool loaded = m_data.LoadFromCSV(config);
+    if (loaded)
+    {
+        activateLoadSession(plugin::SourceType::Csv, QString::fromUtf8(path.c_str()));
+    }
+    return loaded;
 }
 
 bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
@@ -210,8 +218,59 @@ bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
         return false;
     }
 
+    const QString qSourcePath = QString::fromUtf8(sourcePath.c_str());
+    const plugin::SourceType sourceType = qSourcePath.endsWith(
+        QStringLiteral(".zip"), Qt::CaseInsensitive)
+        ? plugin::SourceType::Zip
+        : plugin::SourceType::BinaryLog;
+    activateLoadSession(sourceType, qSourcePath);
+
     emit LoadFinished();
     return true;
+}
+
+bool Viewer::AddDerivedColumn(quint64 sessionId,
+                              const QString& name,
+                              std::vector<double>&& values,
+                              QString* error)
+{
+    if (!m_loadSession.isValid() || sessionId != m_loadSession.sessionId)
+    {
+        if (error) *error = QStringLiteral("The loaded dataset changed before the column was committed.");
+        return false;
+    }
+
+    const std::string utf8Name = name.toUtf8().toStdString();
+    const AddDerivedColumnStatus status = m_data.AddDerivedColumn(
+        utf8Name, std::move(values));
+    switch (status)
+    {
+    case AddDerivedColumnStatus::Success:
+        emit DataColumnAdded(sessionId, name);
+        return true;
+    case AddDerivedColumnStatus::InvalidName:
+        if (error) *error = QStringLiteral("The derived column name is empty.");
+        break;
+    case AddDerivedColumnStatus::DuplicateName:
+        if (error) *error = QStringLiteral("A data item with the same name already exists.");
+        break;
+    case AddDerivedColumnStatus::RowCountMismatch:
+        if (error) *error = QStringLiteral("The derived column row count does not match the loaded dataset.");
+        break;
+    }
+    return false;
+}
+
+void Viewer::activateLoadSession(plugin::SourceType sourceType,
+                                 const QString& sourcePath)
+{
+    if (m_nextLoadSessionId == 0)
+        m_nextLoadSessionId = 1;
+    m_loadSession.sessionId = m_nextLoadSessionId++;
+    m_loadSession.sourceType = sourceType;
+    m_loadSession.sourcePath = sourcePath;
+    m_loadSession.sourceFileName = QFileInfo(sourcePath).fileName();
+    emit DataLoaded(m_loadSession.sessionId);
 }
 
 bool Viewer::ReadZipCatalog(
@@ -267,14 +326,72 @@ logparse::ParseResult Viewer::ParseZipEntries(
     return parser.parseInputs(std::move(inputs), options);
 }
 
+bool Viewer::ReadZipEntry(const std::filesystem::path& archivePath,
+                          uint64_t entryIndex,
+                          QByteArray& bytes,
+                          std::string& error)
+{
+    bytes.clear();
+    error.clear();
+
+    logparse::ziplog::ZipArchive archive;
+    if (!archive.open(archivePath))
+    {
+        error = archive.lastError();
+        return false;
+    }
+
+    const auto found = std::find_if(archive.entries().begin(), archive.entries().end(),
+        [entryIndex](const auto& entry) { return entry.index == entryIndex; });
+    if (found == archive.entries().end() || !found->canRead())
+    {
+        error = "ZIP entry is missing or is not a readable regular file.";
+        return false;
+    }
+    if (found->uncompressedSize
+        > static_cast<uint64_t>(std::numeric_limits<qsizetype>::max()))
+    {
+        error = "ZIP entry is too large for an in-memory byte array.";
+        return false;
+    }
+
+    auto input = archive.createInput(entryIndex);
+    if (!input || !input->open())
+    {
+        error = input ? input->lastError() : "Unable to create ZIP entry reader.";
+        return false;
+    }
+    try
+    {
+        bytes.resize(static_cast<qsizetype>(found->uncompressedSize));
+    }
+    catch (const std::bad_alloc&)
+    {
+        error = "Not enough memory to read ZIP entry.";
+        return false;
+    }
+    if (!bytes.isEmpty()
+        && !input->read(bytes.data(), static_cast<size_t>(bytes.size())))
+    {
+        error = input->lastError();
+        bytes.clear();
+        return false;
+    }
+    input->close();
+    return true;
+}
+
 // ============================================================
 // Clear — clear all loaded data
 // ============================================================
 void Viewer::Clear()
 {
+    if (m_loadSession.isValid())
+        emit DataAboutToUnload(m_loadSession.sessionId);
     m_plots.clearAll();
     m_data.Clear();
     m_lastError.clear();
+    m_loadSession = plugin::LoadSessionInfo{};
 }
 
 // ============================================================
@@ -304,6 +421,7 @@ void Viewer::OnLoadCSV(const QStringList& files, bool skipInvalidFiles)
     size_t expectedColCount = 0;
     const std::vector<std::string>* expectedColNames = nullptr;
     QStringList skippedFiles;
+    QString firstLoadedFile;
 
     for (int i = 0; i < total; ++i)
     {
@@ -433,6 +551,9 @@ void Viewer::OnLoadCSV(const QStringList& files, bool skipInvalidFiles)
             }
         }
 
+        if (firstLoadedFile.isEmpty())
+            firstLoadedFile = filename;
+
         // After first file: capture the expected schema
         if (!expectedColNames)
         {
@@ -443,6 +564,9 @@ void Viewer::OnLoadCSV(const QStringList& files, bool skipInvalidFiles)
 
     if (skipInvalidFiles && !skippedFiles.isEmpty())
         emit LoadSkippedFiles(skippedFiles);
+
+    if (m_data.GetColumnCount() > 0 && !firstLoadedFile.isEmpty())
+        activateLoadSession(plugin::SourceType::Csv, firstLoadedFile);
 
     emit LoadFinished();
 }

@@ -41,6 +41,7 @@
     <ClInclude Include="..\..\..\code_viewer\base\base_def.h" />
     <ClInclude Include="..\..\..\code_viewer\base\trace_logger.h" />
     <ClInclude Include="..\..\..\code_viewer\base\exprtk_keywords.h" />
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_plugin_sdk.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\custom_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />

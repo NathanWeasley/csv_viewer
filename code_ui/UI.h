@@ -37,6 +37,9 @@
 #include "code_viewer/viewer/viewer_lib.h"
 
 class HighlightDialog;
+class PluginHost;
+class PluginManager;
+class QMenu;
 namespace ads { class CDockWidget; }
 
 class UI : public QMainWindow
@@ -59,6 +62,7 @@ private:
     void createStatusbar();
     void bindPlotManagerCallbacks();
     void bindCursorManagerCallbacks();
+    void initializePluginSystem();
 
     QCustomPlot* getPlot(int pageIndex) const;
     QWidget* getPlotContainer(int pageIndex) const;
@@ -159,6 +163,9 @@ private:
     Ui::UIClass ui;
 
     ads::CDockManager* m_dockManager = nullptr;
+    QMenu* m_pluginMenu = nullptr;
+    std::unique_ptr<PluginHost> m_pluginHost;
+    std::unique_ptr<PluginManager> m_pluginManager;
 
     QProgressBar* m_progressBar = nullptr;
 

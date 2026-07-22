@@ -1,0 +1,9 @@
+{
+  "sdkVersion": 1,
+  "id": "com.weekendbuild.example",
+  "name": "Viewer SDK Example",
+  "version": "1.0.0",
+  "entry": "ViewerSdkExample.dll",
+  "dependencies": []
+}
+

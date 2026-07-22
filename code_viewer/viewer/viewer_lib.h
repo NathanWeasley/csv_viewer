@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QObject>
+#include <QByteArray>
 #include <QStringList>
 
 #include "code_viewer/base/base_def.h"
@@ -11,6 +12,7 @@
 #include "code_logparse/binary_log_types.h"
 #include "code_logparse/binary_log_parser.h"
 #include "code_logparse/ziplog/zip_entry_info.h"
+#include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h"
 
 namespace viewer
 {
@@ -29,6 +31,10 @@ public:
     bool LoadCSV(const std::string& path);
     bool LoadCSV(const std::string& path, char delimiter, char quote = '"');
     bool AdoptBinaryLog(logparse::ParseResult&& result, const std::string& sourcePath);
+    bool AddDerivedColumn(quint64 sessionId,
+                          const QString& name,
+                          std::vector<double>&& values,
+                          QString* error = nullptr);
 
     static bool ReadZipCatalog(
         const std::filesystem::path& archivePath,
@@ -38,6 +44,11 @@ public:
         const std::filesystem::path& archivePath,
         const std::vector<uint64_t>& entryIndices,
         const logparse::ParseOptions& options = {});
+    static bool ReadZipEntry(
+        const std::filesystem::path& archivePath,
+        uint64_t entryIndex,
+        QByteArray& bytes,
+        std::string& error);
 
     DataManager&       GetDataManager()       noexcept { return m_data; }
     const DataManager& GetDataManager() const noexcept { return m_data; }
@@ -52,6 +63,8 @@ public:
     const StyleManager& GetStyleManager() const noexcept { return m_styles; }
 
     const std::string& GetLastError() const noexcept { return m_lastError; }
+    const plugin::LoadSessionInfo& GetLoadSessionInfo() const noexcept
+    { return m_loadSession; }
 
 Q_SIGNALS:
     /// Emitted when loading starts. totalFiles = number of CSVs to load.
@@ -68,6 +81,12 @@ Q_SIGNALS:
 
     void LoadSkippedFiles(const QStringList& files);
 
+    // Domain events used by the plugin host. Unlike LoadFinished, DataLoaded
+    // is emitted only after a valid dataset has been installed.
+    void DataLoaded(quint64 sessionId);
+    void DataAboutToUnload(quint64 sessionId);
+    void DataColumnAdded(quint64 sessionId, const QString& columnName);
+
 public Q_SLOTS:
     /// Clear all loaded data.
     void Clear();
@@ -82,12 +101,15 @@ private:
 
     // Sanitize a column name: trim, replace special chars, ensure uniqueness
     std::vector<std::string> sanitizeColumnNames(const std::vector<std::string>& rawNames);
+    void activateLoadSession(plugin::SourceType sourceType, const QString& sourcePath);
 
     DataManager   m_data;
     PlotManager   m_plots;
     CursorManager m_cursors;
     StyleManager  m_styles;
     std::string   m_lastError;
+    plugin::LoadSessionInfo m_loadSession;
+    quint64 m_nextLoadSessionId = 1;
 };
 
 } // namespace viewer

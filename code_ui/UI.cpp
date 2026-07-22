@@ -27,6 +27,8 @@
 #include "code_viewer/base/trace_logger.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
+#include "code_plugin/PluginHost.h"
+#include "code_plugin/PluginManager.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>
@@ -164,7 +166,41 @@ void UI::init()
     createStatusbar();
 
     bindCursorManagerCallbacks();
+    initializePluginSystem();
     logOperationTrace("UI init leave callbacks bound");
+}
+
+void UI::initializePluginSystem()
+{
+    if (m_pluginHost || m_pluginManager)
+        return;
+
+    m_pluginHost = std::make_unique<PluginHost>(
+        m_viewer,
+        this,
+        m_dockManager,
+        m_pluginMenu,
+        [this]() { rebuildDataTree(); },
+        this);
+    m_pluginManager = std::make_unique<PluginManager>(*m_pluginHost);
+
+    QStringList pluginDirectories{
+        QCoreApplication::applicationDirPath() + QStringLiteral("/plugins")
+    };
+    const QString configPath = QCoreApplication::applicationDirPath()
+        + QStringLiteral("/user/config.ini");
+    QSettings settings(configPath, QSettings::IniFormat);
+    const QStringList configured = settings.value(QStringLiteral("pluginDirectories"))
+                                       .toStringList();
+    for (const QString& directory : configured)
+    {
+        const QString absolute = QDir::isAbsolutePath(directory)
+            ? directory
+            : QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(directory);
+        if (!pluginDirectories.contains(absolute))
+            pluginDirectories.push_back(absolute);
+    }
+    m_pluginManager->loadFromDirectories(pluginDirectories);
 }
 
 void UI::saveState()
@@ -215,6 +251,14 @@ void UI::beginShutdownCleanup(bool persistUiState)
         saveState();
         logShutdownTrace("beginShutdownCleanup saved UI state");
     }
+
+    if (m_pluginManager)
+    {
+        m_pluginManager->shutdownAll();
+        m_pluginManager.reset();
+    }
+    m_pluginHost.reset();
+    logShutdownTrace("beginShutdownCleanup stopped plugins");
 
     disconnectViewerCallbacks();
     logShutdownTrace("beginShutdownCleanup disconnected viewer callbacks");

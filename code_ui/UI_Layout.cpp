@@ -888,6 +888,8 @@ void UI::createMenu()
         m_xAxisLabel->setText("X: (none)");
     });
 
+    m_pluginMenu = menuBar()->addMenu(QString::fromUtf8("插件"));
+
     auto* settingsMenu = menuBar()->addMenu(QString::fromUtf8("设置"));
     auto* aliasAction = settingsMenu->addAction(QString::fromUtf8("自动重命名数据"));
     connect(aliasAction, &QAction::triggered, this, &UI::showAliasDialog);
