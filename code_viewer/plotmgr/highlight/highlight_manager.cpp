@@ -103,6 +103,34 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
 
         size_t n = std::min({rowCount, dataCol->size(), xCol->size()});
 
+        // “改变超过”表示时刻事件，而不是一段持续的区间。
+        // 以后一个采样点的 X 坐标作为事件时刻。
+        if (rule.condition == HighlightCondition::ChangeExceeds)
+        {
+            const double threshold = std::max(0.0, rule.value1);
+            for (size_t i = 1; i < n; ++i)
+            {
+                const double previous = dataCol->getDouble(i - 1);
+                const double current = dataCol->getDouble(i);
+                const double x = xCol->getDouble(i);
+                if (!std::isfinite(previous) || !std::isfinite(current) || !std::isfinite(x))
+                    continue;
+
+                if (std::abs(current - previous) <= threshold)
+                    continue;
+
+                HighlightInterval interval;
+                interval.xStart = x;
+                interval.xEnd = x;
+                interval.color = rule.color;
+                interval.alpha = rule.alpha;
+                interval.label = rule.label;
+                interval.presentation = HighlightPresentation::VerticalLine;
+                result.push_back(std::move(interval));
+            }
+            continue;
+        }
+
         // 逐行检查条件
         auto checkCondition = [&rule](double val) -> bool
         {
@@ -118,6 +146,8 @@ std::vector<HighlightInterval> HighlightManager::computeIntervals(DataManager& d
                 return std::abs(val - rule.value1) >= 1e-12;
             case HighlightCondition::Between:
                 return val >= rule.value1 && val <= rule.value2;
+            case HighlightCondition::ChangeExceeds:
+                return false;
             default:
                 return false;
             }

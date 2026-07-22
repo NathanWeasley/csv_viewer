@@ -75,6 +75,7 @@ static QString conditionToChinese(viewer::HighlightCondition cond)
     case viewer::HighlightCondition::Equal:    return QString::fromUtf8("等于");
     case viewer::HighlightCondition::NotEqual: return QString::fromUtf8("不等于");
     case viewer::HighlightCondition::Between:  return QString::fromUtf8("介于");
+    case viewer::HighlightCondition::ChangeExceeds: return QString::fromUtf8("改变超过");
     default: return "?";
     }
 }
@@ -134,6 +135,7 @@ void HighlightDialog::buildUI()
     m_cmbCondition->addItem(QString::fromUtf8("等于"));
     m_cmbCondition->addItem(QString::fromUtf8("不等于"));
     m_cmbCondition->addItem(QString::fromUtf8("介于"));
+    m_cmbCondition->addItem(QString::fromUtf8("改变超过"));
     connect(m_cmbCondition, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &HighlightDialog::onConditionChanged);
     leftLayout->addRow(QString::fromUtf8("条件："), m_cmbCondition);
@@ -402,9 +404,11 @@ void HighlightDialog::onReadRule()
 void HighlightDialog::onConditionChanged(int index)
 {
     bool isBetween = (index == 4); // "介于"
+    bool isChangeExceeds = (index == 5); // "改变超过"
 
     m_spnValue2->setVisible(isBetween);
     m_lblBetween->setVisible(isBetween);
+    m_spnValue1->setMinimum(isChangeExceeds ? 0.0 : -1e15);
 }
 
 void HighlightDialog::onRuleListSelectionChanged()
@@ -459,6 +463,7 @@ viewer::HighlightRule HighlightDialog::buildRuleFromUI() const
     case 2: rule.condition = viewer::HighlightCondition::Equal;    break;
     case 3: rule.condition = viewer::HighlightCondition::NotEqual; break;
     case 4: rule.condition = viewer::HighlightCondition::Between;  break;
+    case 5: rule.condition = viewer::HighlightCondition::ChangeExceeds; break;
     default: rule.condition = viewer::HighlightCondition::Greater; break;
     }
 
@@ -501,6 +506,7 @@ void HighlightDialog::fillUIToRule(const viewer::HighlightRule& rule)
     case viewer::HighlightCondition::Equal:    condIdx = 2; break;
     case viewer::HighlightCondition::NotEqual: condIdx = 3; break;
     case viewer::HighlightCondition::Between:  condIdx = 4; break;
+    case viewer::HighlightCondition::ChangeExceeds: condIdx = 5; break;
     }
     m_cmbCondition->setCurrentIndex(condIdx);
 

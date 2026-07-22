@@ -121,6 +121,7 @@ void UI::bindCursorManagerCallbacks()
 
         // ---- 清理高亮元素映射 ----
         m_highlightRects.remove(index);
+        m_highlightLines.remove(index);
         m_highlightLabels.remove(index);
 
         // 执行原有逻辑（删除 widget）
@@ -145,6 +146,7 @@ void UI::bindCursorManagerCallbacks()
         m_cursorLabels.clear();
         m_cursorConnectorLines.clear();
         m_highlightRects.clear();
+        m_highlightLines.clear();
         m_highlightLabels.clear();
         m_draggingCursorLabelIdx = -1;
 
@@ -609,12 +611,13 @@ QCPItemText* UI::hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx
 
 void UI::cleanupPlotOverlaysBeforeShutdown()
 {
-    logShutdownTrace(QString("cleanupPlotOverlaysBeforeShutdown enter labels=%1 tracers=%2 preSel=%3 lines=%4 highlightRects=%5 highlightLabels=%6")
+    logShutdownTrace(QString("cleanupPlotOverlaysBeforeShutdown enter labels=%1 tracers=%2 preSel=%3 lines=%4 highlightRects=%5 highlightLines=%6 highlightLabels=%7")
                          .arg(m_cursorLabels.size())
                          .arg(m_cursorTracers.size())
                          .arg(m_preSelTracers.size())
                          .arg(m_cursorConnectorLines.size())
                          .arg(m_highlightRects.size())
+                         .arg(m_highlightLines.size())
                          .arg(m_highlightLabels.size()));
 
     m_cursorConnectorLines.clear();
@@ -628,6 +631,8 @@ void UI::cleanupPlotOverlaysBeforeShutdown()
     m_fftSelectRect = nullptr;
 
     m_highlightRects.clear();
+
+    m_highlightLines.clear();
 
     m_highlightLabels.clear();
 

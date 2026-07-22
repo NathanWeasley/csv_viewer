@@ -228,6 +228,7 @@ private:
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;
+    QHash<int, QList<QCPItemLine*>> m_highlightLines;
     QHash<int, QList<QCPItemText*>> m_highlightLabels;
     QHash<int, QMetaObject::Connection> m_highlightReplotConns;
 

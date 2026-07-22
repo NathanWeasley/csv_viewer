@@ -17,11 +17,18 @@ class DataManager;
 // ============================================================
 enum class HighlightCondition
 {
-    Greater,   // >
-    Less,      // <
-    Equal,     // ==
-    NotEqual,  // !=
-    Between    // 介于
+    Greater = 0,      // >
+    Less = 1,         // <
+    Equal = 2,        // ==
+    NotEqual = 3,     // !=
+    Between = 4,      // 介于
+    ChangeExceeds = 5 // 相邻数据点的绝对变化量超过阈值
+};
+
+enum class HighlightPresentation
+{
+    FilledRegion,
+    VerticalLine
 };
 
 // ============================================================
@@ -58,6 +65,7 @@ struct HighlightInterval
     QColor color;
     int alpha = 100;
     std::string label;
+    HighlightPresentation presentation = HighlightPresentation::FilledRegion;
 };
 
 // ============================================================

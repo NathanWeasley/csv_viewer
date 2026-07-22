@@ -91,9 +91,11 @@ void UI::renderHighlights(int pageIndex)
     if (!plot)
         return;
 
-    // ---- 确保 highlight 层存在（位于 grid 层之下） ----
+    // 区间色块放在 grid 下方；时刻竖线放在 grid 上方、数据曲线下方。
     if (!plot->layer("highlight"))
         plot->addLayer("highlight", plot->layer("grid"), QCustomPlot::limBelow);
+    if (!plot->layer("highlightLine"))
+        plot->addLayer("highlightLine", plot->layer("grid"), QCustomPlot::limAbove);
 
     // ---- 清除旧的高亮元素 ----
     auto& rects = m_highlightRects[pageIndex];
@@ -103,6 +105,14 @@ void UI::renderHighlights(int pageIndex)
             rect->parentPlot()->removeItem(rect);
     }
     rects.clear();
+
+    auto& lines = m_highlightLines[pageIndex];
+    for (auto* line : lines)
+    {
+        if (line && line->parentPlot())
+            line->parentPlot()->removeItem(line);
+    }
+    lines.clear();
 
     auto& labels = m_highlightLabels[pageIndex];
     for (auto* label : labels)
@@ -132,27 +142,48 @@ void UI::renderHighlights(int pageIndex)
                       .arg(pageIndex).arg(hlMgr.rules().size()).arg(intervals.size())
                       .arg(xAxisColumn == static_cast<size_t>(-1)).arg(xAxisColumn));
 
-    // ---- 为每个区间创建 QCPItemRect + QCPItemText ----
+    // ---- 为每个命中结果创建区间色块或时刻竖线 ----
     for (const auto& interval : intervals)
     {
-        // 创建色块：宽度从 xStart 到 xEnd，高度充满可见 Y 轴
-        auto* rect = new QCPItemRect(plot);
         double yUpper = plot->yAxis->range().upper;
         double yLower = plot->yAxis->range().lower;
-        rect->topLeft->setCoords(interval.xStart, yUpper);
-        rect->bottomRight->setCoords(interval.xEnd, yLower);
-        rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
-        rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
 
-        QColor fillColor = interval.color;
-        fillColor.setAlpha(interval.alpha);
-        rect->setPen(Qt::NoPen);
-        rect->setBrush(fillColor);
+        if (interval.presentation == viewer::HighlightPresentation::VerticalLine)
+        {
+            auto* line = new QCPItemLine(plot);
+            line->start->setType(QCPItemPosition::ptPlotCoords);
+            line->end->setType(QCPItemPosition::ptPlotCoords);
+            line->start->setCoords(interval.xStart, yLower);
+            line->end->setCoords(interval.xStart, yUpper);
 
-        // 置于最底层（grid 之下）
-        rect->setLayer("highlight");
+            QColor lineColor = interval.color;
+            lineColor.setAlpha(interval.alpha);
+            QPen pen(lineColor);
+            pen.setWidthF(2.0);
+            pen.setCosmetic(true);
+            line->setPen(pen);
+            line->setSelectable(false);
+            line->setLayer("highlightLine");
+            lines.push_back(line);
+        }
+        else
+        {
+            // 创建色块：宽度从 xStart 到 xEnd，高度充满可见 Y 轴
+            auto* rect = new QCPItemRect(plot);
+            rect->topLeft->setCoords(interval.xStart, yUpper);
+            rect->bottomRight->setCoords(interval.xEnd, yLower);
+            rect->topLeft->setType(QCPItemPosition::ptPlotCoords);
+            rect->bottomRight->setType(QCPItemPosition::ptPlotCoords);
 
-        rects.push_back(rect);
+            QColor fillColor = interval.color;
+            fillColor.setAlpha(interval.alpha);
+            rect->setPen(Qt::NoPen);
+            rect->setBrush(fillColor);
+
+            // 置于最底层（grid 之下）
+            rect->setLayer("highlight");
+            rects.push_back(rect);
+        }
 
         // 创建文字标注（在色块顶部居中，深灰色无背景）
         if (!interval.label.empty())
@@ -193,6 +224,15 @@ void UI::renderHighlights(int pageIndex)
                 rect->bottomRight->setCoords(rect->bottomRight->coords().x(), yLower);
             }
 
+            auto& eventLines = m_highlightLines[pageIndex];
+            for (auto* line : eventLines)
+            {
+                if (!line) continue;
+                const double x = line->start->coords().x();
+                line->start->setCoords(x, yLower);
+                line->end->setCoords(x, yUpper);
+            }
+
             auto& l = m_highlightLabels[pageIndex];
             for (auto* textItem : l)
             {
@@ -207,7 +247,7 @@ void UI::renderHighlights(int pageIndex)
     m_highlightReplotConns[pageIndex] = conn;
 
     plot->replot();
-    logOperationTrace(QString("highlight render leave page=%1 rects=%2 labels=%3")
-                      .arg(pageIndex).arg(rects.size()).arg(labels.size()));
+    logOperationTrace(QString("highlight render leave page=%1 rects=%2 lines=%3 labels=%4")
+                      .arg(pageIndex).arg(rects.size()).arg(lines.size()).arg(labels.size()));
 }
 

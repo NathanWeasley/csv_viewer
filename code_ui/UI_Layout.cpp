@@ -1764,6 +1764,13 @@ void UI::cleanupPlotPageState(int pageIndex, ads::CDockWidget* dock)
             rect->parentPlot()->removeItem(rect);
     }
 
+    auto lines = m_highlightLines.take(pageIndex);
+    for (auto* line : lines)
+    {
+        if (!m_isShuttingDown && line && line->parentPlot())
+            line->parentPlot()->removeItem(line);
+    }
+
     auto labels = m_highlightLabels.take(pageIndex);
     for (auto* label : labels)
     {
@@ -1856,6 +1863,7 @@ void UI::reindexPlotPageStateAfterRemoval(int removedPageIndex)
     reindexQHashAfterRemoval(m_pageToolbarBaseVisible, removedPageIndex);
     reindexQHashAfterRemoval(m_pageExprBaseVisible, removedPageIndex);
     reindexQHashAfterRemoval(m_highlightRects, removedPageIndex);
+    reindexQHashAfterRemoval(m_highlightLines, removedPageIndex);
     reindexQHashAfterRemoval(m_highlightLabels, removedPageIndex);
     for (auto it = m_highlightReplotConns.begin(); it != m_highlightReplotConns.end(); ++it)
         disconnect(it.value());
