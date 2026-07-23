@@ -8,14 +8,25 @@
 #include <memory>
 #include <vector>
 
+#include "code_plugin/export.h"
+
 class PluginHost;
 class QPluginLoader;
 
-class PluginManager final
+class PM_API PluginManager final
 {
 public:
     explicit PluginManager(PluginHost& host);
     ~PluginManager();
+
+    // PluginManager uniquely owns loaded DLL handles and is bound to one host.
+    // Explicitly deleting these operations also prevents MSVC from trying to
+    // export an implicit copy constructor for vector<LoadedPlugin>, whose
+    // elements intentionally contain a non-copyable unique_ptr<QPluginLoader>.
+    PluginManager(const PluginManager&) = delete;
+    PluginManager& operator=(const PluginManager&) = delete;
+    PluginManager(PluginManager&&) = delete;
+    PluginManager& operator=(PluginManager&&) = delete;
 
     void loadFromDirectories(const QStringList& directories);
     void shutdownAll();

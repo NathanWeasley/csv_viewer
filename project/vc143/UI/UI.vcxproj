@@ -67,7 +67,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Plugin_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;LibPluginMgr_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddockingd.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -81,7 +81,7 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <Link>
       <AdditionalLibraryDirectories>..\..\..\lib\; ..\..\..\extra\qads\</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Plugin_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;Viewer_$(PlatformToolset)_$(Platform)_$(Configuration).lib;LibPluginMgr_$(PlatformToolset)_$(Platform)_$(Configuration).lib;qtadvanceddocking.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <ClCompile>
       <AdditionalIncludeDirectories>..\..\..\extra\qads\;..\..\..\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

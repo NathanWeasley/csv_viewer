@@ -8,6 +8,8 @@
 #include <functional>
 #include <memory>
 
+#include "code_plugin/export.h"
+
 class QAction;
 class QMainWindow;
 class QMenu;
@@ -23,7 +25,7 @@ namespace viewer
 class Viewer;
 }
 
-class PluginHost final
+class PM_API PluginHost final
     : public QObject
     , public viewer::plugin::IViewerHost
     , public viewer::plugin::IDataService

@@ -106,5 +106,8 @@
     <ClInclude Include="..\..\..\code_ui\icons_base64.h">
       <Filter>Source Files\icons</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\code_plugin\PluginHost.h" />
+    <ClInclude Include="..\..\..\code_plugin\PluginManager.h" />
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_plugin_sdk.h" />
   </ItemGroup>
 </Project>
