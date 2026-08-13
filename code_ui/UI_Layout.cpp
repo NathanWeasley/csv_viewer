@@ -24,7 +24,6 @@
 #include <qpushbutton.h>
 #include <qinputdialog.h>
 #include <qtimer.h>
-#include <qwindow.h>
 #include <qapplication.h>
 #include <qstyle.h>
 #include <utility>
@@ -35,7 +34,6 @@
 #include "DockAreaWidget.h"
 #include "DockAreaTitleBar.h"
 #include "DockSplitter.h"
-#include "FloatingDockContainer.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "code_viewer/base/trace_logger.h"
 #include "HighlightDialog.h"
@@ -48,19 +46,6 @@
 #include <qjsonobject.h>
 
 extern bool isSystemInDark();
-
-#ifdef Q_OS_WIN
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-#include <windows.h>
-#ifdef min
-#undef min
-#endif
-#ifdef max
-#undef max
-#endif
-#endif
 
 static QString xAxisMonotonicWarning(const viewer::DataManager& dm)
 {
@@ -156,52 +141,12 @@ QString dataGroupPrefix(const QString& name)
 }
 }
 
-#ifdef Q_OS_WIN
-static void detachFloatingDockNativeOwner(ads::CFloatingDockContainer* floating)
-{
-    if (!floating)
-        return;
-
-    floating->winId();
-    HWND hwnd = reinterpret_cast<HWND>(floating->windowHandle() ? floating->windowHandle()->winId()
-                                                                : floating->winId());
-    if (!hwnd)
-        return;
-
-    SetWindowLongPtrW(hwnd, GWLP_HWNDPARENT, 0);
-
-    const LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    if (exStyle & WS_EX_TOPMOST)
-    {
-        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-    }
-    else
-    {
-        SetWindowPos(hwnd, nullptr, 0, 0, 0, 0,
-                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-    }
-}
-#endif
-
 void UI::createMain()
 {
     logOperationTrace("create main UI enter");
     ///< Center plot area — 内层 QADS DockManager 管理多个图窗页面
     // QADS 全局标志已在 UI::UI() 构造函数中设置（在任何 CDockManager 创建之前）
     m_plotDockManager = new ads::CDockManager();
-
-#ifdef Q_OS_WIN
-    connect(m_plotDockManager, &ads::CDockManager::floatingWidgetCreated, this,
-        [this](ads::CFloatingDockContainer* floating)
-        {
-            Q_UNUSED(this);
-            QTimer::singleShot(0, floating, [floating]()
-            {
-                detachFloatingDockNativeOwner(floating);
-            });
-        });
-#endif
 
     // 连接内层 dock widget 聚焦信号到 PlotManager 激活
     connectInnerDockSignals();
