@@ -5,6 +5,9 @@
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>qml;cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
     </Filter>
+    <Filter Include="Plugin">
+      <UniqueIdentifier>{BA56089B-311A-44F0-A79E-1338F8491EC0}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\code\crc.h">
@@ -31,6 +34,9 @@
     <ClInclude Include="..\..\code\wire.h">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\code\plugin\dat_json_viewer.h">
+      <Filter>Plugin</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\code\dat_converter.cpp">
@@ -51,5 +57,21 @@
     <ClCompile Include="..\..\code\wire.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\code\plugin\dat_decrypt_plugin.cpp">
+      <Filter>Plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\plugin\dat_json_viewer.cpp">
+      <Filter>Plugin</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\code\plugin\dat_decrypt_plugin.h">
+      <Filter>Plugin</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\plugin.json">
+      <Filter>Plugin</Filter>
+    </None>
   </ItemGroup>
 </Project>

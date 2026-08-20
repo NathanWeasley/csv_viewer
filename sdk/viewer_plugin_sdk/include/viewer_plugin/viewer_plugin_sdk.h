@@ -12,12 +12,14 @@
 #include <functional>
 #include <memory>
 
+#include "viewer_json_sdk.h"
+
 namespace viewer::plugin
 {
 
-inline constexpr int kViewerPluginSdkVersion = 1;
+inline constexpr int kViewerPluginSdkVersion = 2;
 inline constexpr const char* kViewerPluginInterfaceIid =
-    "com.weekendbuild.csvviewer.IViewerPlugin/1.0";
+    "com.weekendbuild.csvviewer.IViewerPlugin/2.0";
 
 enum class SourceType
 {
@@ -204,6 +206,29 @@ enum class DockArea
 
 using PluginActionHandle = quint64;
 using PluginDockHandle = quint64;
+using PluginMenuHandle = quint64;
+
+enum class PluginMenuItemType
+{
+    Menu,
+    Action,
+    CheckableAction,
+    Separator
+};
+
+struct PluginMenuItemSpec
+{
+    QString id;
+    QString parentId;
+    PluginMenuItemType type = PluginMenuItemType::Action;
+    QString text;
+    int order = 0;
+    bool enabled = true;
+    bool checked = false;
+    bool visible = true;
+};
+
+using PluginMenuCallback = std::function<void(const QString& itemId, bool checked)>;
 
 class IUiService
 {
@@ -213,6 +238,17 @@ public:
         const QString& ownerPluginId,
         const QString& text,
         std::function<void()> callback) = 0;
+    virtual PluginMenuHandle addPluginMenu(
+        const QString& ownerPluginId,
+        const QString& rootTitle,
+        const QList<PluginMenuItemSpec>& items,
+        PluginMenuCallback callback) = 0;
+    virtual bool setPluginMenuItemEnabled(
+        PluginMenuHandle menu, const QString& itemId, bool enabled) = 0;
+    virtual bool setPluginMenuItemChecked(
+        PluginMenuHandle menu, const QString& itemId, bool checked) = 0;
+    virtual bool setPluginMenuItemVisible(
+        PluginMenuHandle menu, const QString& itemId, bool visible) = 0;
     virtual PluginDockHandle createDock(
         const QString& ownerPluginId,
         const QString& dockId,
@@ -250,6 +286,7 @@ public:
     virtual int sdkVersion() const noexcept = 0;
     virtual IDataService* data() noexcept = 0;
     virtual IArchiveService* archive() noexcept = 0;
+    virtual IJsonDocumentService* jsonDocuments() noexcept = 0;
     virtual IEventService* events() noexcept = 0;
     virtual IPluginRegistry* plugins() noexcept = 0;
     virtual IUiService* ui() noexcept = 0;
@@ -269,6 +306,6 @@ public:
 
 } // namespace viewer::plugin
 
-#define VIEWER_PLUGIN_INTERFACE_IID "com.weekendbuild.csvviewer.IViewerPlugin/1.0"
+#define VIEWER_PLUGIN_INTERFACE_IID "com.weekendbuild.csvviewer.IViewerPlugin/2.0"
 Q_DECLARE_INTERFACE(viewer::plugin::IViewerPlugin, VIEWER_PLUGIN_INTERFACE_IID)
 

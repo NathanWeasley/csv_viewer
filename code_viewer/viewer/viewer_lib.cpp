@@ -16,6 +16,50 @@ Viewer::Viewer(QObject* parent)
 {
 }
 
+plugin::JsonPublishResult Viewer::PublishJsonDocuments(
+    const QString& providerPluginId,
+    quint64 sessionId,
+    const QList<plugin::JsonDocumentPublishItem>& documents)
+{
+    if (!m_loadSession.isValid() || m_loadSession.sessionId != sessionId)
+    {
+        return {plugin::JsonPublishStatus::StaleSession,
+                QStringLiteral("The requested load session is no longer active.")};
+    }
+
+    plugin::JsonPublishResult result =
+        m_jsonDocuments.publishBatch(providerPluginId, sessionId, documents);
+    if (result.success())
+        emit JsonDocumentsChanged(sessionId, providerPluginId);
+    return result;
+}
+
+QList<plugin::JsonDocumentInfo> Viewer::ListJsonDocuments(
+    quint64 sessionId,
+    const QString& providerPluginId) const
+{
+    return m_jsonDocuments.listDocuments(sessionId, providerPluginId);
+}
+
+plugin::JsonDocumentPtr Viewer::AcquireJsonDocument(
+    quint64 sessionId,
+    const QString& providerPluginId,
+    const QString& documentId,
+    plugin::JsonDocumentInfo* info) const
+{
+    return m_jsonDocuments.acquireDocument(
+        sessionId, providerPluginId, documentId, info);
+}
+
+void Viewer::RemoveJsonDocuments(const QString& providerPluginId)
+{
+    if (providerPluginId.isEmpty())
+        return;
+    const quint64 sessionId = m_loadSession.sessionId;
+    if (m_jsonDocuments.removeProvider(providerPluginId) && sessionId != 0)
+        emit JsonDocumentsChanged(sessionId, providerPluginId);
+}
+
 // ============================================================
 // detectHeader — heuristic to decide if row 0 is a header
 // ============================================================
@@ -387,7 +431,12 @@ bool Viewer::ReadZipEntry(const std::filesystem::path& archivePath,
 void Viewer::Clear()
 {
     if (m_loadSession.isValid())
+    {
         emit DataAboutToUnload(m_loadSession.sessionId);
+        const quint64 sessionId = m_loadSession.sessionId;
+        if (m_jsonDocuments.clearSession(sessionId))
+            emit JsonDocumentsChanged(sessionId, {});
+    }
     m_plots.clearAll();
     m_data.Clear();
     m_lastError.clear();

@@ -1,0 +1,9 @@
+{
+  "sdkVersion": 2,
+  "id": "dat_decrypt",
+  "name": "dat_decrypt",
+  "version": "1.0.0",
+  "entry": "dat_decrypt.dll",
+  "debugEntry": "dat_decryptd.dll",
+  "dependencies": []
+}

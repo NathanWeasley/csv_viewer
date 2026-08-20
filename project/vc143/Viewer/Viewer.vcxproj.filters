@@ -30,6 +30,9 @@
     <Filter Include="logparse">
       <UniqueIdentifier>{A2FAE7E1-CB77-46DE-90BD-84F349D428D2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="jsonmgr">
+      <UniqueIdentifier>{8C2C24EB-2863-45C8-9064-6BB725517F63}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\base\trace_logger.cpp">
@@ -58,6 +61,9 @@
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp">
       <Filter>datamgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\jsonmgr\json_document_store.cpp">
+      <Filter>jsonmgr</Filter>
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\plot_manager.cpp">
       <Filter>plotmgr</Filter>
@@ -111,6 +117,15 @@
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h">
       <Filter>datamgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\jsonmgr\json_document_store.h">
+      <Filter>jsonmgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_plugin_sdk.h">
+      <Filter>jsonmgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_json_sdk.h">
+      <Filter>jsonmgr</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp">
       <Filter>datamgr</Filter>

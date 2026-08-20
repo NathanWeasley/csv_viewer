@@ -19,6 +19,13 @@
     <ClInclude Include="..\..\code\schema.h" />
     <ClInclude Include="..\..\code\schema_document.h" />
     <ClInclude Include="..\..\code\wire.h" />
+    <ClInclude Include="..\..\code\plugin\dat_json_viewer.h" />
+    <CustomBuild Include="..\..\code\plugin\dat_decrypt_plugin.h">
+      <FileType>Document</FileType>
+      <Command>&quot;$(QtToolsPath)\moc.exe&quot; -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB -I&quot;$(ViewerPluginSdkDir)\include&quot; -I&quot;$(MSBuildProjectDirectory)\..\..\code&quot; -I&quot;$(QtRootDir)\include&quot; -I&quot;$(QtRootDir)\include\QtWidgets&quot; -I&quot;$(QtRootDir)\include\QtGui&quot; -I&quot;$(QtRootDir)\include\QtCore&quot; -o &quot;$(IntDir)moc_dat_decrypt_plugin.cpp&quot; &quot;%(FullPath)&quot;</Command>
+      <Outputs>$(IntDir)moc_dat_decrypt_plugin.cpp</Outputs>
+      <AdditionalInputs>$(MSBuildProjectDirectory)\..\..\plugin.json;$(ViewerPluginSdkDir)\include\viewer_plugin\viewer_plugin_sdk.h;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\code\dat_converter.cpp" />
@@ -27,6 +34,11 @@
     <ClCompile Include="..\..\code\schema_document.cpp" />
     <ClCompile Include="..\..\code\tables.cpp" />
     <ClCompile Include="..\..\code\wire.cpp" />
+    <ClCompile Include="..\..\code\plugin\dat_decrypt_plugin.cpp" />
+    <ClCompile Include="..\..\code\plugin\dat_json_viewer.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\plugin.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D1BA4746-1400-4D9D-8762-537182390660}</ProjectGuid>
@@ -34,6 +46,8 @@
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0.26100.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0.26100.0</WindowsTargetPlatformVersion>
     <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+    <QtLinkNatvisFile>false</QtLinkNatvisFile>
+    <ViewerPluginSdkDir Condition="'$(ViewerPluginSdkDir)'==''">$(MSBuildProjectDirectory)\..\..\..\..\sdk\viewer_plugin_sdk</ViewerPluginSdkDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -72,25 +86,52 @@
     <Import Project="$(QtMsBuild)\Qt.props" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <QtRootDir>$([System.IO.Path]::GetFullPath('$(QtToolsPath)\..'))</QtRootDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <OutDir>..\..\lib\</OutDir>
-    <IntDir>..\..\bin\</IntDir>
-    <TargetName>$(ProjectName)_$(PlatformToolset)_$(Platform)_$(Configuration)</TargetName>
+    <IntDir>..\..\bin\Debug\</IntDir>
+    <TargetName>dat_decryptd</TargetName>
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutDir>..\..\lib\</OutDir>
-    <IntDir>..\..\bin\</IntDir>
-    <TargetName>$(ProjectName)_$(PlatformToolset)_$(Platform)_$(Configuration)</TargetName>
+    <IntDir>..\..\bin\Release\</IntDir>
+    <TargetName>dat_decrypt</TargetName>
+    <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\code;..\..\..\..\sdk\viewer_plugin_sdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_DEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
+    <Link>
+      <ImportLibrary>..\..\bin\Debug\dat_decryptd.lib</ImportLibrary>
+      <ProgramDatabaseFile>..\..\bin\Debug\dat_decryptd.pdb</ProgramDatabaseFile>
+      <LinkIncremental>false</LinkIncremental>
+      <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Qt6Widgetsd.lib;Qt6Guid.lib;Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ILK:&quot;..\..\bin\Debug\dat_decryptd.ilk&quot; %(AdditionalOptions)</AdditionalOptions>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\code;..\..\..\..\sdk\viewer_plugin_sdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
+    <Link>
+      <ImportLibrary>..\..\bin\Release\dat_decrypt.lib</ImportLibrary>
+      <ProgramDatabaseFile>..\..\bin\Release\dat_decrypt.pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>Qt6Widgets.lib;Qt6Gui.lib;Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
     <ClCompile>
@@ -98,7 +139,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
-      <PreprocessorDefinitions>LIBDATCONVERTER_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -111,7 +152,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <DebugInformationFormat>None</DebugInformationFormat>
       <Optimization>MaxSpeed</Optimization>
-      <PreprocessorDefinitions>LIBDATCONVERTER_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -119,9 +160,10 @@
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Condition="Exists('$(QtMsBuild)\qt.targets')">
-    <Import Project="$(QtMsBuild)\qt.targets" />
-  </ImportGroup>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Target Name="CopyPluginManifest" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\plugin.json"
+          DestinationFolder="$(OutDir)" />
+  </Target>
 </Project>

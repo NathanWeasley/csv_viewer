@@ -45,6 +45,7 @@ private:
         QString name;
         QString version;
         QString entry;
+        QString debugEntry;
         int sdkVersion = 0;
         std::vector<Dependency> dependencies;
         bool enabled = true;

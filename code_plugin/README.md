@@ -1,6 +1,6 @@
 # Viewer 外部 DLL 插件开发指南
 
-本文面向 Viewer 插件开发者和插件宿主维护者，描述当前仓库中 **Plugin SDK v1** 的实际行为。接口定义以 [`viewer_plugin_sdk.h`](../sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h) 为准；本文中的加载顺序、所有权和错误行为均按当前宿主实现整理。
+本文面向 Viewer 插件开发者和插件宿主维护者，描述当前仓库中 **Plugin SDK v2** 的实际行为。接口定义以 [`viewer_plugin_sdk.h`](../sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h) 为准；本文中的加载顺序、所有权和错误行为均按当前宿主实现整理。
 
 ## 1. 快速结论
 
@@ -24,7 +24,7 @@
 - [线程模型](#9-线程模型)
 - [加载顺序和失败行为](#10-加载顺序和失败行为)
 - [发布与验收清单](#11-发布与验收清单)
-- [当前 SDK v1 的边界](#12-当前-sdk-v1-的边界)
+- [当前 SDK v2 的边界](#12-当前-sdk-v2-的边界)
 
 ## 2. 系统结构
 
@@ -67,7 +67,7 @@ CsvViewer.exe
 | MSVC 运行库 | 与目标 Viewer/Qt 匹配，通常 Release 为 `/MD`、Debug 为 `/MDd` |
 | Qt 模块 | SDK 基础依赖为 `Core`、`Widgets` |
 | SDK 版本 | manifest 中必须是整数 `1` |
-| 插件接口 IID | `com.weekendbuild.csvviewer.IViewerPlugin/1.0` |
+| 插件接口 IID | `com.weekendbuild.csvviewer.IViewerPlugin/2.0` |
 
 即使代码可以编译，也不要混用 x86/x64、MinGW/MSVC、不同 MSVC ABI、不同 Qt 构建或 Debug/Release。常见结果是 `QPluginLoader` 报 DLL 无法加载，严重时会在对象释放或回调时崩溃。
 
@@ -113,11 +113,12 @@ pluginDirectories=../shared-viewer-plugins,D:/ViewerPlugins
 
 ```json
 {
-  "sdkVersion": 1,
+  "sdkVersion": 2,
   "id": "com.company.example",
   "name": "Example Plugin",
   "version": "1.0.0",
   "entry": "ExamplePlugin.dll",
+  "debugEntry": "ExamplePlugind.dll",
   "dependencies": []
 }
 ```
@@ -126,11 +127,12 @@ pluginDirectories=../shared-viewer-plugins,D:/ViewerPlugins
 
 | 字段 | 必需 | 当前行为 |
 | --- | --- | --- |
-| `sdkVersion` | 是 | 必须严格等于宿主的 `kViewerPluginSdkVersion`，当前为 `1`。不支持版本范围。 |
+| `sdkVersion` | 是 | 必须严格等于宿主的 `kViewerPluginSdkVersion`，当前为 `2`。不支持版本范围。 |
 | `id` | 是 | trim 后非空；在全部扫描目录中必须唯一，并且必须与 DLL 中 `IViewerPlugin::id()` 完全一致。推荐反向域名格式。 |
 | `name` | 建议 | 展示名称。当前加载器不校验它是否与 `IViewerPlugin::name()` 相同。 |
 | `version` | 建议 | 插件自身版本字符串。当前不参与依赖解析，也不与 DLL 返回值交叉校验。 |
 | `entry` | 是 | 入口 DLL 路径，通常写相对于 manifest 所在目录的文件名。 |
+| `debugEntry` | 否 | Debug Viewer 优先使用的入口 DLL；省略时同样使用 `entry`。 |
 | `dependencies` | 否 | 依赖对象数组；省略等同空数组。 |
 
 依赖项格式：
@@ -330,7 +332,7 @@ plugin.shutdown()
 `initialize()` 获得的 `IViewerHost*` 是所有能力的入口：
 
 ```cpp
-host->sdkVersion(); // 当前为 1
+host->sdkVersion(); // 当前为 2
 host->data();       // IDataService
 host->archive();    // IArchiveService
 host->events();     // IEventService
@@ -520,6 +522,12 @@ QObject* object = host->plugins()->queryService(
 
 `addPluginAction()` 把入口加入主窗口的“插件”菜单，返回 `0` 表示失败。action 的回调由宿主捕获异常并记日志。
 
+`addPluginMenu()` 一次注册插件自己的层级菜单。插件用稳定的 `id`/`parentId`
+描述 `Menu`、`Action`、`CheckableAction` 和 `Separator`；宿主拥有实际
+`QMenu`/`QAction`，并在插件卸载前统一删除。菜单状态通过
+`setPluginMenuItemEnabled()`、`setPluginMenuItemChecked()` 和
+`setPluginMenuItemVisible()` 更新。
+
 `createDock()` 创建 ADS dock：
 
 - `ownerPluginId` 和 `dockId` 必须非空，content 不能为 null。
@@ -530,7 +538,14 @@ QObject* object = host->plugins()->queryService(
 
 `showError()` 和 `showInformation()` 显示模态消息框。从 worker 调用时宿主会异步投递到 UI 线程，因此调用返回不代表用户已经关闭消息框。不要在退出流程中依赖消息框完成同步。
 
-### 8.7 日志 `ILogService`
+### 8.7 JSON 文档 `IJsonDocumentService`
+
+SDK v2 的 JSON 服务按 `sessionId + providerPluginId + documentId` 保存不可变
+`QJsonDocument` 快照。`publishBatch()` 原子替换 provider 在当前会话中的全部结果，
+并拒绝过期 session；`listDocuments()` 和 `acquireDocument()` 可供 Viewer 功能或
+其他插件消费。数据会在会话卸载或 provider 插件卸载时由宿主清理。
+
+### 8.8 日志 `ILogService`
 
 ```cpp
 host->log()->write(
@@ -581,7 +596,7 @@ plugin[com.company.example] info: analysis completed
 
 | 日志关键字 | 常见原因 | 检查项 |
 | --- | --- | --- |
-| `Invalid plugin manifest` | JSON 语法错误、根不是对象、缺少 `id`/`entry`、SDK 版本不支持 | 用 JSON 校验器检查外部文件；确认 `sdkVersion` 是数字 1。 |
+| `Invalid plugin manifest` | JSON 语法错误、根不是对象、缺少 `id`/`entry`、SDK 版本不支持 | 用 JSON 校验器检查外部文件；确认 `sdkVersion` 是数字 2。 |
 | `Duplicate plugin id` | 扫描目录中有两个相同 ID | 清理旧包或修改 ID；不要依赖目录顺序覆盖。 |
 | `Required plugin dependency is missing` | required 依赖未安装 | 部署依赖插件及 manifest。 |
 | `Required plugin dependency did not start` | 依赖被发现但加载/初始化失败 | 先查看 provider 更早的错误。 |
@@ -616,7 +631,7 @@ plugin[com.company.example] info: analysis completed
 - [ ] 缺失 runtime 依赖时 Viewer 仍可启动，用户触发功能时得到明确提示。
 - [ ] 关闭 Viewer 时线程均已结束，日志没有 DLL 无法卸载或回调异常。
 
-## 12. 当前 SDK v1 的边界
+## 12. 当前 SDK v2 的边界
 
 以下能力当前没有公开接口，插件不应通过包含内部头文件绕过：
 

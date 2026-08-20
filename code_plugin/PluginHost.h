@@ -30,6 +30,7 @@ class PM_API PluginHost final
     , public viewer::plugin::IViewerHost
     , public viewer::plugin::IDataService
     , public viewer::plugin::IArchiveService
+    , public viewer::plugin::IJsonDocumentService
     , public viewer::plugin::IEventService
     , public viewer::plugin::IPluginRegistry
     , public viewer::plugin::IUiService
@@ -48,6 +49,7 @@ public:
     int sdkVersion() const noexcept override;
     viewer::plugin::IDataService* data() noexcept override { return this; }
     viewer::plugin::IArchiveService* archive() noexcept override { return this; }
+    viewer::plugin::IJsonDocumentService* jsonDocuments() noexcept override { return this; }
     viewer::plugin::IEventService* events() noexcept override { return this; }
     viewer::plugin::IPluginRegistry* plugins() noexcept override { return this; }
     viewer::plugin::IUiService* ui() noexcept override { return this; }
@@ -68,6 +70,25 @@ public:
     viewer::plugin::ArchiveReadResult readCurrentZipEntry(
         quint64 sessionId,
         const QString& entryPath) const override;
+
+    // IJsonDocumentService
+    viewer::plugin::JsonPublishResult publishBatch(
+        const QString& providerPluginId,
+        quint64 sessionId,
+        const QList<viewer::plugin::JsonDocumentPublishItem>& documents) override;
+    QList<viewer::plugin::JsonDocumentInfo> listDocuments(
+        quint64 sessionId,
+        const QString& providerPluginId = {}) const override;
+    viewer::plugin::JsonDocumentPtr acquireDocument(
+        quint64 sessionId,
+        const QString& providerPluginId,
+        const QString& documentId,
+        viewer::plugin::JsonDocumentInfo* info = nullptr) const override;
+    viewer::plugin::JsonSubscriptionId subscribeDocumentsChanged(
+        const QString& ownerPluginId,
+        viewer::plugin::JsonDocumentsChangedCallback callback) override;
+    void unsubscribeDocumentsChanged(
+        viewer::plugin::JsonSubscriptionId subscription) override;
 
     // IEventService
     viewer::plugin::SubscriptionId subscribeDataLoaded(
@@ -100,6 +121,23 @@ public:
         const QString& ownerPluginId,
         const QString& text,
         std::function<void()> callback) override;
+    viewer::plugin::PluginMenuHandle addPluginMenu(
+        const QString& ownerPluginId,
+        const QString& rootTitle,
+        const QList<viewer::plugin::PluginMenuItemSpec>& items,
+        viewer::plugin::PluginMenuCallback callback) override;
+    bool setPluginMenuItemEnabled(
+        viewer::plugin::PluginMenuHandle menu,
+        const QString& itemId,
+        bool enabled) override;
+    bool setPluginMenuItemChecked(
+        viewer::plugin::PluginMenuHandle menu,
+        const QString& itemId,
+        bool checked) override;
+    bool setPluginMenuItemVisible(
+        viewer::plugin::PluginMenuHandle menu,
+        const QString& itemId,
+        bool visible) override;
     viewer::plugin::PluginDockHandle createDock(
         const QString& ownerPluginId,
         const QString& dockId,
@@ -143,6 +181,12 @@ private:
         QString ownerPluginId;
         QPointer<QAction> action;
     };
+    struct MenuRecord
+    {
+        QString ownerPluginId;
+        QPointer<QMenu> root;
+        QHash<QString, QPointer<QAction>> actions;
+    };
     struct DockRecord
     {
         QString ownerPluginId;
@@ -166,8 +210,11 @@ private:
     QHash<QString, viewer::plugin::PluginState> m_pluginStates;
     QHash<QString, ServiceRecord> m_services;
     QHash<quint64, ActionRecord> m_actions;
+    QHash<quint64, MenuRecord> m_menus;
     QHash<quint64, DockRecord> m_docks;
     QHash<quint64, SubscriptionRecord<DataLoadedCallback>> m_dataLoadedSubscriptions;
     QHash<quint64, SubscriptionRecord<DataAboutToUnloadCallback>> m_dataUnloadSubscriptions;
     QHash<quint64, SubscriptionRecord<ColumnAddedCallback>> m_columnAddedSubscriptions;
+    QHash<quint64, SubscriptionRecord<viewer::plugin::JsonDocumentsChangedCallback>>
+        m_jsonChangedSubscriptions;
 };

@@ -12,6 +12,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QMetaObject>
+#include <QSet>
 #include <QThread>
 
 #include <algorithm>
@@ -182,6 +183,24 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                 try { if (record.callback) record.callback(sessionId, name); }
                 catch (...) { write(record.ownerPluginId, LogLevel::Error,
                                     QStringLiteral("Unhandled exception in ColumnAdded callback.")); }
+            }
+        });
+    connect(&m_viewer, &viewer::Viewer::JsonDocumentsChanged, this,
+        [this](quint64 sessionId, const QString& providerPluginId)
+        {
+            const auto subscriptions = m_jsonChangedSubscriptions;
+            for (const auto& record : subscriptions)
+            {
+                try
+                {
+                    if (record.callback)
+                        record.callback(sessionId, providerPluginId);
+                }
+                catch (...)
+                {
+                    write(record.ownerPluginId, LogLevel::Error,
+                          QStringLiteral("Unhandled exception in JSON documents callback."));
+                }
             }
         });
 }
@@ -402,6 +421,92 @@ ArchiveReadResult PluginHost::readCurrentZipEntry(
     return {true, {}, bytes};
 }
 
+JsonPublishResult PluginHost::publishBatch(
+    const QString& providerPluginId,
+    quint64 sessionId,
+    const QList<JsonDocumentPublishItem>& documents)
+{
+    if (QThread::currentThread() != thread())
+    {
+        JsonPublishResult result;
+        QMetaObject::invokeMethod(this,
+            [this, &result, providerPluginId, sessionId, documents]()
+            {
+                result = publishBatch(providerPluginId, sessionId, documents);
+            },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+    if (m_shuttingDown)
+    {
+        return {JsonPublishStatus::HostShuttingDown,
+                QStringLiteral("The Viewer plugin host is shutting down.")};
+    }
+    return m_viewer.PublishJsonDocuments(providerPluginId, sessionId, documents);
+}
+
+QList<JsonDocumentInfo> PluginHost::listDocuments(
+    quint64 sessionId,
+    const QString& providerPluginId) const
+{
+    if (QThread::currentThread() != thread())
+    {
+        QList<JsonDocumentInfo> result;
+        QMetaObject::invokeMethod(const_cast<PluginHost*>(this),
+            [this, &result, sessionId, providerPluginId]()
+            {
+                result = listDocuments(sessionId, providerPluginId);
+            },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+    return m_viewer.ListJsonDocuments(sessionId, providerPluginId);
+}
+
+JsonDocumentPtr PluginHost::acquireDocument(
+    quint64 sessionId,
+    const QString& providerPluginId,
+    const QString& documentId,
+    JsonDocumentInfo* info) const
+{
+    if (QThread::currentThread() != thread())
+    {
+        JsonDocumentPtr result;
+        JsonDocumentInfo resultInfo;
+        QMetaObject::invokeMethod(const_cast<PluginHost*>(this),
+            [this, &result, &resultInfo, sessionId, providerPluginId, documentId]()
+            {
+                result = acquireDocument(
+                    sessionId, providerPluginId, documentId, &resultInfo);
+            },
+            Qt::BlockingQueuedConnection);
+        if (info)
+            *info = resultInfo;
+        return result;
+    }
+    return m_viewer.AcquireJsonDocument(
+        sessionId, providerPluginId, documentId, info);
+}
+
+JsonSubscriptionId PluginHost::subscribeDocumentsChanged(
+    const QString& ownerPluginId,
+    JsonDocumentsChangedCallback callback)
+{
+    if (m_shuttingDown || ownerPluginId.isEmpty() || !callback
+        || QThread::currentThread() != thread())
+    {
+        return 0;
+    }
+    const quint64 id = nextHandle();
+    m_jsonChangedSubscriptions.insert(id, {ownerPluginId, std::move(callback)});
+    return id;
+}
+
+void PluginHost::unsubscribeDocumentsChanged(JsonSubscriptionId subscription)
+{
+    m_jsonChangedSubscriptions.remove(subscription);
+}
+
 SubscriptionId PluginHost::subscribeDataLoaded(
     const QString& ownerPluginId,
     DataLoadedCallback callback)
@@ -502,6 +607,140 @@ PluginActionHandle PluginHost::addPluginAction(
     return handle;
 }
 
+PluginMenuHandle PluginHost::addPluginMenu(
+    const QString& ownerPluginId,
+    const QString& rootTitle,
+    const QList<PluginMenuItemSpec>& items,
+    PluginMenuCallback callback)
+{
+    if (m_shuttingDown || !m_pluginMenu || ownerPluginId.isEmpty()
+        || rootTitle.isEmpty() || !callback || QThread::currentThread() != thread())
+    {
+        return 0;
+    }
+
+    const quint64 handle = nextHandle();
+    auto* root = m_pluginMenu->addMenu(rootTitle);
+    MenuRecord record;
+    record.ownerPluginId = ownerPluginId;
+    record.root = root;
+
+    QHash<QString, QMenu*> menus;
+    QSet<QString> itemIds;
+    for (const PluginMenuItemSpec& item : items)
+    {
+        const QString itemId = item.id.trimmed();
+        const QString parentId = item.parentId.trimmed();
+        if (itemId.isEmpty() || itemIds.contains(itemId))
+        {
+            delete root;
+            return 0;
+        }
+
+        QMenu* parent = root;
+        if (!parentId.isEmpty())
+        {
+            parent = menus.value(parentId, nullptr);
+            if (!parent)
+            {
+                delete root;
+                return 0;
+            }
+        }
+
+        QAction* action = nullptr;
+        switch (item.type)
+        {
+        case PluginMenuItemType::Menu:
+        {
+            if (item.text.isEmpty())
+            {
+                delete root;
+                return 0;
+            }
+            QMenu* menu = parent->addMenu(item.text);
+            menus.insert(itemId, menu);
+            action = menu->menuAction();
+            break;
+        }
+        case PluginMenuItemType::Separator:
+            action = parent->addSeparator();
+            break;
+        case PluginMenuItemType::Action:
+        case PluginMenuItemType::CheckableAction:
+            if (item.text.isEmpty())
+            {
+                delete root;
+                return 0;
+            }
+            action = parent->addAction(item.text);
+            action->setCheckable(item.type == PluginMenuItemType::CheckableAction);
+            action->setChecked(item.checked);
+            connect(action, &QAction::triggered, this,
+                [this, ownerPluginId, itemId, callback](bool checked)
+                {
+                    try { callback(itemId, checked); }
+                    catch (...)
+                    {
+                        write(ownerPluginId, LogLevel::Error,
+                              QStringLiteral("Unhandled exception in plugin menu action."));
+                    }
+                });
+            break;
+        }
+
+        action->setEnabled(item.enabled);
+        action->setVisible(item.visible);
+        record.actions.insert(itemId, action);
+        itemIds.insert(itemId);
+    }
+
+    m_menus.insert(handle, std::move(record));
+    return handle;
+}
+
+bool PluginHost::setPluginMenuItemEnabled(
+    PluginMenuHandle menu, const QString& itemId, bool enabled)
+{
+    const auto menuIt = m_menus.find(menu);
+    if (menuIt == m_menus.end())
+        return false;
+    const auto actionIt = menuIt->actions.find(itemId);
+    if (actionIt == menuIt->actions.end() || !actionIt.value())
+        return false;
+    actionIt.value()->setEnabled(enabled);
+    return true;
+}
+
+bool PluginHost::setPluginMenuItemChecked(
+    PluginMenuHandle menu, const QString& itemId, bool checked)
+{
+    const auto menuIt = m_menus.find(menu);
+    if (menuIt == m_menus.end())
+        return false;
+    const auto actionIt = menuIt->actions.find(itemId);
+    if (actionIt == menuIt->actions.end() || !actionIt.value()
+        || !actionIt.value()->isCheckable())
+    {
+        return false;
+    }
+    actionIt.value()->setChecked(checked);
+    return true;
+}
+
+bool PluginHost::setPluginMenuItemVisible(
+    PluginMenuHandle menu, const QString& itemId, bool visible)
+{
+    const auto menuIt = m_menus.find(menu);
+    if (menuIt == m_menus.end())
+        return false;
+    const auto actionIt = menuIt->actions.find(itemId);
+    if (actionIt == menuIt->actions.end() || !actionIt.value())
+        return false;
+    actionIt.value()->setVisible(visible);
+    return true;
+}
+
 PluginDockHandle PluginHost::createDock(
     const QString& ownerPluginId,
     const QString& dockId,
@@ -600,6 +839,14 @@ void PluginHost::removeOwnedResources(const QString& pluginId)
         it = it->ownerPluginId == pluginId ? m_dataUnloadSubscriptions.erase(it) : ++it;
     for (auto it = m_columnAddedSubscriptions.begin(); it != m_columnAddedSubscriptions.end(); )
         it = it->ownerPluginId == pluginId ? m_columnAddedSubscriptions.erase(it) : ++it;
+    for (auto it = m_jsonChangedSubscriptions.begin();
+         it != m_jsonChangedSubscriptions.end(); )
+    {
+        it = it->ownerPluginId == pluginId
+            ? m_jsonChangedSubscriptions.erase(it) : ++it;
+    }
+
+    m_viewer.RemoveJsonDocuments(pluginId);
 
     QList<quint64> actionHandles;
     for (auto it = m_actions.constBegin(); it != m_actions.constEnd(); ++it)
@@ -608,6 +855,16 @@ void PluginHost::removeOwnedResources(const QString& pluginId)
     {
         auto record = m_actions.take(handle);
         if (record.action) delete record.action;
+    }
+
+    QList<quint64> menuHandles;
+    for (auto it = m_menus.constBegin(); it != m_menus.constEnd(); ++it)
+        if (it->ownerPluginId == pluginId) menuHandles.push_back(it.key());
+    for (quint64 handle : menuHandles)
+    {
+        auto record = m_menus.take(handle);
+        if (record.root)
+            delete record.root;
     }
 
     QList<quint64> dockHandles;

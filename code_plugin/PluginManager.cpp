@@ -163,6 +163,7 @@ bool PluginManager::parseManifest(const QString& path,
     manifest.name = object.value(QStringLiteral("name")).toString().trimmed();
     manifest.version = object.value(QStringLiteral("version")).toString().trimmed();
     manifest.entry = object.value(QStringLiteral("entry")).toString().trimmed();
+    manifest.debugEntry = object.value(QStringLiteral("debugEntry")).toString().trimmed();
     manifest.sdkVersion = object.value(QStringLiteral("sdkVersion")).toInt(0);
     if (manifest.id.isEmpty() || manifest.entry.isEmpty())
     {
@@ -254,7 +255,13 @@ std::vector<int> PluginManager::resolveLoadOrder(std::vector<Manifest>& manifest
 
 bool PluginManager::loadOne(const Manifest& manifest)
 {
-    const QString entryPath = QDir(manifest.rootDirectory).absoluteFilePath(manifest.entry);
+#ifdef _DEBUG
+    const QString selectedEntry = manifest.debugEntry.isEmpty()
+        ? manifest.entry : manifest.debugEntry;
+#else
+    const QString selectedEntry = manifest.entry;
+#endif
+    const QString entryPath = QDir(manifest.rootDirectory).absoluteFilePath(selectedEntry);
     const QFileInfo entryInfo(entryPath);
     if (!entryInfo.exists() || !entryInfo.isFile())
     {

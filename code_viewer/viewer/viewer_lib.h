@@ -6,6 +6,7 @@
 
 #include "code_viewer/base/base_def.h"
 #include "code_viewer/datamgr/data_manager.h"
+#include "code_viewer/jsonmgr/json_document_store.h"
 #include "code_viewer/plotmgr/plot_manager.h"
 #include "code_viewer/plotmgr/cursor/cursor_manager.h"
 #include "code_viewer/stylemgr/style_manager.h"
@@ -66,6 +67,20 @@ public:
     const plugin::LoadSessionInfo& GetLoadSessionInfo() const noexcept
     { return m_loadSession; }
 
+    plugin::JsonPublishResult PublishJsonDocuments(
+        const QString& providerPluginId,
+        quint64 sessionId,
+        const QList<plugin::JsonDocumentPublishItem>& documents);
+    QList<plugin::JsonDocumentInfo> ListJsonDocuments(
+        quint64 sessionId,
+        const QString& providerPluginId = {}) const;
+    plugin::JsonDocumentPtr AcquireJsonDocument(
+        quint64 sessionId,
+        const QString& providerPluginId,
+        const QString& documentId,
+        plugin::JsonDocumentInfo* info = nullptr) const;
+    void RemoveJsonDocuments(const QString& providerPluginId);
+
 Q_SIGNALS:
     /// Emitted when loading starts. totalFiles = number of CSVs to load.
     void LoadStarted(int totalFiles);
@@ -86,6 +101,7 @@ Q_SIGNALS:
     void DataLoaded(quint64 sessionId);
     void DataAboutToUnload(quint64 sessionId);
     void DataColumnAdded(quint64 sessionId, const QString& columnName);
+    void JsonDocumentsChanged(quint64 sessionId, const QString& providerPluginId);
 
 public Q_SLOTS:
     /// Clear all loaded data.
@@ -107,6 +123,7 @@ private:
     PlotManager   m_plots;
     CursorManager m_cursors;
     StyleManager  m_styles;
+    JsonDocumentStore m_jsonDocuments;
     std::string   m_lastError;
     plugin::LoadSessionInfo m_loadSession;
     quint64 m_nextLoadSessionId = 1;

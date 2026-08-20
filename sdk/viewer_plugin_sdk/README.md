@@ -18,14 +18,19 @@ plugins/<plugin-id>/
 
 ```json
 {
-  "sdkVersion": 1,
+  "sdkVersion": 2,
   "id": "com.company.example",
   "name": "Example",
   "version": "1.0.0",
   "entry": "example.dll",
+  "debugEntry": "exampled.dll",
   "dependencies": []
 }
 ```
+
+`entry` 是 Release Viewer 使用的入口；Debug Viewer 在存在 `debugEntry` 时优先
+使用它，否则回退到 `entry`。SDK v2 还提供由 Viewer 托管的会话级 JSON 文档
+服务，以及由插件声明、宿主创建的层级菜单。
 
 依赖项支持 `mode` 为 `required` 或 `runtime`。`runtime` 依赖缺失时插件仍会
 加载，插件可以在用户触发功能时通过 `IPluginRegistry` 显示具体错误。

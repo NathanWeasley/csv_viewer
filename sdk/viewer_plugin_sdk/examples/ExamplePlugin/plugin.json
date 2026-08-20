@@ -1,5 +1,5 @@
 {
-  "sdkVersion": 1,
+  "sdkVersion": 2,
   "id": "com.weekendbuild.example",
   "name": "Viewer SDK Example",
   "version": "1.0.0",
