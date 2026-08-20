@@ -2,6 +2,7 @@
 
 #include "dat_json_viewer.h"
 #include "dat_converter.h"
+#include "json_formatter.h"
 #include "qt_json_adapter.h"
 
 #include <QCoreApplication>
@@ -590,7 +591,7 @@ void DatDecryptPlugin::exportJson()
 
         const QString path = QDir(directory).filePath(exportFileName(info.documentId));
         QSaveFile file(path);
-        const QByteArray json = document->toJson(QJsonDocument::Indented);
+        const QByteArray json = datdecrypt::json::formatDocument(*document).toUtf8();
         if (!file.open(QIODevice::WriteOnly)
             || file.write(json) != json.size()
             || !file.commit())

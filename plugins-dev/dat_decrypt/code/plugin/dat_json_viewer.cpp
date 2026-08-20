@@ -1,9 +1,16 @@
 #include "dat_json_viewer.h"
+#include "json_formatter.h"
 
 #include <QComboBox>
+#include <QHeaderView>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QLabel>
 #include <QPlainTextEdit>
 #include <QSplitter>
+#include <QTabWidget>
+#include <QTextOption>
+#include <QTreeWidget>
 #include <QVBoxLayout>
 
 using namespace viewer::plugin;
@@ -38,6 +45,159 @@ QString diagnosticText(const JsonDocumentInfo& info)
     return lines.isEmpty() ? QStringLiteral("No diagnostics.") : lines.join('\n');
 }
 
+QString scalarText(const QJsonValue& value)
+{
+    QJsonArray wrapper;
+    wrapper.append(value);
+    QByteArray encoded = QJsonDocument(wrapper).toJson(QJsonDocument::Compact);
+    if (encoded.size() >= 2)
+        encoded = encoded.mid(1, encoded.size() - 2);
+    return QString::fromUtf8(encoded);
+}
+
+bool isNumericArray(const QJsonArray& array)
+{
+    for (const QJsonValue& value : array)
+    {
+        if (!value.isDouble())
+            return false;
+    }
+    return true;
+}
+
+QString numericArrayText(const QJsonArray& array)
+{
+    QString result = QStringLiteral("[");
+    for (qsizetype index = 0; index < array.size(); ++index)
+    {
+        if (index != 0)
+            result += QStringLiteral(", ");
+        result += scalarText(array[index]);
+    }
+    result += QLatin1Char(']');
+    return result;
+}
+
+bool isMetadataKey(const QString& key)
+{
+    return key == QStringLiteral("table")
+        || key == QStringLiteral("header")
+        || key == QStringLiteral("metadata")
+        || key == QStringLiteral("_metadata");
+}
+
+bool isDiagnosticKey(const QString& key)
+{
+    return key == QStringLiteral("diagnostics")
+        || key == QStringLiteral("warnings")
+        || key == QStringLiteral("errors")
+        || key == QStringLiteral("_diagnostics");
+}
+
+void appendIfPresent(QStringList& result,
+                     const QJsonObject& object,
+                     const QString& key)
+{
+    if (object.contains(key) && !result.contains(key))
+        result.push_back(key);
+}
+
+QStringList treeKeys(const QJsonObject& object, bool documentRoot)
+{
+    const QStringList source = object.keys();
+    if (!documentRoot)
+        return source;
+
+    QStringList result;
+    result.reserve(source.size());
+    appendIfPresent(result, object, QStringLiteral("records"));
+    for (const QString& key : source)
+    {
+        if (key != QStringLiteral("records")
+            && !isMetadataKey(key) && !isDiagnosticKey(key))
+        {
+            result.push_back(key);
+        }
+    }
+    appendIfPresent(result, object, QStringLiteral("table"));
+    appendIfPresent(result, object, QStringLiteral("header"));
+    appendIfPresent(result, object, QStringLiteral("metadata"));
+    appendIfPresent(result, object, QStringLiteral("_metadata"));
+    for (const QString& key : source)
+    {
+        if (isDiagnosticKey(key))
+            appendIfPresent(result, object, key);
+    }
+    return result;
+}
+
+void addTreeValue(QTreeWidgetItem* item,
+                  const QJsonValue& value,
+                  bool documentRoot = false)
+{
+    if (value.isObject())
+    {
+        const QJsonObject object = value.toObject();
+        item->setText(1, object.isEmpty()
+            ? QStringLiteral("{}")
+            : QStringLiteral("{%1}").arg(object.size()));
+        for (const QString& key : treeKeys(object, documentRoot))
+        {
+            auto* child = new QTreeWidgetItem(item, QStringList{key});
+            addTreeValue(child, object.value(key));
+        }
+        return;
+    }
+
+    if (value.isArray())
+    {
+        const QJsonArray array = value.toArray();
+        if (isNumericArray(array))
+        {
+            item->setText(1, numericArrayText(array));
+            return;
+        }
+        item->setText(1, array.isEmpty()
+            ? QStringLiteral("[]")
+            : QStringLiteral("[%1]").arg(array.size()));
+        for (qsizetype index = 0; index < array.size(); ++index)
+        {
+            auto* child = new QTreeWidgetItem(
+                item, QStringList{QStringLiteral("[%1]").arg(index)});
+            addTreeValue(child, array[index]);
+        }
+        return;
+    }
+
+    item->setText(1, scalarText(value));
+}
+
+void populateTree(QTreeWidget* tree, const QJsonDocument& document)
+{
+    tree->clear();
+    if (document.isObject())
+    {
+        const QJsonObject object = document.object();
+        for (const QString& key : treeKeys(object, true))
+        {
+            auto* item = new QTreeWidgetItem(tree, QStringList{key});
+            addTreeValue(item, object.value(key));
+            if (key == QStringLiteral("records"))
+                item->setExpanded(true);
+        }
+    }
+    else if (document.isArray())
+    {
+        const QJsonArray array = document.array();
+        for (qsizetype index = 0; index < array.size(); ++index)
+        {
+            auto* item = new QTreeWidgetItem(
+                tree, QStringList{QStringLiteral("[%1]").arg(index)});
+            addTreeValue(item, array[index]);
+        }
+    }
+}
+
 } // namespace
 
 DatJsonViewer::DatJsonViewer(QWidget* parent)
@@ -47,15 +207,27 @@ DatJsonViewer::DatJsonViewer(QWidget* parent)
     m_documents = new QComboBox(this);
     m_source = new QLabel(this);
     m_source->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_json = new QPlainTextEdit(this);
-    m_json->setReadOnly(true);
-    m_json->setLineWrapMode(QPlainTextEdit::NoWrap);
+    m_tree = new QTreeWidget(this);
+    m_tree->setHeaderLabels(
+        {QString::fromUtf8(u8"字段"), QString::fromUtf8(u8"值")});
+    m_tree->setAlternatingRowColors(true);
+    m_tree->setUniformRowHeights(true);
+    m_tree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+    m_tree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+    m_text = new QPlainTextEdit(this);
+    m_text->setReadOnly(true);
+    m_text->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+    m_text->setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
     m_diagnostics = new QPlainTextEdit(this);
     m_diagnostics->setReadOnly(true);
     m_diagnostics->setMaximumBlockCount(5000);
 
+    auto* tabs = new QTabWidget(this);
+    tabs->addTab(m_tree, QString::fromUtf8(u8"树状"));
+    tabs->addTab(m_text, QString::fromUtf8(u8"文本"));
+
     auto* splitter = new QSplitter(Qt::Vertical, this);
-    splitter->addWidget(m_json);
+    splitter->addWidget(tabs);
     splitter->addWidget(m_diagnostics);
     splitter->setStretchFactor(0, 4);
     splitter->setStretchFactor(1, 1);
@@ -97,7 +269,8 @@ void DatJsonViewer::showCurrentDocument()
     if (infoIt == m_info.constEnd())
     {
         m_source->clear();
-        m_json->clear();
+        m_tree->clear();
+        m_text->clear();
         m_diagnostics->clear();
         return;
     }
@@ -106,8 +279,15 @@ void DatJsonViewer::showCurrentDocument()
     m_source->setText(QStringLiteral("%1  |  table: %2")
                           .arg(info.sourceEntryPath, info.sourceTableName));
     const JsonDocumentPtr document = m_contents.value(documentId);
-    m_json->setPlainText(document
-        ? QString::fromUtf8(document->toJson(QJsonDocument::Indented))
-        : QStringLiteral("No JSON document is available."));
+    if (document)
+    {
+        populateTree(m_tree, *document);
+        m_text->setPlainText(datdecrypt::json::formatDocument(*document));
+    }
+    else
+    {
+        m_tree->clear();
+        m_text->setPlainText(QStringLiteral("No JSON document is available."));
+    }
     m_diagnostics->setPlainText(diagnosticText(info));
 }

@@ -37,6 +37,9 @@
     <ClInclude Include="..\..\code\plugin\dat_json_viewer.h">
       <Filter>Plugin</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\code\plugin\json_formatter.h">
+      <Filter>Plugin</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\code\dat_converter.cpp">
@@ -61,6 +64,9 @@
       <Filter>Plugin</Filter>
     </ClCompile>
     <ClCompile Include="..\..\code\plugin\dat_json_viewer.cpp">
+      <Filter>Plugin</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\plugin\json_formatter.cpp">
       <Filter>Plugin</Filter>
     </ClCompile>
   </ItemGroup>

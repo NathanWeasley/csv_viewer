@@ -8,6 +8,7 @@
 class QComboBox;
 class QLabel;
 class QPlainTextEdit;
+class QTreeWidget;
 
 class DatJsonViewer final : public QWidget
 {
@@ -23,7 +24,8 @@ private:
 
     QComboBox* m_documents = nullptr;
     QLabel* m_source = nullptr;
-    QPlainTextEdit* m_json = nullptr;
+    QTreeWidget* m_tree = nullptr;
+    QPlainTextEdit* m_text = nullptr;
     QPlainTextEdit* m_diagnostics = nullptr;
     QHash<QString, viewer::plugin::JsonDocumentInfo> m_info;
     QHash<QString, viewer::plugin::JsonDocumentPtr> m_contents;

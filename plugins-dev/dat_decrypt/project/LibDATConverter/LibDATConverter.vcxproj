@@ -20,6 +20,7 @@
     <ClInclude Include="..\..\code\schema_document.h" />
     <ClInclude Include="..\..\code\wire.h" />
     <ClInclude Include="..\..\code\plugin\dat_json_viewer.h" />
+    <ClInclude Include="..\..\code\plugin\json_formatter.h" />
     <CustomBuild Include="..\..\code\plugin\dat_decrypt_plugin.h">
       <FileType>Document</FileType>
       <Command>&quot;$(QtToolsPath)\moc.exe&quot; -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB -I&quot;$(ViewerPluginSdkDir)\include&quot; -I&quot;$(MSBuildProjectDirectory)\..\..\code&quot; -I&quot;$(QtRootDir)\include&quot; -I&quot;$(QtRootDir)\include\QtWidgets&quot; -I&quot;$(QtRootDir)\include\QtGui&quot; -I&quot;$(QtRootDir)\include\QtCore&quot; -o &quot;$(IntDir)moc_dat_decrypt_plugin.cpp&quot; &quot;%(FullPath)&quot;</Command>
@@ -36,6 +37,7 @@
     <ClCompile Include="..\..\code\wire.cpp" />
     <ClCompile Include="..\..\code\plugin\dat_decrypt_plugin.cpp" />
     <ClCompile Include="..\..\code\plugin\dat_json_viewer.cpp" />
+    <ClCompile Include="..\..\code\plugin\json_formatter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\plugin.json" />

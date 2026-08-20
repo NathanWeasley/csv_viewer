@@ -167,10 +167,16 @@ inline QJsonObject diagnosticObject(const DatConverter::Diagnostic& diagnostic)
 inline QJsonDocument toQJsonDocument(const DatConverter& converter)
 {
     QJsonObject root;
+    QJsonArray records;
+    for (const DatConverter::Record& record : converter.records())
+        records.append(toQJsonObject(record));
+    root.insert(QStringLiteral("records"), records);
+
+    // Keep the document's logical construction order aligned with the viewer
+    // and exporter: raw records first, metadata and diagnostics afterwards.
     root.insert(QStringLiteral("table"),
                 QString::fromUtf8(converter.tableName().data(),
                                   static_cast<qsizetype>(converter.tableName().size())));
-
     QJsonObject header;
     header.insert(QStringLiteral("version"), static_cast<double>(converter.header().version));
     header.insert(QStringLiteral("recordCount"),
@@ -178,11 +184,6 @@ inline QJsonDocument toQJsonDocument(const DatConverter& converter)
     header.insert(QStringLiteral("payloadCrc32"),
                   static_cast<double>(converter.header().payloadCrc32));
     root.insert(QStringLiteral("header"), header);
-
-    QJsonArray records;
-    for (const DatConverter::Record& record : converter.records())
-        records.append(toQJsonObject(record));
-    root.insert(QStringLiteral("records"), records);
 
     QJsonArray diagnostics;
     for (const DatConverter::Diagnostic& diagnostic : converter.diagnostics())
