@@ -1,0 +1,9 @@
+{
+  "sdkVersion": 2,
+  "id": "3dview",
+  "name": "3dview",
+  "version": "1.0.0",
+  "entry": "3dview.dll",
+  "debugEntry": "3dviewd.dll",
+  "dependencies": []
+}
