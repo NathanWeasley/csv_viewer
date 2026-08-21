@@ -11,6 +11,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\code\config\view3d_config.h" />
+    <ClInclude Include="..\..\code\model\stl_mesh.h" />
+    <ClInclude Include="..\..\code\playback\playback_state.h" />
+    <ClInclude Include="..\..\code\render\view3d_scene.h" />
+    <ClInclude Include="..\..\code\scene\transform_chain.h" />
+    <ClInclude Include="..\..\code\trajectory\trajectory_data.h" />
     <ClInclude Include="..\..\code\plugin\view3d_widget.h" />
     <CustomBuild Include="..\..\code\plugin\view3d_plugin.h">
       <FileType>Document</FileType>
@@ -20,10 +26,17 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\code\config\view3d_config.cpp" />
+    <ClCompile Include="..\..\code\model\stl_mesh.cpp" />
+    <ClCompile Include="..\..\code\playback\playback_state.cpp" />
+    <ClCompile Include="..\..\code\render\view3d_scene.cpp" />
+    <ClCompile Include="..\..\code\scene\transform_chain.cpp" />
+    <ClCompile Include="..\..\code\trajectory\trajectory_data.cpp" />
     <ClCompile Include="..\..\code\plugin\view3d_plugin.cpp" />
     <ClCompile Include="..\..\code\plugin\view3d_widget.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\data\3dview.json" />
     <None Include="..\..\plugin.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -50,12 +63,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;widgets</QtModules>
+    <QtModules>core;gui;widgets;opengl;openglwidgets</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;widgets</QtModules>
+    <QtModules>core;gui;widgets;opengl;openglwidgets</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -90,8 +103,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>QT_DEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtOpenGLWidgets;$(QtRootDir)\include\QtOpenGL;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_DEBUG;QT_OPENGLWIDGETS_LIB;QT_OPENGL_LIB;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
@@ -100,15 +113,15 @@
       <ProgramDatabaseFile>..\..\bin\Debug\3dviewd.pdb</ProgramDatabaseFile>
       <LinkIncremental>false</LinkIncremental>
       <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Qt6Widgetsd.lib;Qt6Guid.lib;Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Qt6OpenGLWidgetsd.lib;Qt6OpenGLd.lib;Qt6Widgetsd.lib;Qt6Guid.lib;Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalOptions>/ILK:&quot;..\..\bin\Debug\3dviewd.ilk&quot; %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtOpenGLWidgets;$(QtRootDir)\include\QtOpenGL;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_OPENGLWIDGETS_LIB;QT_OPENGL_LIB;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
@@ -116,7 +129,7 @@
       <ImportLibrary>..\..\bin\Release\3dview.lib</ImportLibrary>
       <ProgramDatabaseFile>..\..\bin\Release\3dview.pdb</ProgramDatabaseFile>
       <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Qt6Widgets.lib;Qt6Gui.lib;Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Qt6OpenGLWidgets.lib;Qt6OpenGL.lib;Qt6Widgets.lib;Qt6Gui.lib;Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -151,5 +164,8 @@
   <Target Name="CopyPluginManifest" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\plugin.json"
           DestinationFolder="$(OutDir)" />
+    <MakeDir Directories="$(OutDir)data" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\data\3dview.json"
+          DestinationFolder="$(OutDir)data" />
   </Target>
 </Project>

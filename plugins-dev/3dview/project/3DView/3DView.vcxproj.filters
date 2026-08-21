@@ -4,13 +4,67 @@
     <Filter Include="Plugin">
       <UniqueIdentifier>{A69F8EC2-C27B-48E6-B12F-9793B60117F6}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Config">
+      <UniqueIdentifier>{68B3E4A7-40A9-493D-A3A9-F4BCE05D4D2C}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{095FF8A0-0019-4D59-8435-F0728611CC17}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Trajectory">
+      <UniqueIdentifier>{A0E8F8DA-F48E-403A-94E8-44AD4BC7DA01}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Render">
+      <UniqueIdentifier>{203265A1-F724-407F-A6CA-19F550069A9E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Playback">
+      <UniqueIdentifier>{E06AE3C0-F84A-4A69-87A7-04D076373DB9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model">
+      <UniqueIdentifier>{0A31F09B-7342-40D4-BC5F-C5F4E6959C5E}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\code\config\view3d_config.h">
+      <Filter>Config</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\model\stl_mesh.h">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\playback\playback_state.h">
+      <Filter>Playback</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\render\view3d_scene.h">
+      <Filter>Render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\scene\transform_chain.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\code\trajectory\trajectory_data.h">
+      <Filter>Trajectory</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\code\plugin\view3d_widget.h">
       <Filter>Plugin</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\code\config\view3d_config.cpp">
+      <Filter>Config</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\model\stl_mesh.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\playback\playback_state.cpp">
+      <Filter>Playback</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\render\view3d_scene.cpp">
+      <Filter>Render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\scene\transform_chain.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\code\trajectory\trajectory_data.cpp">
+      <Filter>Trajectory</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\code\plugin\view3d_plugin.cpp">
       <Filter>Plugin</Filter>
     </ClCompile>
@@ -24,6 +78,9 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <None Include="..\..\data\3dview.json">
+      <Filter>Config</Filter>
+    </None>
     <None Include="..\..\plugin.json">
       <Filter>Plugin</Filter>
     </None>

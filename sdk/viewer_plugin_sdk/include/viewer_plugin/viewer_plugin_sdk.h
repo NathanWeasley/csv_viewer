@@ -20,6 +20,8 @@ namespace viewer::plugin
 inline constexpr int kViewerPluginSdkVersion = 2;
 inline constexpr const char* kViewerPluginInterfaceIid =
     "com.weekendbuild.csvviewer.IViewerPlugin/2.0";
+inline constexpr const char* kPluginRootDirectoryProperty =
+    "viewerPluginRootDirectory";
 
 enum class SourceType
 {

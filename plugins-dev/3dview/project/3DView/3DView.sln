@@ -4,6 +4,8 @@ VisualStudioVersion = 17.14.37411.7
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "3DView", "3DView.vcxproj", "{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TEST", "TEST\TEST.vcxproj", "{3D2B6C51-21D7-4CB0-A276-0983E0209B6C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -14,6 +16,10 @@ Global
 		{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}.Debug|x64.Build.0 = Debug|x64
 		{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}.Release|x64.ActiveCfg = Release|x64
 		{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}.Release|x64.Build.0 = Release|x64
+		{3D2B6C51-21D7-4CB0-A276-0983E0209B6C}.Debug|x64.ActiveCfg = Debug|x64
+		{3D2B6C51-21D7-4CB0-A276-0983E0209B6C}.Debug|x64.Build.0 = Debug|x64
+		{3D2B6C51-21D7-4CB0-A276-0983E0209B6C}.Release|x64.ActiveCfg = Release|x64
+		{3D2B6C51-21D7-4CB0-A276-0983E0209B6C}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

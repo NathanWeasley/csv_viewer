@@ -4,6 +4,7 @@
 
 #include <QObject>
 #include <QPointer>
+#include <QString>
 
 class View3DWidget;
 
@@ -24,10 +25,16 @@ public:
 
 private:
     void showView();
+    void reloadConfiguration();
+    void refreshData();
 
     viewer::plugin::IViewerHost* m_host = nullptr;
     viewer::plugin::PluginMenuHandle m_menu = 0;
-    viewer::plugin::PluginDockHandle m_viewDock = 0;
+    viewer::plugin::SubscriptionId m_dataLoadedSubscription = 0;
+    viewer::plugin::SubscriptionId m_dataUnloadingSubscription = 0;
+    viewer::plugin::SubscriptionId m_columnAddedSubscription = 0;
     QPointer<View3DWidget> m_view;
+    QString m_configPath;
+    QString m_statePath;
     bool m_shuttingDown = false;
 };

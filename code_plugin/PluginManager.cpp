@@ -283,6 +283,11 @@ bool PluginManager::loadOne(const Manifest& manifest)
         return false;
     }
 
+    // Expose the manifest directory without extending the binary SDK interface.
+    // Plugins use it to locate editable files shipped beside their DLL.
+    instance->setProperty(
+        kPluginRootDirectoryProperty, QFileInfo(manifest.rootDirectory).absoluteFilePath());
+
     auto* plugin = qobject_cast<IViewerPlugin*>(instance);
     if (!plugin)
     {

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Test">
+      <UniqueIdentifier>{2DE31674-AFAB-4AB8-9359-5B72429048EF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Config">
+      <UniqueIdentifier>{0E408098-5DB8-4486-A4D2-2C41280E00B2}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{1E1C779F-B340-4B44-969D-ABED60E33216}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Trajectory">
+      <UniqueIdentifier>{973485C1-0D8E-4A2A-A5E2-22FA4CE4C78B}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Playback">
+      <UniqueIdentifier>{0646FC6F-F57C-412E-9576-55F4E24C241E}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model">
+      <UniqueIdentifier>{CC7C7006-C050-4200-B2E4-C2AE118646C1}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\test\test_main.cpp"><Filter>Test</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code\config\view3d_config.cpp"><Filter>Config</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code\model\stl_mesh.cpp"><Filter>Model</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code\playback\playback_state.cpp"><Filter>Playback</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code\scene\transform_chain.cpp"><Filter>Scene</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code\trajectory\trajectory_data.cpp"><Filter>Trajectory</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\code\config\view3d_config.h"><Filter>Config</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code\model\stl_mesh.h"><Filter>Model</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code\playback\playback_state.h"><Filter>Playback</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code\scene\transform_chain.h"><Filter>Scene</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code\trajectory\trajectory_data.h"><Filter>Trajectory</Filter></ClInclude>
+  </ItemGroup>
+</Project>
