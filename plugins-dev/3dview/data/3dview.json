@@ -1,11 +1,8 @@
 {
   "version": 1,
-  "time": "timestamp",
-  "sampleRate": 100.0,
   "units": {
     "position": "mm",
-    "angle": "deg",
-    "time": "s"
+    "angle": "deg"
   },
   "joint": {
     "actual_joint": [
@@ -22,18 +19,5 @@
   "tcp": {
     "actual_tcp": ["x", "y", "z", "rx", "ry", "rz"],
     "command_tcp": ["cmd_x", "cmd_y", "cmd_z", "cmd_rx", "cmd_ry", "cmd_rz"]
-  },
-  "presets": {
-    "actual": {
-      "joint": "actual_joint",
-      "tcp": ["actual_tcp"],
-      "pose": "actual_tcp"
-    },
-    "compare": {
-      "joint": "actual_joint",
-      "tcp": ["actual_tcp", "command_tcp"],
-      "pose": "actual_tcp"
-    }
-  },
-  "defaultPreset": "compare"
+  }
 }

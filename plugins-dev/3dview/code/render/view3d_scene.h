@@ -23,6 +23,13 @@ enum class LinePattern
     Dotted = 2
 };
 
+enum class TrajectoryDisplayMode
+{
+    None = 0,
+    All = 1,
+    Local = 2
+};
+
 struct TrajectoryStyle
 {
     bool visible = true;
@@ -57,6 +64,10 @@ public:
 
     void setTrajectories(const QVector<RenderTrajectory>& trajectories);
     void setTrajectoryStyle(const QString& name, const TrajectoryStyle& style);
+    void setTrajectoryDisplay(
+        TrajectoryDisplayMode mode,
+        qsizetype currentFrame,
+        qsizetype localRadius);
     void setMeshes(const QVector<RenderMesh>& meshes);
     void setMeshTransforms(const QVector<QMatrix4x4>& linkTransforms);
     void setTcpPose(const QMatrix4x4& pose, bool visible);
@@ -93,6 +104,9 @@ private:
     float niceGridStep() const;
 
     QVector<RenderTrajectory> m_trajectories;
+    TrajectoryDisplayMode m_trajectoryDisplayMode = TrajectoryDisplayMode::All;
+    qsizetype m_currentFrame = 0;
+    qsizetype m_localRadius = 100;
     QVector<RenderMesh> m_meshes;
     QVector<QMatrix4x4> m_jointFrames;
     QMatrix4x4 m_tcpPose;

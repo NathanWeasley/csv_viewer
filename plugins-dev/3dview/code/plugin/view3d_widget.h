@@ -5,7 +5,6 @@
 #include "render/view3d_scene.h"
 #include "trajectory/trajectory_data.h"
 
-#include <QElapsedTimer>
 #include <QMap>
 #include <QString>
 #include <QWidget>
@@ -16,6 +15,7 @@ class QDoubleSpinBox;
 class QLabel;
 class QSlider;
 class QSplitter;
+class QSpinBox;
 class QTableWidget;
 class QTimer;
 class QToolButton;
@@ -46,12 +46,14 @@ private:
     void loadModels();
     void rebuildControls();
     void rebuildTrackTable();
-    void applyPreset(const QString& presetName);
     void applyTrajectoryStyles();
     view3d::TrajectoryStyle loadStyle(
         const QString& trackName,
         const view3d::TrajectoryStyle& fallback) const;
     void saveStyle(const QString& trackName) const;
+    void updateJointState(qsizetype frame);
+    void updateTcpState(qsizetype frame);
+    void updateTrajectoryDisplay(qsizetype frame);
     void updateFrame(qsizetype frame);
     void setFrame(qsizetype frame);
     void startPlayback(view3d::PlaybackDirection direction);
@@ -66,9 +68,10 @@ private:
     viewer::plugin::DataSnapshotPtr m_snapshot;
     view3d::View3DScene* m_viewport = nullptr;
     QSplitter* m_splitter = nullptr;
-    QComboBox* m_presetCombo = nullptr;
     QComboBox* m_jointCombo = nullptr;
     QComboBox* m_poseCombo = nullptr;
+    QComboBox* m_trajectoryModeCombo = nullptr;
+    QSpinBox* m_localSamplesSpin = nullptr;
     QTableWidget* m_trackTable = nullptr;
     QToolButton* m_reverseButton = nullptr;
     QToolButton* m_previousButton = nullptr;
@@ -80,12 +83,10 @@ private:
     QLabel* m_frameLabel = nullptr;
     QLabel* m_status = nullptr;
     QTimer* m_timer = nullptr;
-    QElapsedTimer m_elapsedTimer;
     view3d::PlaybackState m_playback;
     QMap<QString, view3d::TrajectoryStyle> m_styles;
     QString m_activeJointTrack;
     QString m_activePoseTrack;
-    QString m_savedPreset;
     QString m_savedJointTrack;
     QString m_savedPoseTrack;
     QStringList m_modelDiagnostics;
@@ -93,5 +94,4 @@ private:
     bool m_configLoaded = false;
     bool m_rebuildingControls = false;
     bool m_controlsInitialized = false;
-    bool m_controlStateLoaded = false;
 };

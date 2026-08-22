@@ -8,33 +8,24 @@
 namespace view3d
 {
 
-void PlaybackState::setTimeline(const QVector<double>& timelineSeconds)
+void PlaybackState::setFrameCount(qsizetype frameCount)
 {
-    m_timeline = timelineSeconds;
-    for (qsizetype index = 1; index < m_timeline.size(); ++index)
-    {
-        if (!std::isfinite(m_timeline.at(index))
-            || m_timeline.at(index) < m_timeline.at(index - 1))
-        {
-            m_timeline.clear();
-            break;
-        }
-    }
+    m_frameCount = std::max<qsizetype>(0, frameCount);
     m_frame = 0;
-    m_playTime = m_timeline.isEmpty() ? 0.0 : m_timeline.first();
+    m_position = 0.0;
     m_playing = false;
 }
 
 void PlaybackState::setFrame(qsizetype frame)
 {
-    if (m_timeline.isEmpty())
+    if (m_frameCount <= 0)
     {
         m_frame = 0;
-        m_playTime = 0.0;
+        m_position = 0.0;
         return;
     }
-    m_frame = qBound<qsizetype>(0, frame, m_timeline.size() - 1);
-    m_playTime = m_timeline.at(m_frame);
+    m_frame = qBound<qsizetype>(0, frame, m_frameCount - 1);
+    m_position = static_cast<double>(m_frame);
 }
 
 void PlaybackState::setSpeed(double speed)
@@ -45,7 +36,7 @@ void PlaybackState::setSpeed(double speed)
 
 void PlaybackState::play(PlaybackDirection direction)
 {
-    if (m_timeline.isEmpty())
+    if (m_frameCount <= 0)
         return;
     m_direction = direction;
     m_playing = true;
@@ -56,33 +47,31 @@ void PlaybackState::pause()
     m_playing = false;
 }
 
-qsizetype PlaybackState::advance(double elapsedSeconds)
+qsizetype PlaybackState::advance()
 {
-    if (!m_playing || m_timeline.isEmpty()
-        || !std::isfinite(elapsedSeconds) || elapsedSeconds <= 0.0)
+    if (!m_playing || m_frameCount <= 0)
         return m_frame;
 
-    m_playTime += elapsedSeconds * m_speed
-        * static_cast<int>(m_direction);
-    if (m_playTime <= m_timeline.first())
+    m_position += m_speed * static_cast<int>(m_direction);
+    if (m_position <= 0.0)
     {
-        m_playTime = m_timeline.first();
+        m_position = 0.0;
         m_frame = 0;
         m_playing = false;
         return m_frame;
     }
-    if (m_playTime >= m_timeline.last())
+    const double lastFrame = static_cast<double>(m_frameCount - 1);
+    if (m_position >= lastFrame)
     {
-        m_playTime = m_timeline.last();
-        m_frame = m_timeline.size() - 1;
+        m_position = lastFrame;
+        m_frame = m_frameCount - 1;
         m_playing = false;
         return m_frame;
     }
 
-    const auto begin = m_timeline.constBegin();
-    const auto end = m_timeline.constEnd();
-    const auto upper = std::upper_bound(begin, end, m_playTime);
-    m_frame = std::max<qsizetype>(0, std::distance(begin, upper) - 1);
+    m_frame = m_direction == PlaybackDirection::Forward
+        ? static_cast<qsizetype>(std::floor(m_position))
+        : static_cast<qsizetype>(std::ceil(m_position));
     return m_frame;
 }
 
@@ -93,7 +82,7 @@ qsizetype PlaybackState::frame() const noexcept
 
 qsizetype PlaybackState::frameCount() const noexcept
 {
-    return m_timeline.size();
+    return m_frameCount;
 }
 
 double PlaybackState::speed() const noexcept

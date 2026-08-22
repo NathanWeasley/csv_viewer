@@ -22,13 +22,6 @@ struct JointVariableConfig
     JointType type = JointType::Revolute;
 };
 
-struct PresetConfig
-{
-    QString jointTrack;
-    QStringList tcpTracks;
-    QString poseTrack;
-};
-
 struct ModelLinkConfig
 {
     QString stlFile;
@@ -51,15 +44,10 @@ struct ModelConfig
 struct View3DConfig
 {
     int version = 1;
-    QString timeColumn;
-    double sampleRate = 1.0;
     QString positionUnit = QStringLiteral("mm");
     QString angleUnit = QStringLiteral("deg");
-    QString timeUnit = QStringLiteral("s");
     QMap<QString, QVector<JointVariableConfig>> jointTracks;
     QMap<QString, QStringList> tcpTracks;
-    QMap<QString, PresetConfig> presets;
-    QString defaultPreset;
     ModelConfig model;
 };
 

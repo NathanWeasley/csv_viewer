@@ -16,8 +16,10 @@
 #include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QSizePolicy>
 #include <QSlider>
 #include <QSplitter>
+#include <QSpinBox>
 #include <QTableWidget>
 #include <QTimer>
 #include <QToolButton>
@@ -56,7 +58,7 @@ View3DWidget::View3DWidget(
     setWindowFlag(Qt::Window, true);
     setAttribute(Qt::WA_QuitOnClose, false);
     setObjectName(QStringLiteral("3dview.content"));
-    setMinimumSize(760, 480);
+    setMinimumSize(480, 320);
     setupUi();
     resize(1180, 760);
     restoreUiState();
@@ -87,16 +89,33 @@ void View3DWidget::setupUi()
     m_viewport->setObjectName(QStringLiteral("3dview.viewport"));
 
     auto* sidebar = new QWidget(m_splitter);
-    sidebar->setMinimumWidth(280);
-    sidebar->setMaximumWidth(420);
+    sidebar->setMinimumWidth(220);
+    sidebar->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Expanding);
     auto* sidebarLayout = new QVBoxLayout(sidebar);
     auto* form = new QFormLayout;
-    m_presetCombo = new QComboBox(sidebar);
     m_jointCombo = new QComboBox(sidebar);
     m_poseCombo = new QComboBox(sidebar);
-    form->addRow(QString::fromUtf8(u8"组合："), m_presetCombo);
+    m_trajectoryModeCombo = new QComboBox(sidebar);
+    m_trajectoryModeCombo->setObjectName(QStringLiteral("3dview.trajectoryMode"));
+    m_trajectoryModeCombo->addItem(QString::fromUtf8(u8"无轨迹"),
+        static_cast<int>(view3d::TrajectoryDisplayMode::None));
+    m_trajectoryModeCombo->addItem(QString::fromUtf8(u8"全部轨迹"),
+        static_cast<int>(view3d::TrajectoryDisplayMode::All));
+    m_trajectoryModeCombo->addItem(QString::fromUtf8(u8"局部轨迹"),
+        static_cast<int>(view3d::TrajectoryDisplayMode::Local));
+    m_trajectoryModeCombo->setCurrentIndex(
+        m_trajectoryModeCombo->findData(
+            static_cast<int>(view3d::TrajectoryDisplayMode::All)));
+    m_localSamplesSpin = new QSpinBox(sidebar);
+    m_localSamplesSpin->setObjectName(QStringLiteral("3dview.localSamples"));
+    m_localSamplesSpin->setRange(1, 1000000);
+    m_localSamplesSpin->setValue(100);
+    m_localSamplesSpin->setSuffix(QString::fromUtf8(u8" 样本"));
+    m_localSamplesSpin->setEnabled(false);
     form->addRow(QString::fromUtf8(u8"模型跟随："), m_jointCombo);
     form->addRow(QString::fromUtf8(u8"TCP 姿态："), m_poseCombo);
+    form->addRow(QString::fromUtf8(u8"轨迹模式："), m_trajectoryModeCombo);
+    form->addRow(QString::fromUtf8(u8"局部范围："), m_localSamplesSpin);
     sidebarLayout->addLayout(form);
 
     auto* trackTitle = new QLabel(QString::fromUtf8(u8"TCP 轨迹"), sidebar);
@@ -159,7 +178,7 @@ void View3DWidget::setupUi()
     m_speedSpin->setDecimals(2);
     m_speedSpin->setSingleStep(0.25);
     m_speedSpin->setValue(1.0);
-    m_speedSpin->setSuffix(QString::fromUtf8(u8" 倍"));
+    m_speedSpin->setSuffix(QString::fromUtf8(u8" 样本/步"));
     m_frameSlider = new QSlider(Qt::Horizontal, player);
     m_frameSlider->setObjectName(QStringLiteral("3dview.frameSlider"));
     m_frameLabel = new QLabel(QStringLiteral("0 / 0"), player);
@@ -179,12 +198,6 @@ void View3DWidget::setupUi()
 
     connect(resetCamera, &QPushButton::clicked,
         m_viewport, &view3d::View3DScene::resetCamera);
-    connect(m_presetCombo, &QComboBox::currentTextChanged, this,
-        [this](const QString& name)
-        {
-            if (!m_rebuildingControls)
-                applyPreset(name);
-        });
     connect(m_jointCombo, &QComboBox::currentTextChanged, this,
         [this](const QString& name)
         {
@@ -192,7 +205,7 @@ void View3DWidget::setupUi()
                 return;
             m_activeJointTrack = name;
             m_savedJointTrack = name;
-            updateFrame(m_playback.frame());
+            updateJointState(m_playback.frame());
         });
     connect(m_poseCombo, &QComboBox::currentTextChanged, this,
         [this](const QString& name)
@@ -201,8 +214,18 @@ void View3DWidget::setupUi()
                 return;
             m_activePoseTrack = name;
             m_savedPoseTrack = name;
-            updateFrame(m_playback.frame());
+            updateTcpState(m_playback.frame());
         });
+    connect(m_trajectoryModeCombo, &QComboBox::currentIndexChanged, this,
+        [this](int)
+        {
+            m_localSamplesSpin->setEnabled(
+                m_trajectoryModeCombo->currentData().toInt()
+                == static_cast<int>(view3d::TrajectoryDisplayMode::Local));
+            updateTrajectoryDisplay(m_playback.frame());
+        });
+    connect(m_localSamplesSpin, &QSpinBox::valueChanged, this,
+        [this](int) { updateTrajectoryDisplay(m_playback.frame()); });
     connect(m_reverseButton, &QToolButton::clicked, this,
         [this] { startPlayback(view3d::PlaybackDirection::Reverse); });
     connect(m_forwardButton, &QToolButton::clicked, this,
@@ -254,14 +277,17 @@ void View3DWidget::restoreUiState()
 
     m_speedSpin->setValue(
         settings.value(QStringLiteral("controls/speed"), 1.0).toDouble());
-    m_savedPreset = settings.value(QStringLiteral("controls/preset")).toString();
     m_savedJointTrack = settings.value(QStringLiteral("controls/jointTrack")).toString();
     m_savedPoseTrack = settings.value(QStringLiteral("controls/poseTrack")).toString();
     m_savedFrame = std::max<qint64>(
         0, settings.value(QStringLiteral("controls/frame"), 0).toLongLong());
-    m_controlStateLoaded = settings.value(
-        QStringLiteral("controls/valid"), false).toBool()
-        && !m_savedPreset.isEmpty();
+    const int savedMode = settings.value(QStringLiteral("controls/trajectoryMode"),
+        static_cast<int>(view3d::TrajectoryDisplayMode::All)).toInt();
+    const int modeIndex = m_trajectoryModeCombo->findData(savedMode);
+    if (modeIndex >= 0)
+        m_trajectoryModeCombo->setCurrentIndex(modeIndex);
+    m_localSamplesSpin->setValue(settings.value(
+        QStringLiteral("controls/localSamples"), 100).toInt());
 }
 
 void View3DWidget::saveUiState() const
@@ -275,9 +301,6 @@ void View3DWidget::saveUiState() const
     settings.setValue(QStringLiteral("layout/trackHeader"),
         m_trackTable->horizontalHeader()->saveState());
     settings.setValue(QStringLiteral("controls/speed"), m_speedSpin->value());
-    settings.setValue(QStringLiteral("controls/preset"),
-        m_presetCombo->currentText().isEmpty()
-            ? m_savedPreset : m_presetCombo->currentText());
     settings.setValue(QStringLiteral("controls/jointTrack"),
         m_jointCombo->currentText().isEmpty()
             ? m_savedJointTrack : m_jointCombo->currentText());
@@ -286,8 +309,14 @@ void View3DWidget::saveUiState() const
             ? m_savedPoseTrack : m_poseCombo->currentText());
     settings.setValue(QStringLiteral("controls/frame"),
         m_playback.frameCount() > 0 ? m_playback.frame() : m_savedFrame);
+    settings.setValue(QStringLiteral("controls/trajectoryMode"),
+        m_trajectoryModeCombo->currentData().toInt());
+    settings.setValue(QStringLiteral("controls/localSamples"),
+        m_localSamplesSpin->value());
     settings.setValue(QStringLiteral("controls/valid"),
-        m_controlsInitialized && !m_presetCombo->currentText().isEmpty());
+        m_controlsInitialized
+        && (!m_jointCombo->currentText().isEmpty()
+            || !m_poseCombo->currentText().isEmpty()));
     settings.sync();
     for (auto it = m_styles.constBegin(); it != m_styles.constEnd(); ++it)
         saveStyle(it.key());
@@ -323,8 +352,6 @@ void View3DWidget::setDataSnapshot(viewer::plugin::DataSnapshotPtr snapshot)
 void View3DWidget::clearData()
 {
     pausePlayback();
-    if (!m_presetCombo->currentText().isEmpty())
-        m_savedPreset = m_presetCombo->currentText();
     if (!m_jointCombo->currentText().isEmpty())
         m_savedJointTrack = m_jointCombo->currentText();
     if (!m_poseCombo->currentText().isEmpty())
@@ -333,13 +360,12 @@ void View3DWidget::clearData()
         m_savedFrame = m_playback.frame();
     m_snapshot.reset();
     m_repository.clear();
-    m_playback.setTimeline({});
+    m_playback.setFrameCount(0);
     m_styles.clear();
     m_viewport->setTrajectories({});
     m_viewport->setJointFrames({});
     m_viewport->setTcpPose({}, false);
     m_rebuildingControls = true;
-    m_presetCombo->clear();
     m_jointCombo->clear();
     m_poseCombo->clear();
     m_trackTable->setRowCount(0);
@@ -484,10 +510,7 @@ void View3DWidget::loadModels()
     m_viewport->setMeshes(meshes);
 
     QVector<view3d::JointVariableConfig> variables;
-    const auto preset = m_config.presets.constFind(m_config.defaultPreset);
-    if (preset != m_config.presets.constEnd())
-        variables = m_config.jointTracks.value(preset.value().jointTrack);
-    if (variables.isEmpty() && !m_config.jointTracks.isEmpty())
+    if (!m_config.jointTracks.isEmpty())
         variables = m_config.jointTracks.constBegin().value();
     QVector<double> zeroValues(variables.size(), 0.0);
     const QVector<QMatrix4x4> transforms = view3d::evaluateJointChain(
@@ -499,72 +522,43 @@ void View3DWidget::loadModels()
 
 void View3DWidget::rebuildControls()
 {
-    const QString desiredPreset = !m_presetCombo->currentText().isEmpty()
-        ? m_presetCombo->currentText() : m_savedPreset;
     const QString desiredJoint = !m_jointCombo->currentText().isEmpty()
         ? m_jointCombo->currentText() : m_savedJointTrack;
     const QString desiredPose = !m_poseCombo->currentText().isEmpty()
         ? m_poseCombo->currentText() : m_savedPoseTrack;
     const qsizetype desiredFrame = m_playback.frameCount() > 0
         ? m_playback.frame() : m_savedFrame;
-    const bool restoreControls = m_controlsInitialized || m_controlStateLoaded;
-
     m_rebuildingControls = true;
-    m_presetCombo->clear();
-    m_presetCombo->addItems(m_config.presets.keys());
     m_jointCombo->clear();
     m_jointCombo->addItems(m_repository.jointTracks().keys());
     m_poseCombo->clear();
     m_poseCombo->addItems(m_repository.tcpTracks().keys());
     rebuildTrackTable();
 
-    QVector<double> timeline;
-    timeline.reserve(m_repository.frameCount());
-    for (qsizetype frame = 0; frame < m_repository.frameCount(); ++frame)
-        timeline.push_back(m_repository.timeAt(frame));
-    m_playback.setTimeline(timeline);
+    m_playback.setFrameCount(m_repository.frameCount());
     m_playback.setSpeed(m_speedSpin->value());
     const qsizetype maximum = std::min<qsizetype>(
         std::max<qsizetype>(0, m_repository.frameCount() - 1),
         std::numeric_limits<int>::max());
     m_frameSlider->setRange(0, static_cast<int>(maximum));
 
-    int presetIndex = m_presetCombo->findText(desiredPreset);
-    if (presetIndex < 0)
-        presetIndex = m_presetCombo->findText(m_config.defaultPreset);
-    if (presetIndex < 0 && m_presetCombo->count() > 0)
-        presetIndex = 0;
-    m_presetCombo->setCurrentIndex(presetIndex);
+    int jointIndex = m_jointCombo->findText(desiredJoint);
+    if (jointIndex < 0 && m_jointCombo->count() > 0)
+        jointIndex = 0;
+    m_jointCombo->setCurrentIndex(jointIndex);
 
-    if (restoreControls && presetIndex >= 0)
-    {
-        const view3d::PresetConfig preset =
-            m_config.presets.value(m_presetCombo->currentText());
-        int jointIndex = m_jointCombo->findText(desiredJoint);
-        if (jointIndex < 0)
-            jointIndex = m_jointCombo->findText(preset.jointTrack);
-        if (jointIndex < 0 && m_jointCombo->count() > 0)
-            jointIndex = 0;
-        m_jointCombo->setCurrentIndex(jointIndex);
-
-        int poseIndex = m_poseCombo->findText(desiredPose);
-        if (poseIndex < 0)
-            poseIndex = m_poseCombo->findText(preset.poseTrack);
-        if (poseIndex < 0 && m_poseCombo->count() > 0)
-            poseIndex = 0;
-        m_poseCombo->setCurrentIndex(poseIndex);
-        m_activeJointTrack = m_jointCombo->currentText();
-        m_activePoseTrack = m_poseCombo->currentText();
-    }
+    int poseIndex = m_poseCombo->findText(desiredPose);
+    if (poseIndex < 0 && m_poseCombo->count() > 0)
+        poseIndex = 0;
+    m_poseCombo->setCurrentIndex(poseIndex);
+    m_activeJointTrack = m_jointCombo->currentText();
+    m_activePoseTrack = m_poseCombo->currentText();
+    m_savedJointTrack = m_activeJointTrack;
+    m_savedPoseTrack = m_activePoseTrack;
     m_rebuildingControls = false;
 
-    if (!restoreControls && presetIndex >= 0)
-        applyPreset(m_presetCombo->currentText());
-    else
-    {
-        applyTrajectoryStyles();
-        setFrame(desiredFrame);
-    }
+    applyTrajectoryStyles();
+    setFrame(desiredFrame);
     m_controlsInitialized = true;
 }
 
@@ -647,39 +641,6 @@ void View3DWidget::rebuildTrackTable()
     }
 }
 
-void View3DWidget::applyPreset(const QString& presetName)
-{
-    const auto presetIt = m_config.presets.constFind(presetName);
-    if (presetIt == m_config.presets.constEnd())
-        return;
-
-    m_rebuildingControls = true;
-    m_savedPreset = presetName;
-    const view3d::PresetConfig& preset = presetIt.value();
-    const int jointIndex = m_jointCombo->findText(preset.jointTrack);
-    if (jointIndex >= 0)
-        m_jointCombo->setCurrentIndex(jointIndex);
-    const int poseIndex = m_poseCombo->findText(preset.poseTrack);
-    if (poseIndex >= 0)
-        m_poseCombo->setCurrentIndex(poseIndex);
-    m_activeJointTrack = m_jointCombo->currentText();
-    m_activePoseTrack = m_poseCombo->currentText();
-    m_savedJointTrack = m_activeJointTrack;
-    m_savedPoseTrack = m_activePoseTrack;
-
-    for (int row = 0; row < m_trackTable->rowCount(); ++row)
-    {
-        const QString name = m_trackTable->item(row, 1)->text();
-        const bool visible = preset.tcpTracks.contains(name);
-        m_styles[name].visible = visible;
-        if (auto* checkbox = qobject_cast<QCheckBox*>(m_trackTable->cellWidget(row, 0)))
-            checkbox->setChecked(visible);
-    }
-    m_rebuildingControls = false;
-    applyTrajectoryStyles();
-    setFrame(0);
-}
-
 void View3DWidget::applyTrajectoryStyles()
 {
     for (auto it = m_styles.constBegin(); it != m_styles.constEnd(); ++it)
@@ -746,21 +707,9 @@ void View3DWidget::saveStyle(const QString& trackName) const
     settings.setValue(QStringLiteral("pattern"), static_cast<int>(it.value().pattern));
 }
 
-void View3DWidget::updateFrame(qsizetype frame)
+void View3DWidget::updateJointState(qsizetype frame)
 {
     const bool radians = m_config.angleUnit == QStringLiteral("rad");
-    if (m_repository.tcpTrack(m_activePoseTrack))
-    {
-        m_viewport->setTcpPose(view3d::makeTcpPoseTransform(
-            m_repository.tcpPosition(m_activePoseTrack, frame),
-            m_repository.tcpEulerZyx(m_activePoseTrack, frame),
-            radians), true);
-    }
-    else
-    {
-        m_viewport->setTcpPose({}, false);
-    }
-
     QVector<QMatrix4x4> jointTransforms;
     const view3d::MappedJointTrack* jointTrack =
         m_repository.jointTrack(m_activeJointTrack);
@@ -786,14 +735,43 @@ void View3DWidget::updateFrame(qsizetype frame)
             variables, m_config.model.links,
             QVector<double>(variables.size(), 0.0), radians);
     }
-    m_viewport->setJointFrames(jointTransforms);
+    m_viewport->setJointFrames({});
     m_viewport->setMeshTransforms(jointTransforms);
+}
+
+void View3DWidget::updateTcpState(qsizetype frame)
+{
+    if (m_repository.tcpTrack(m_activePoseTrack))
+    {
+        m_viewport->setTcpPose(view3d::makeTcpPoseTransform(
+            m_repository.tcpPosition(m_activePoseTrack, frame),
+            m_repository.tcpEulerZyx(m_activePoseTrack, frame),
+            m_config.angleUnit == QStringLiteral("rad")), true);
+    }
+    else
+    {
+        m_viewport->setTcpPose({}, false);
+    }
+}
+
+void View3DWidget::updateTrajectoryDisplay(qsizetype frame)
+{
+    const auto mode = static_cast<view3d::TrajectoryDisplayMode>(
+        m_trajectoryModeCombo->currentData().toInt());
+    m_viewport->setTrajectoryDisplay(
+        mode, frame, m_localSamplesSpin->value());
+}
+
+void View3DWidget::updateFrame(qsizetype frame)
+{
+    updateJointState(frame);
+    updateTcpState(frame);
+    updateTrajectoryDisplay(frame);
 
     const qsizetype count = m_playback.frameCount();
     m_frameLabel->setText(count > 0
-        ? QStringLiteral("%1 / %2  (%3 s)")
+        ? QStringLiteral("%1 / %2")
               .arg(frame + 1).arg(count)
-              .arg(m_repository.timeAt(frame), 0, 'f', 3)
         : QStringLiteral("0 / 0"));
 }
 
@@ -819,7 +797,6 @@ void View3DWidget::startPlayback(view3d::PlaybackDirection direction)
         setFrame(m_playback.frameCount() - 1);
     m_playback.setSpeed(m_speedSpin->value());
     m_playback.play(direction);
-    m_elapsedTimer.restart();
     m_timer->start();
 }
 
@@ -831,10 +808,7 @@ void View3DWidget::pausePlayback()
 
 void View3DWidget::playbackTick()
 {
-    if (!m_elapsedTimer.isValid())
-        m_elapsedTimer.start();
-    const double elapsedSeconds = static_cast<double>(m_elapsedTimer.restart()) / 1000.0;
-    const qsizetype frame = m_playback.advance(elapsedSeconds);
+    const qsizetype frame = m_playback.advance();
     m_savedFrame = frame;
     {
         const QSignalBlocker blocker(m_frameSlider);

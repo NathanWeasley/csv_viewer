@@ -142,56 +142,6 @@ bool parseTcpTracks(
     return true;
 }
 
-bool parsePresets(
-    const QJsonValue& value,
-    const QMap<QString, QVector<JointVariableConfig>>& jointTracks,
-    const QMap<QString, QStringList>& tcpTracks,
-    QMap<QString, PresetConfig>* presets,
-    QString* error)
-{
-    if (!value.isObject())
-        return fail(error, QStringLiteral("presets must be an object."));
-
-    const QJsonObject object = value.toObject();
-    for (auto it = object.constBegin(); it != object.constEnd(); ++it)
-    {
-        const QString context = QStringLiteral("presets.%1").arg(it.key());
-        if (!it.value().isObject())
-            return fail(error, QStringLiteral("%1 must be an object.").arg(context));
-
-        const QJsonObject presetObject = it.value().toObject();
-        PresetConfig preset;
-        if (!readRequiredString(
-                presetObject, QStringLiteral("joint"), context, &preset.jointTrack, error))
-            return false;
-        if (!jointTracks.contains(preset.jointTrack))
-            return fail(error,
-                QStringLiteral("%1 references unknown joint track '%2'.")
-                    .arg(context, preset.jointTrack));
-
-        const QJsonValue tcpValue = presetObject.value(QStringLiteral("tcp"));
-        if (!tcpValue.isArray())
-            return fail(error, QStringLiteral("%1.tcp must be an array.").arg(context));
-        for (const QJsonValue& item : tcpValue.toArray())
-        {
-            if (!item.isString() || !tcpTracks.contains(item.toString()))
-                return fail(error,
-                    QStringLiteral("%1.tcp references an unknown TCP track.").arg(context));
-            preset.tcpTracks.push_back(item.toString());
-        }
-
-        if (!readRequiredString(
-                presetObject, QStringLiteral("pose"), context, &preset.poseTrack, error))
-            return false;
-        if (!tcpTracks.contains(preset.poseTrack))
-            return fail(error,
-                QStringLiteral("%1 references unknown pose track '%2'.")
-                    .arg(context, preset.poseTrack));
-        presets->insert(it.key(), preset);
-    }
-    return true;
-}
-
 bool parseModel(const QJsonValue& value, ModelConfig* model, QString* error)
 {
     if (value.isUndefined())
@@ -258,15 +208,6 @@ bool ConfigLoader::parse(
         return fail(error, QStringLiteral("version must be 1."));
     parsed.version = 1;
 
-    parsed.timeColumn = root.value(QStringLiteral("time")).toString().trimmed();
-    const QJsonValue sampleRate = root.value(QStringLiteral("sampleRate"));
-    if (!sampleRate.isUndefined())
-    {
-        if (!sampleRate.isDouble() || sampleRate.toDouble() <= 0.0)
-            return fail(error, QStringLiteral("sampleRate must be greater than zero."));
-        parsed.sampleRate = sampleRate.toDouble();
-    }
-
     const QJsonValue unitsValue = root.value(QStringLiteral("units"));
     if (unitsValue.isObject())
     {
@@ -275,8 +216,6 @@ bool ConfigLoader::parse(
                                   .toString(parsed.positionUnit).trimmed();
         parsed.angleUnit = units.value(QStringLiteral("angle"))
                                .toString(parsed.angleUnit).trimmed();
-        parsed.timeUnit = units.value(QStringLiteral("time"))
-                              .toString(parsed.timeUnit).trimmed();
     }
     if (parsed.positionUnit != QStringLiteral("mm")
         && parsed.positionUnit != QStringLiteral("m"))
@@ -284,24 +223,10 @@ bool ConfigLoader::parse(
     if (parsed.angleUnit != QStringLiteral("deg")
         && parsed.angleUnit != QStringLiteral("rad"))
         return fail(error, QStringLiteral("units.angle must be 'deg' or 'rad'."));
-    if (parsed.timeUnit != QStringLiteral("s")
-        && parsed.timeUnit != QStringLiteral("ms"))
-        return fail(error, QStringLiteral("units.time must be 's' or 'ms'."));
-
     if (!parseJointTracks(root.value(QStringLiteral("joint")), &parsed.jointTracks, error)
         || !parseTcpTracks(root.value(QStringLiteral("tcp")), &parsed.tcpTracks, error)
-        || !parsePresets(root.value(QStringLiteral("presets")),
-            parsed.jointTracks, parsed.tcpTracks, &parsed.presets, error)
         || !parseModel(root.value(QStringLiteral("model")), &parsed.model, error))
         return false;
-
-    if (!readRequiredString(root, QStringLiteral("defaultPreset"),
-            QStringLiteral("root"), &parsed.defaultPreset, error))
-        return false;
-    if (!parsed.presets.contains(parsed.defaultPreset))
-        return fail(error,
-            QStringLiteral("defaultPreset references unknown preset '%1'.")
-                .arg(parsed.defaultPreset));
 
     *config = std::move(parsed);
     if (error)

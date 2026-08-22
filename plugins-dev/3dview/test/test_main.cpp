@@ -5,6 +5,7 @@
 #include "trajectory/trajectory_data.h"
 
 #include <QApplication>
+#include <QComboBox>
 #include <QDir>
 #include <QDataStream>
 #include <QEventLoop>
@@ -15,6 +16,7 @@
 #include <QPointer>
 #include <QSettings>
 #include <QSplitter>
+#include <QSpinBox>
 #include <QTemporaryDir>
 #include <QWidget>
 #include <QDoubleSpinBox>
@@ -161,7 +163,6 @@ void testBundledConfig()
     CHECK(view3d::ConfigLoader::loadFile(path, &config, &error));
     if (!error.isEmpty())
         std::cerr << error.toStdString() << '\n';
-    CHECK(config.defaultPreset == QStringLiteral("compare"));
     CHECK(config.jointTracks.value(QStringLiteral("actual_joint")).size() == 3);
     CHECK(config.jointTracks.value(QStringLiteral("actual_joint")).at(2).type
           == view3d::JointType::Prismatic);
@@ -173,9 +174,7 @@ void testInvalidJointType()
     const QByteArray json = R"json({
       "version": 1,
       "joint": {"j": [{"name": "j1", "type": "hinge"}]},
-      "tcp": {"p": ["x", "y", "z", "rx", "ry", "rz"]},
-      "presets": {"p": {"joint": "j", "tcp": ["p"], "pose": "p"}},
-      "defaultPreset": "p"
+      "tcp": {"p": ["x", "y", "z", "rx", "ry", "rz"]}
     })json";
     view3d::View3DConfig config;
     QString error;
@@ -188,9 +187,7 @@ void testInvalidTcpShape()
     const QByteArray json = R"json({
       "version": 1,
       "joint": {"j": [{"name": "j1", "type": "revolute"}]},
-      "tcp": {"p": ["x", "y", "z"]},
-      "presets": {},
-      "defaultPreset": "p"
+      "tcp": {"p": ["x", "y", "z"]}
     })json";
     view3d::View3DConfig config;
     QString error;
@@ -202,7 +199,6 @@ void testInvalidTcpShape()
 void testTrajectoryMapping()
 {
     auto snapshot = std::make_shared<MockSnapshot>();
-    snapshot->add(QStringLiteral("t"), {0.0, 0.01, 0.02});
     snapshot->add(QStringLiteral("j1"), {10.0, 20.0, 30.0});
     snapshot->add(QStringLiteral("j2"), {1.0, 2.0, 3.0});
     const QStringList tcpColumns = {
@@ -214,7 +210,6 @@ void testTrajectoryMapping()
              static_cast<double>(index + 20)});
 
     view3d::View3DConfig config;
-    config.timeColumn = QStringLiteral("t");
     config.jointTracks.insert(QStringLiteral("actual"), {
         {QStringLiteral("j1"), view3d::JointType::Revolute},
         {QStringLiteral("j2"), view3d::JointType::Prismatic}});
@@ -234,7 +229,6 @@ void testTrajectoryMapping()
     CHECK(repository.jointValues(QStringLiteral("actual"), 1).at(0) == 20.0);
     CHECK(repository.tcpPosition(QStringLiteral("tcp"), 2)
           == QVector3D(20.0f, 21.0f, 22.0f));
-    CHECK(closeTo(static_cast<float>(repository.timeAt(2)), 0.02f));
 }
 
 void testJointTransformChain()
@@ -274,18 +268,20 @@ void testJointTransformChain()
 void testPlaybackState()
 {
     view3d::PlaybackState playback;
-    playback.setTimeline({0.0, 0.1, 0.2, 0.4});
+    playback.setFrameCount(4);
+    playback.setSpeed(0.5);
     playback.play(view3d::PlaybackDirection::Forward);
-    CHECK(playback.advance(0.15) == 1);
+    CHECK(playback.advance() == 0);
+    CHECK(playback.advance() == 1);
     playback.setSpeed(2.0);
-    CHECK(playback.advance(0.2) == 3);
+    CHECK(playback.advance() == 3);
     CHECK(!playback.isPlaying());
 
     playback.setFrame(3);
-    playback.setSpeed(1.0);
+    playback.setSpeed(1.5);
     playback.play(view3d::PlaybackDirection::Reverse);
-    CHECK(playback.advance(0.15) == 2);
-    CHECK(playback.advance(1.0) == 0);
+    CHECK(playback.advance() == 2);
+    CHECK(playback.advance() == 0);
     CHECK(!playback.isPlaying());
 }
 
@@ -396,6 +392,20 @@ void testPluginBinary()
                     speed->setValue(2.5);
                 else
                     CHECK(false);
+                if (auto* mode = view->findChild<QComboBox*>(
+                        QStringLiteral("3dview.trajectoryMode")))
+                {
+                    const int localIndex = mode->findData(2);
+                    CHECK(localIndex >= 0);
+                    mode->setCurrentIndex(localIndex);
+                }
+                else
+                    CHECK(false);
+                if (auto* localSamples = view->findChild<QSpinBox*>(
+                        QStringLiteral("3dview.localSamples")))
+                    localSamples->setValue(42);
+                else
+                    CHECK(false);
                 view->close();
                 QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
                 CHECK(!guard.isNull());
@@ -409,6 +419,8 @@ void testPluginBinary()
                 CHECK(closeTo(
                     static_cast<float>(state.value(QStringLiteral("controls/speed")).toDouble()),
                     2.5f));
+                CHECK(state.value(QStringLiteral("controls/trajectoryMode")).toInt() == 2);
+                CHECK(state.value(QStringLiteral("controls/localSamples")).toInt() == 42);
                 host.uiService.menuCallback(QStringLiteral("show"), false);
                 QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
                 CHECK(!guard.isNull());

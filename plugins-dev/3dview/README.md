@@ -38,9 +38,10 @@ the existing window; selecting **显示 3D 视图** reuses it. It is deliberatel
 inserted into Viewer/QADS docking because reparenting a `QOpenGLWidget` can
 invalidate its native surface and OpenGL context.
 
-Window geometry, splitter/header layout, selected preset and tracks, playback
-speed/frame, and trajectory styles are stored in `3dview.ini` beside the plugin
-DLL. The plugin does not write these values into Viewer's `user/config.ini`.
+Window geometry, splitter/header layout, selected joint/TCP tracks, index-based
+playback speed/frame, trajectory display mode/local sample range, and trajectory
+styles are stored in `3dview.ini` beside the plugin DLL. The plugin does not
+write these values into Viewer's `user/config.ini`.
 
 ## Configuration
 
@@ -55,6 +56,12 @@ DLL. The plugin does not write these values into Viewer's `user/config.ini`.
 `prismatic` translates along that local Z axis. Parent transforms cascade to
 their children. All frames are right-handed and Z-up. TCP and model origins use
 `[x, y, z, rx, ry, rz]`; orientation is composed as `Rz * Ry * Rx`.
+
+Playback and the progress slider operate only on row/sample indexes. The plugin
+does not read timestamps or derive playback positions from time. Joint-track
+selection only drives linked STL transforms, while TCP selection only drives
+the TCP coordinate axes. Trajectories can be hidden, shown in full, or limited
+to a symmetric configurable sample range around the current index.
 
 STL configuration is optional. `directory` is relative to `3dview.json` unless
 it is absolute. A base mesh remains fixed, and each `links` item corresponds to

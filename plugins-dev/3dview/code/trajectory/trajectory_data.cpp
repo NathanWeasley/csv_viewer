@@ -41,16 +41,6 @@ bool TrajectoryRepository::rebuild(
 
     m_snapshot = std::move(snapshot);
     m_frameCount = m_snapshot->rowCount();
-    m_sampleRate = config.sampleRate;
-    m_timeScale = config.timeUnit == QStringLiteral("ms") ? 0.001 : 1.0;
-    if (!config.timeColumn.isEmpty())
-    {
-        m_time = m_snapshot->column(config.timeColumn);
-        if (!m_time.isValid() && diagnostics)
-            diagnostics->push_back(
-                QStringLiteral("Time column '%1' is unavailable; sampleRate is used.")
-                    .arg(config.timeColumn));
-    }
 
     for (auto it = config.jointTracks.constBegin(); it != config.jointTracks.constEnd(); ++it)
     {
@@ -107,10 +97,7 @@ void TrajectoryRepository::clear()
     m_snapshot.reset();
     m_jointTracks.clear();
     m_tcpTracks.clear();
-    m_time = {};
     m_frameCount = 0;
-    m_sampleRate = 1.0;
-    m_timeScale = 1.0;
 }
 
 const QMap<QString, MappedJointTrack>& TrajectoryRepository::jointTracks() const noexcept
@@ -178,16 +165,6 @@ QVector3D TrajectoryRepository::tcpEulerZyx(
 qsizetype TrajectoryRepository::frameCount() const noexcept
 {
     return m_frameCount;
-}
-
-double TrajectoryRepository::timeAt(qsizetype frame) const noexcept
-{
-    if (m_frameCount <= 0)
-        return 0.0;
-    const qsizetype row = clampFrame(frame, m_frameCount);
-    if (m_time.isValid() && row < m_time.size)
-        return m_time.data[row] * m_timeScale;
-    return static_cast<double>(row) / m_sampleRate;
 }
 
 viewer::plugin::DataSnapshotPtr TrajectoryRepository::snapshot() const noexcept

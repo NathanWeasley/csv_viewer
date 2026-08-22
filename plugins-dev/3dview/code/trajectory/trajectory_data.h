@@ -53,17 +53,13 @@ public:
     QVector3D tcpPosition(const QString& trackName, qsizetype frame) const;
     QVector3D tcpEulerZyx(const QString& trackName, qsizetype frame) const;
     qsizetype frameCount() const noexcept;
-    double timeAt(qsizetype frame) const noexcept;
     viewer::plugin::DataSnapshotPtr snapshot() const noexcept;
 
 private:
     viewer::plugin::DataSnapshotPtr m_snapshot;
     QMap<QString, MappedJointTrack> m_jointTracks;
     QMap<QString, MappedTcpTrack> m_tcpTracks;
-    viewer::plugin::ColumnView m_time;
     qsizetype m_frameCount = 0;
-    double m_sampleRate = 1.0;
-    double m_timeScale = 1.0;
 };
 
 } // namespace view3d

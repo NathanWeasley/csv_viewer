@@ -1,6 +1,7 @@
 #include "view3d_scene.h"
 
 #include <QMouseEvent>
+#include <QSizePolicy>
 #include <QSurfaceFormat>
 #include <QWheelEvent>
 #include <QtMath>
@@ -42,7 +43,8 @@ View3DScene::View3DScene(QWidget* parent)
     format.setSamples(4);
     setFormat(format);
     setFocusPolicy(Qt::StrongFocus);
-    setMinimumSize(480, 320);
+    setMinimumSize(200, 150);
+    setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
 }
 
 View3DScene::~View3DScene()
@@ -77,6 +79,17 @@ void View3DScene::setTrajectoryStyle(
             return;
         }
     }
+}
+
+void View3DScene::setTrajectoryDisplay(
+    TrajectoryDisplayMode mode,
+    qsizetype currentFrame,
+    qsizetype localRadius)
+{
+    m_trajectoryDisplayMode = mode;
+    m_currentFrame = std::max<qsizetype>(0, currentFrame);
+    m_localRadius = std::max<qsizetype>(0, localRadius);
+    update();
 }
 
 void View3DScene::setMeshes(const QVector<RenderMesh>& meshes)
@@ -179,7 +192,6 @@ void View3DScene::resizeGL(int, int)
 
 void View3DScene::paintGL()
 {
-    glViewport(0, 0, width(), height());
     glClearColor(0.075f, 0.085f, 0.105f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     if (!m_glReady)
@@ -295,8 +307,9 @@ void View3DScene::fitBounds()
     m_pitch = 28.0f;
     if (m_hasBounds)
     {
-        m_target = (m_boundsMin + m_boundsMax) * 0.5f;
-        m_sceneRadius = std::max(1.0f, (m_boundsMax - m_boundsMin).length() * 0.5f);
+        m_target = {};
+        m_sceneRadius = std::max({
+            1.0f, m_boundsMin.length(), m_boundsMax.length()});
     }
     else
     {
@@ -354,8 +367,23 @@ void View3DScene::drawTriangleList(const QVector<LineVertex>& vertices)
 
 void View3DScene::drawPolyline(const RenderTrajectory& trajectory)
 {
-    if (!trajectory.style.visible || trajectory.points.size() < 2)
+    if (m_trajectoryDisplayMode == TrajectoryDisplayMode::None
+        || !trajectory.style.visible || trajectory.points.size() < 2)
         return;
+
+    qsizetype first = 0;
+    qsizetype last = trajectory.points.size() - 1;
+    if (m_trajectoryDisplayMode == TrajectoryDisplayMode::Local)
+    {
+        first = m_currentFrame > m_localRadius
+            ? m_currentFrame - m_localRadius : 0;
+        if (first > last)
+            return;
+        if (m_currentFrame < last && last - m_currentFrame > m_localRadius)
+            last = m_currentFrame + m_localRadius;
+        if (last - first < 1)
+            return;
+    }
 
     m_program.setUniformValue("linePattern", static_cast<int>(trajectory.style.pattern));
     const QVector3D color = rgb(trajectory.style.color);
@@ -391,8 +419,9 @@ void View3DScene::drawPolyline(const RenderTrajectory& trajectory)
         segment.clear();
     };
 
-    for (const QVector3D& point : trajectory.points)
+    for (qsizetype index = first; index <= last; ++index)
     {
+        const QVector3D& point = trajectory.points.at(index);
         if (!finite(point))
         {
             flush();
