@@ -15,8 +15,10 @@
 #include <QPluginLoader>
 #include <QPointer>
 #include <QSettings>
+#include <QSlider>
 #include <QSplitter>
 #include <QSpinBox>
+#include <QTableWidget>
 #include <QTemporaryDir>
 #include <QWidget>
 #include <QDoubleSpinBox>
@@ -47,12 +49,22 @@ bool closeTo(float actual, float expected, float epsilon = 0.0001f)
 class MockSnapshot final : public viewer::plugin::IDataSnapshot
 {
 public:
+    explicit MockSnapshot(quint64 sessionId = 7)
+        : m_sessionId(sessionId)
+    {
+    }
+
     void add(const QString& name, std::initializer_list<double> values)
     {
         m_columns.insert(name, QVector<double>(values));
     }
 
-    quint64 sessionId() const noexcept override { return 7; }
+    void add(const QString& name, QVector<double> values)
+    {
+        m_columns.insert(name, std::move(values));
+    }
+
+    quint64 sessionId() const noexcept override { return m_sessionId; }
     qsizetype rowCount() const noexcept override
     {
         return m_columns.isEmpty() ? 0 : m_columns.constBegin().value().size();
@@ -68,7 +80,112 @@ public:
     }
 
 private:
+    quint64 m_sessionId = 0;
     QMap<QString, QVector<double>> m_columns;
+};
+
+viewer::plugin::DataSnapshotPtr makeViewerSnapshot(
+    quint64 sessionId, qsizetype sampleCount)
+{
+    auto snapshot = std::make_shared<MockSnapshot>(sessionId);
+    const QStringList names = {
+        QStringLiteral("actual_joint_1"),
+        QStringLiteral("actual_joint_2"),
+        QStringLiteral("actual_joint_3"),
+        QStringLiteral("x"), QStringLiteral("y"), QStringLiteral("z"),
+        QStringLiteral("rx"), QStringLiteral("ry"), QStringLiteral("rz")};
+    for (qsizetype column = 0; column < names.size(); ++column)
+    {
+        QVector<double> values(sampleCount);
+        for (qsizetype row = 0; row < sampleCount; ++row)
+            values[row] = static_cast<double>(column * 100 + row);
+        snapshot->add(names.at(column), std::move(values));
+    }
+    return snapshot;
+}
+
+class FakeDataService final : public viewer::plugin::IDataService
+{
+public:
+    viewer::plugin::LoadSessionInfo currentSession() const override
+    {
+        viewer::plugin::LoadSessionInfo result;
+        if (snapshot)
+            result.sessionId = snapshot->sessionId();
+        return result;
+    }
+
+    viewer::plugin::DataSnapshotPtr acquireSnapshot() const override
+    {
+        ++acquireCount;
+        return snapshot;
+    }
+
+    viewer::plugin::DerivedColumnCreateResult createDerivedColumn(
+        quint64, const QString&, qsizetype) override
+    {
+        return {};
+    }
+
+    viewer::plugin::DataSnapshotPtr snapshot;
+    mutable int acquireCount = 0;
+};
+
+class FakeEventService final : public viewer::plugin::IEventService
+{
+public:
+    viewer::plugin::SubscriptionId subscribeDataLoaded(
+        const QString&, DataLoadedCallback callback) override
+    {
+        dataLoaded = std::move(callback);
+        return dataLoadedId;
+    }
+
+    viewer::plugin::SubscriptionId subscribeDataAboutToUnload(
+        const QString&, DataAboutToUnloadCallback callback) override
+    {
+        dataAboutToUnload = std::move(callback);
+        return dataAboutToUnloadId;
+    }
+
+    viewer::plugin::SubscriptionId subscribeColumnAdded(
+        const QString&, ColumnAddedCallback callback) override
+    {
+        columnAdded = std::move(callback);
+        return columnAddedId;
+    }
+
+    void unsubscribe(viewer::plugin::SubscriptionId subscription) override
+    {
+        if (subscription == dataLoadedId)
+            dataLoaded = {};
+        else if (subscription == dataAboutToUnloadId)
+            dataAboutToUnload = {};
+        else if (subscription == columnAddedId)
+            columnAdded = {};
+    }
+
+    void emitDataLoaded(quint64 sessionId) const
+    {
+        if (!dataLoaded)
+            return;
+        viewer::plugin::LoadSessionInfo session;
+        session.sessionId = sessionId;
+        dataLoaded(session);
+    }
+
+    void emitDataAboutToUnload(quint64 sessionId) const
+    {
+        if (dataAboutToUnload)
+            dataAboutToUnload(sessionId);
+    }
+
+    static constexpr viewer::plugin::SubscriptionId dataLoadedId = 11;
+    static constexpr viewer::plugin::SubscriptionId dataAboutToUnloadId = 12;
+    static constexpr viewer::plugin::SubscriptionId columnAddedId = 13;
+    DataLoadedCallback dataLoaded;
+    DataAboutToUnloadCallback dataAboutToUnload;
+    ColumnAddedCallback columnAdded;
 };
 
 class FakeUiService final : public viewer::plugin::IUiService
@@ -140,18 +257,20 @@ public:
     {
         return viewer::plugin::kViewerPluginSdkVersion;
     }
-    viewer::plugin::IDataService* data() noexcept override { return nullptr; }
+    viewer::plugin::IDataService* data() noexcept override { return &dataService; }
     viewer::plugin::IArchiveService* archive() noexcept override { return nullptr; }
     viewer::plugin::IJsonDocumentService* jsonDocuments() noexcept override
     {
         return nullptr;
     }
-    viewer::plugin::IEventService* events() noexcept override { return nullptr; }
+    viewer::plugin::IEventService* events() noexcept override { return &eventService; }
     viewer::plugin::IPluginRegistry* plugins() noexcept override { return nullptr; }
     viewer::plugin::IUiService* ui() noexcept override { return &uiService; }
     viewer::plugin::ILogService* log() noexcept override { return nullptr; }
 
     FakeUiService uiService;
+    FakeDataService dataService;
+    FakeEventService eventService;
 };
 
 void testBundledConfig()
@@ -358,6 +477,12 @@ void testPluginBinary()
         FakeHost host;
         CHECK(plugin->initialize(&host));
         CHECK(static_cast<bool>(host.uiService.menuCallback));
+        CHECK(static_cast<bool>(host.eventService.dataLoaded));
+        CHECK(static_cast<bool>(host.eventService.dataAboutToUnload));
+        CHECK(static_cast<bool>(host.eventService.columnAdded));
+        host.dataService.snapshot = makeViewerSnapshot(7, 3);
+        host.eventService.emitDataLoaded(7);
+        CHECK(host.dataService.acquireCount == 0);
         if (host.uiService.menuCallback)
         {
             host.uiService.menuCallback(QStringLiteral("show"), false);
@@ -381,6 +506,56 @@ void testPluginBinary()
                 CHECK(view->parentWidget() == nullptr);
                 CHECK(!view->testAttribute(Qt::WA_QuitOnClose));
                 CHECK(view->isVisible());
+                auto* frameSlider = view->findChild<QSlider*>(
+                    QStringLiteral("3dview.frameSlider"));
+                auto* jointTrack = view->findChild<QComboBox*>(
+                    QStringLiteral("3dview.jointTrack"));
+                auto* poseTrack = view->findChild<QComboBox*>(
+                    QStringLiteral("3dview.poseTrack"));
+                auto* trackTable = view->findChild<QTableWidget*>(
+                    QStringLiteral("3dview.trackTable"));
+                CHECK(host.dataService.acquireCount == 1);
+                CHECK(frameSlider != nullptr);
+                CHECK(jointTrack != nullptr);
+                CHECK(poseTrack != nullptr);
+                CHECK(trackTable != nullptr);
+                if (frameSlider)
+                    CHECK(frameSlider->maximum() == 2);
+                if (jointTrack)
+                    CHECK(jointTrack->findText(QStringLiteral("actual_joint")) >= 0);
+                if (poseTrack)
+                    CHECK(poseTrack->findText(QStringLiteral("actual_tcp")) >= 0);
+                if (trackTable)
+                    CHECK(trackTable->rowCount() == 1);
+
+                host.dataService.snapshot = makeViewerSnapshot(8, 5);
+                host.eventService.emitDataLoaded(8);
+                QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+                CHECK(host.dataService.acquireCount == 2);
+                if (frameSlider)
+                {
+                    CHECK(frameSlider->maximum() == 4);
+                    frameSlider->setValue(3);
+                }
+
+                const int acquisitionsBeforeUnload = host.dataService.acquireCount;
+                host.eventService.emitDataAboutToUnload(8);
+                host.dataService.snapshot.reset();
+                QApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
+                CHECK(host.dataService.acquireCount == acquisitionsBeforeUnload);
+                if (frameSlider)
+                {
+                    CHECK(frameSlider->minimum() == 0);
+                    CHECK(frameSlider->maximum() == 0);
+                    CHECK(frameSlider->value() == 0);
+                }
+                if (jointTrack)
+                    CHECK(jointTrack->count() == 0);
+                if (poseTrack)
+                    CHECK(poseTrack->count() == 0);
+                if (trackTable)
+                    CHECK(trackTable->rowCount() == 0);
+
                 view->resize(913, 617);
                 if (auto* splitter = view->findChild<QSplitter*>(
                         QStringLiteral("3dview.mainSplitter")))
@@ -427,6 +602,9 @@ void testPluginBinary()
                 CHECK(view->isVisible());
                 plugin->shutdown();
                 CHECK(guard.isNull());
+                CHECK(!host.eventService.dataLoaded);
+                CHECK(!host.eventService.dataAboutToUnload);
+                CHECK(!host.eventService.columnAdded);
             }
             else
             {

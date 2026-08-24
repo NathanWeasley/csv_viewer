@@ -43,6 +43,16 @@ playback speed/frame, trajectory display mode/local sample range, and trajectory
 styles are stored in `3dview.ini` beside the plugin DLL. The plugin does not
 write these values into Viewer's `user/config.ini`.
 
+## Viewer data synchronization
+
+The plugin subscribes to Viewer's successful-data-load and data-about-to-unload
+events. If the 3D window already exists, a successful load immediately acquires
+the new immutable Viewer snapshot and rebuilds its tracks and controls. Clearing
+Viewer data releases that snapshot, stops playback, clears trajectories/TCP and
+controls, returns linked models and the progress index to zero, and resets the
+camera. Data events do not create the 3D window; opening it later acquires the
+current Viewer snapshot on demand.
+
 ## Configuration
 
 `joint` entries use Viewer column names and explicitly declare the joint type:

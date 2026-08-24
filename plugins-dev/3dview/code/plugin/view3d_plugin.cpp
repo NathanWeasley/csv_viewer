@@ -24,7 +24,8 @@ QString View3DPlugin::version() const
 
 bool View3DPlugin::initialize(IViewerHost* host)
 {
-    if (!host || host->sdkVersion() != kViewerPluginSdkVersion || !host->ui())
+    if (!host || host->sdkVersion() != kViewerPluginSdkVersion
+        || !host->data() || !host->events() || !host->ui())
         return false;
 
     m_host = host;
@@ -61,20 +62,20 @@ bool View3DPlugin::initialize(IViewerHost* host)
                 reloadConfiguration();
         });
 
-    if (m_host->events())
-    {
-        m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
-            id(), [this](const LoadSessionInfo&) { refreshData(); });
-        m_dataUnloadingSubscription = m_host->events()->subscribeDataAboutToUnload(
-            id(), [this](quint64)
-            {
-                if (m_view)
-                    m_view->clearData();
-            });
-        m_columnAddedSubscription = m_host->events()->subscribeColumnAdded(
-            id(), [this](quint64, const QString&) { refreshData(); });
-    }
-    return m_menu != 0;
+    m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
+        id(), [this](const LoadSessionInfo&) { refreshData(); });
+    m_dataUnloadingSubscription = m_host->events()->subscribeDataAboutToUnload(
+        id(), [this](quint64)
+        {
+            if (m_view)
+                m_view->clearData();
+        });
+    m_columnAddedSubscription = m_host->events()->subscribeColumnAdded(
+        id(), [this](quint64, const QString&) { refreshData(); });
+    return m_menu != 0
+        && m_dataLoadedSubscription != 0
+        && m_dataUnloadingSubscription != 0
+        && m_columnAddedSubscription != 0;
 }
 
 void View3DPlugin::shutdown()

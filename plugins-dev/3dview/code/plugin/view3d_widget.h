@@ -31,7 +31,7 @@ public:
 
     bool reloadConfiguration();
     void setDataSnapshot(viewer::plugin::DataSnapshotPtr snapshot);
-    void clearData();
+    void clearData(bool resetPlaybackFrame = true);
     QString lastError() const;
 
 protected:
@@ -44,6 +44,7 @@ private:
     void rebuildRepository();
     void rebuildScene();
     void loadModels();
+    void resetModelPose();
     void rebuildControls();
     void rebuildTrackTable();
     void applyTrajectoryStyles();

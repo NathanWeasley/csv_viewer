@@ -94,7 +94,9 @@ void View3DWidget::setupUi()
     auto* sidebarLayout = new QVBoxLayout(sidebar);
     auto* form = new QFormLayout;
     m_jointCombo = new QComboBox(sidebar);
+    m_jointCombo->setObjectName(QStringLiteral("3dview.jointTrack"));
     m_poseCombo = new QComboBox(sidebar);
+    m_poseCombo->setObjectName(QStringLiteral("3dview.poseTrack"));
     m_trajectoryModeCombo = new QComboBox(sidebar);
     m_trajectoryModeCombo->setObjectName(QStringLiteral("3dview.trajectoryMode"));
     m_trajectoryModeCombo->addItem(QString::fromUtf8(u8"无轨迹"),
@@ -121,6 +123,7 @@ void View3DWidget::setupUi()
     auto* trackTitle = new QLabel(QString::fromUtf8(u8"TCP 轨迹"), sidebar);
     sidebarLayout->addWidget(trackTitle);
     m_trackTable = new QTableWidget(sidebar);
+    m_trackTable->setObjectName(QStringLiteral("3dview.trackTable"));
     m_trackTable->setColumnCount(5);
     m_trackTable->setHorizontalHeaderLabels({
         QString::fromUtf8(u8"显示"), QString::fromUtf8(u8"名称"),
@@ -349,15 +352,17 @@ void View3DWidget::setDataSnapshot(viewer::plugin::DataSnapshotPtr snapshot)
     rebuildRepository();
 }
 
-void View3DWidget::clearData()
+void View3DWidget::clearData(bool resetPlaybackFrame)
 {
     pausePlayback();
     if (!m_jointCombo->currentText().isEmpty())
         m_savedJointTrack = m_jointCombo->currentText();
     if (!m_poseCombo->currentText().isEmpty())
         m_savedPoseTrack = m_poseCombo->currentText();
-    if (m_playback.frameCount() > 0)
+    if (!resetPlaybackFrame && m_playback.frameCount() > 0)
         m_savedFrame = m_playback.frame();
+    else if (resetPlaybackFrame)
+        m_savedFrame = 0;
     m_snapshot.reset();
     m_repository.clear();
     m_playback.setFrameCount(0);
@@ -365,12 +370,17 @@ void View3DWidget::clearData()
     m_viewport->setTrajectories({});
     m_viewport->setJointFrames({});
     m_viewport->setTcpPose({}, false);
+    resetModelPose();
+    m_viewport->resetCamera();
     m_rebuildingControls = true;
     m_jointCombo->clear();
     m_poseCombo->clear();
     m_trackTable->setRowCount(0);
     m_frameSlider->setRange(0, 0);
+    m_frameSlider->setValue(0);
     m_frameLabel->setText(QStringLiteral("0 / 0"));
+    m_activeJointTrack.clear();
+    m_activePoseTrack.clear();
     m_rebuildingControls = false;
     m_status->setText(QString::fromUtf8(u8"尚未载入 Viewer 数据。"));
 }
@@ -386,7 +396,7 @@ void View3DWidget::rebuildRepository()
         return;
     if (!m_snapshot)
     {
-        clearData();
+        clearData(false);
         return;
     }
 
@@ -509,15 +519,21 @@ void View3DWidget::loadModels()
             QString::fromUtf8(u8"STL 目录中没有成功载入的模型：") + modelPath);
     m_viewport->setMeshes(meshes);
 
-    QVector<view3d::JointVariableConfig> variables;
-    if (!m_config.jointTracks.isEmpty())
+    resetModelPose();
+    m_viewport->resetCamera();
+}
+
+void View3DWidget::resetModelPose()
+{
+    QVector<view3d::JointVariableConfig> variables =
+        m_config.jointTracks.value(m_activeJointTrack);
+    if (variables.isEmpty() && !m_config.jointTracks.isEmpty())
         variables = m_config.jointTracks.constBegin().value();
-    QVector<double> zeroValues(variables.size(), 0.0);
     const QVector<QMatrix4x4> transforms = view3d::evaluateJointChain(
-        variables, m_config.model.links, zeroValues,
+        variables, m_config.model.links,
+        QVector<double>(variables.size(), 0.0),
         m_config.angleUnit == QStringLiteral("rad"));
     m_viewport->setMeshTransforms(transforms);
-    m_viewport->resetCamera();
 }
 
 void View3DWidget::rebuildControls()
