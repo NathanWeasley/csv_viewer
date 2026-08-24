@@ -18,5 +18,7 @@ lib/
 ```
 
 Release Viewer loads `dat_decrypt.dll`; Debug Viewer loads `dat_decryptd.dll` through the
-manifest's optional `debugEntry`. Copy these three files as one directory below the target
-Viewer's `plugins` directory to install the plugin.
+manifest's optional `debugEntry`. After local packaging, the build automatically deploys
+the current DLL and JSON package files to
+`lib/plugins/nathan.viewer.dat_decrypt/` in the Viewer tree. Override the
+`ViewerPluginDeployDir` MSBuild property when deploying to a different Viewer location.

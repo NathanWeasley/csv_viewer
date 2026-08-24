@@ -11,43 +11,28 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\code\config\view3d_config.h" />
-    <ClInclude Include="..\..\code\model\stl_mesh.h" />
-    <ClInclude Include="..\..\code\playback\playback_state.h" />
-    <ClInclude Include="..\..\code\render\view3d_scene.h" />
-    <ClInclude Include="..\..\code\scene\transform_chain.h" />
-    <ClInclude Include="..\..\code\trajectory\trajectory_data.h" />
-    <ClInclude Include="..\..\code\plugin\view3d_widget.h" />
-    <CustomBuild Include="..\..\code\plugin\view3d_plugin.h">
+    <CustomBuild Include="..\..\code\plugin\log_expand_plugin.h">
       <FileType>Document</FileType>
-      <Command>&quot;$(QtToolsPath)\moc.exe&quot; -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB -I&quot;$(ViewerPluginSdkDir)\include&quot; -I&quot;$(MSBuildProjectDirectory)\..\..\code&quot; -I&quot;$(QtRootDir)\include&quot; -I&quot;$(QtRootDir)\include\QtWidgets&quot; -I&quot;$(QtRootDir)\include\QtGui&quot; -I&quot;$(QtRootDir)\include\QtCore&quot; -o &quot;$(IntDir)moc_view3d_plugin.cpp&quot; &quot;%(FullPath)&quot;</Command>
-      <Outputs>$(IntDir)moc_view3d_plugin.cpp</Outputs>
+      <Command>&quot;$(QtToolsPath)\moc.exe&quot; -DQT_WIDGETS_LIB -DQT_GUI_LIB -DQT_CORE_LIB -I&quot;$(ViewerPluginSdkDir)\include&quot; -I&quot;$(MSBuildProjectDirectory)\..\..\code&quot; -I&quot;$(QtRootDir)\include&quot; -I&quot;$(QtRootDir)\include\QtWidgets&quot; -I&quot;$(QtRootDir)\include\QtGui&quot; -I&quot;$(QtRootDir)\include\QtCore&quot; -o &quot;$(IntDir)moc_log_expand_plugin.cpp&quot; &quot;%(FullPath)&quot;</Command>
+      <Outputs>$(IntDir)moc_log_expand_plugin.cpp</Outputs>
       <AdditionalInputs>$(MSBuildProjectDirectory)\..\..\plugin.json;$(ViewerPluginSdkDir)\include\viewer_plugin\viewer_plugin_sdk.h;%(AdditionalInputs)</AdditionalInputs>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\code\config\view3d_config.cpp" />
-    <ClCompile Include="..\..\code\model\stl_mesh.cpp" />
-    <ClCompile Include="..\..\code\playback\playback_state.cpp" />
-    <ClCompile Include="..\..\code\render\view3d_scene.cpp" />
-    <ClCompile Include="..\..\code\scene\transform_chain.cpp" />
-    <ClCompile Include="..\..\code\trajectory\trajectory_data.cpp" />
-    <ClCompile Include="..\..\code\plugin\view3d_plugin.cpp" />
-    <ClCompile Include="..\..\code\plugin\view3d_widget.cpp" />
+    <ClCompile Include="..\..\code\plugin\log_expand_plugin.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\..\data\3dview.json" />
     <None Include="..\..\plugin.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}</ProjectGuid>
+    <ProjectGuid>{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}</ProjectGuid>
     <Keyword>QtVS_v304</Keyword>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">10.0.26100.0</WindowsTargetPlatformVersion>
     <WindowsTargetPlatformVersion Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">10.0.26100.0</WindowsTargetPlatformVersion>
     <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
     <QtLinkNatvisFile>false</QtLinkNatvisFile>
     <ViewerPluginSdkDir Condition="'$(ViewerPluginSdkDir)'==''">$(MSBuildProjectDirectory)\..\..\..\..\sdk\viewer_plugin_sdk</ViewerPluginSdkDir>
-    <ViewerPluginDeployDir Condition="'$(ViewerPluginDeployDir)'==''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\..\lib\plugins\nathan.viewer.3dview'))</ViewerPluginDeployDir>
+    <ViewerPluginDeployDir Condition="'$(ViewerPluginDeployDir)'==''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\..\lib\plugins\nathan.viewer.log_expand'))</ViewerPluginDeployDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -64,12 +49,12 @@
   </ImportGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets;opengl;openglwidgets</QtModules>
+    <QtModules>core;widgets</QtModules>
     <QtBuildConfig>debug</QtBuildConfig>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'" Label="QtSettings">
     <QtInstall>6.11.1_msvc2022_64</QtInstall>
-    <QtModules>core;gui;widgets;opengl;openglwidgets</QtModules>
+    <QtModules>core;widgets</QtModules>
     <QtBuildConfig>release</QtBuildConfig>
   </PropertyGroup>
   <Target Name="QtMsBuildNotFound" BeforeTargets="CustomBuild;ClCompile" Condition="!Exists('$(QtMsBuild)\qt.targets') or !Exists('$(QtMsBuild)\qt.props')">
@@ -92,45 +77,45 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <OutDir>..\..\lib\</OutDir>
     <IntDir>..\..\bin\Debug\</IntDir>
-    <TargetName>3dviewd</TargetName>
+    <TargetName>log_expandd</TargetName>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Release|x64'">
     <OutDir>..\..\lib\</OutDir>
     <IntDir>..\..\bin\Release\</IntDir>
-    <TargetName>3dview</TargetName>
+    <TargetName>log_expand</TargetName>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtOpenGLWidgets;$(QtRootDir)\include\QtOpenGL;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>QT_DEBUG;QT_OPENGLWIDGETS_LIB;QT_OPENGL_LIB;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_DEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <ImportLibrary>..\..\bin\Debug\3dviewd.lib</ImportLibrary>
-      <ProgramDatabaseFile>..\..\bin\Debug\3dviewd.pdb</ProgramDatabaseFile>
+      <ImportLibrary>..\..\bin\Debug\log_expandd.lib</ImportLibrary>
+      <ProgramDatabaseFile>..\..\bin\Debug\log_expandd.pdb</ProgramDatabaseFile>
       <LinkIncremental>false</LinkIncremental>
       <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Qt6OpenGLWidgetsd.lib;Qt6OpenGLd.lib;Qt6Widgetsd.lib;Qt6Guid.lib;Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalOptions>/ILK:&quot;..\..\bin\Debug\3dviewd.ilk&quot; %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalDependencies>Qt6Widgetsd.lib;Qt6Guid.lib;Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/ILK:&quot;..\..\bin\Debug\log_expandd.ilk&quot; %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtOpenGLWidgets;$(QtRootDir)\include\QtOpenGL;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_OPENGLWIDGETS_LIB;QT_OPENGL_LIB;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(IntDir);..\..\code;..\..\code\plugin;$(ViewerPluginSdkDir)\include;$(QtRootDir)\include;$(QtRootDir)\include\QtWidgets;$(QtRootDir)\include\QtGui;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_WIDGETS_LIB;QT_GUI_LIB;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus /Zc:rvalueCast /Zc:inline /Zc:strictStrings /Zc:throwingNew /Zc:externConstexpr %(AdditionalOptions)</AdditionalOptions>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
-      <ImportLibrary>..\..\bin\Release\3dview.lib</ImportLibrary>
-      <ProgramDatabaseFile>..\..\bin\Release\3dview.pdb</ProgramDatabaseFile>
+      <ImportLibrary>..\..\bin\Release\log_expand.lib</ImportLibrary>
+      <ProgramDatabaseFile>..\..\bin\Release\log_expand.pdb</ProgramDatabaseFile>
       <AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>Qt6OpenGLWidgets.lib;Qt6OpenGL.lib;Qt6Widgets.lib;Qt6Gui.lib;Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Qt6Widgets.lib;Qt6Gui.lib;Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -160,29 +145,20 @@
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionTargets" />
   <Target Name="CopyPluginManifest" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\plugin.json"
           DestinationFolder="$(OutDir)" />
-    <MakeDir Directories="$(OutDir)data" />
-    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\data\3dview.json"
-          DestinationFolder="$(OutDir)data" />
   </Target>
   <Target Name="DeployViewerPlugin" AfterTargets="CopyPluginManifest">
     <ItemGroup>
       <ViewerPluginPackageFile Include="$(TargetPath)" />
       <ViewerPluginPackageFile Include="$(OutDir)*.json" />
-      <ViewerPluginDataFile Include="$(OutDir)data\**\*"
-                            Exclude="$(OutDir)data\3dview.json" />
-      <ViewerPluginSeedDataFile Include="$(OutDir)data\3dview.json"
-                                Condition="Exists('$(OutDir)data\3dview.json')" />
+      <ViewerPluginDataFile Include="$(OutDir)data\**\*" />
     </ItemGroup>
     <MakeDir Directories="$(ViewerPluginDeployDir)" />
     <MakeDir Directories="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)')"
              Condition="'@(ViewerPluginDataFile)' != ''" />
-    <MakeDir Directories="$(ViewerPluginDeployDir)\data"
-             Condition="'@(ViewerPluginSeedDataFile)' != ''" />
     <Copy SourceFiles="@(ViewerPluginPackageFile)"
           DestinationFolder="$(ViewerPluginDeployDir)"
           SkipUnchangedFiles="true" />
@@ -190,9 +166,5 @@
           DestinationFiles="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true"
           Condition="'@(ViewerPluginDataFile)' != ''" />
-    <Copy SourceFiles="@(ViewerPluginSeedDataFile)"
-          DestinationFolder="$(ViewerPluginDeployDir)\data"
-          SkipUnchangedFiles="true"
-          Condition="'@(ViewerPluginSeedDataFile)' != '' and !Exists('$(ViewerPluginDeployDir)\data\3dview.json')" />
   </Target>
 </Project>

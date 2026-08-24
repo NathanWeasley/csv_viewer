@@ -50,6 +50,7 @@
     <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
     <QtLinkNatvisFile>false</QtLinkNatvisFile>
     <ViewerPluginSdkDir Condition="'$(ViewerPluginSdkDir)'==''">$(MSBuildProjectDirectory)\..\..\..\..\sdk\viewer_plugin_sdk</ViewerPluginSdkDir>
+    <ViewerPluginDeployDir Condition="'$(ViewerPluginDeployDir)'==''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..\..\..\lib\plugins\nathan.viewer.dat_decrypt'))</ViewerPluginDeployDir>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">
@@ -167,5 +168,22 @@
   <Target Name="CopyPluginManifest" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\plugin.json"
           DestinationFolder="$(OutDir)" />
+  </Target>
+  <Target Name="DeployViewerPlugin" AfterTargets="CopyPluginManifest">
+    <ItemGroup>
+      <ViewerPluginPackageFile Include="$(TargetPath)" />
+      <ViewerPluginPackageFile Include="$(OutDir)*.json" />
+      <ViewerPluginDataFile Include="$(OutDir)data\**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(ViewerPluginDeployDir)" />
+    <MakeDir Directories="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)')"
+             Condition="'@(ViewerPluginDataFile)' != ''" />
+    <Copy SourceFiles="@(ViewerPluginPackageFile)"
+          DestinationFolder="$(ViewerPluginDeployDir)"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(ViewerPluginDataFile)"
+          DestinationFiles="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'@(ViewerPluginDataFile)' != ''" />
   </Target>
 </Project>

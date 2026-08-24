@@ -1,0 +1,14 @@
+{
+  "sdkVersion": 2,
+  "id": "log_expand",
+  "name": "log_expand",
+  "version": "1.0.0",
+  "entry": "log_expand.dll",
+  "debugEntry": "log_expandd.dll",
+  "dependencies": [
+    {
+      "id": "dat_decrypt",
+      "mode": "required"
+    }
+  ]
+}

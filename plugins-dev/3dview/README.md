@@ -33,6 +33,12 @@ manifest's `debugEntry`. The project targets Windows x64, MSVC v143, Qt 6.11.1,
 and Viewer Plugin SDK v2. `ViewerPluginSdkDir` can be overridden as an MSBuild
 property when the plugin is developed outside the Viewer source tree.
 
+After local packaging, the build automatically deploys the current DLL,
+`plugin.json`, and runtime data to `lib/plugins/nathan.viewer.3dview/` in the
+Viewer tree. Override the `ViewerPluginDeployDir` MSBuild property for another
+Viewer location. An existing deployed `data/3dview.json` is never overwritten;
+the canonical file is copied only when the destination configuration is absent.
+
 The 3D view is a non-modal, plugin-owned top-level window. Closing it only hides
 the existing window; selecting **显示 3D 视图** reuses it. It is deliberately not
 inserted into Viewer/QADS docking because reparenting a `QOpenGLWidget` can
