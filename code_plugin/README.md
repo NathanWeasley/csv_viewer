@@ -545,7 +545,22 @@ SDK v2 的 JSON 服务按 `sessionId + providerPluginId + documentId` 保存不�
 并拒绝过期 session；`listDocuments()` 和 `acquireDocument()` 可供 Viewer 功能或
 其他插件消费。数据会在会话卸载或 provider 插件卸载时由宿主清理。
 
-### 8.8 日志 `ILogService`
+### 8.8 核心表达式与扩充列 `IExpressionDataService`
+
+Viewer 注册保留服务 `viewer.core/expression-data` v1。consumer 通过
+`queryService()` 和 `qobject_cast<IExpressionDataService*>` 获取接口；不需要、也
+不允许链接 Viewer 的私有表达式实现。
+
+`evaluate()` 对不可变 `DataSnapshotPtr` 计算与 Viewer 数据表达式一致的 exprtk
+表达式，并额外接受插件提供的标量。输出缓冲区由调用方独占；传入 null 可只做
+语法和符号校验。`createDerivedColumnBatch()` 为当前 session 创建一组宿主管理的
+等长输出缓冲区，`commit()` 会原子替换同一 provider 先前发布的整批列。不同
+provider、原始列和 Viewer 表达式列之间不允许同名覆盖。
+
+批量提交后 DataManager 接管列的生命周期。快照仍通过共享所有权保留旧列，宿主
+同步重建数据树并重新绑定已有曲线，因此插件不能在提交后继续写 writer 缓冲区。
+
+### 8.9 日志 `ILogService`
 
 ```cpp
 host->log()->write(
@@ -571,7 +586,7 @@ plugin[com.company.example] info: analysis completed
 | 调用 | 当前跨线程行为 |
 | --- | --- |
 | `currentSession()`、`acquireSnapshot()` | 同步切换到宿主线程读取，调用线程会阻塞。 |
-| `createDerivedColumn()`、writer `commit()` | 同步切换到宿主线程校验/提交，调用线程会阻塞。 |
+| `createDerivedColumn()`、`createDerivedColumnBatch()`、writer `commit()` | 同步切换到宿主线程校验/提交，调用线程会阻塞。 |
 | ZIP 枚举/读取 | 会安全取得当前 session，实际文件 I/O 在调用线程完成。 |
 | `showError()`、`showInformation()` | 异步投递到宿主线程。 |
 | `write()` | 进入 Viewer 的线程安全日志队列。 |

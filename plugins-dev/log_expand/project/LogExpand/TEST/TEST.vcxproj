@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}</ProjectGuid>
+    <Keyword>QtVS_v304</Keyword>
+    <QtLinkNatvisFile>false</QtLinkNatvisFile>
+    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <QtMsBuild Condition="'$(QtMsBuild)'=='' OR !Exists('$(QtMsBuild)\qt.targets')">$(MSBuildProjectDirectory)\QtMsBuild</QtMsBuild>
+    <ViewerPluginSdkDir Condition="'$(ViewerPluginSdkDir)'==''">$(MSBuildProjectDirectory)\..\..\..\..\..\sdk\viewer_plugin_sdk</ViewerPluginSdkDir>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration"><ConfigurationType>Application</ConfigurationType><PlatformToolset>v143</PlatformToolset></PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Condition="Exists('$(QtMsBuild)\qt_defaults.props')"><Import Project="$(QtMsBuild)\qt_defaults.props" /></ImportGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="QtSettings"><QtInstall>6.11.1_msvc2022_64</QtInstall><QtModules>core</QtModules><QtBuildConfig>debug</QtBuildConfig></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="QtSettings"><QtInstall>6.11.1_msvc2022_64</QtInstall><QtModules>core</QtModules><QtBuildConfig>release</QtBuildConfig></PropertyGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /><Import Project="$(QtMsBuild)\Qt.props" /></ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" /><Import Project="$(QtMsBuild)\Qt.props" /></ImportGroup>
+  <PropertyGroup><QtRootDir>$([System.IO.Path]::GetFullPath('$(QtToolsPath)\..'))</QtRootDir></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'"><OutDir>..\..\..\test\bin\Debug\</OutDir><IntDir>..\..\..\test\bin\Debug\obj\</IntDir><TargetName>log_expand_testd</TargetName></PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'"><OutDir>..\..\..\test\bin\Release\</OutDir><IntDir>..\..\..\test\bin\Release\obj\</IntDir><TargetName>log_expand_test</TargetName></PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile><LanguageStandard>stdcpp17</LanguageStandard><AdditionalIncludeDirectories>$(QtRootDir)\include;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;$(ViewerPluginSdkDir)\include;..\..\..\code;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><PreprocessorDefinitions>QT_DEBUG;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions><RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary></ClCompile>
+    <Link><SubSystem>Console</SubSystem><GenerateDebugInformation>true</GenerateDebugInformation><AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>Qt6Cored.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile><LanguageStandard>stdcpp17</LanguageStandard><AdditionalIncludeDirectories>$(QtRootDir)\include;$(QtRootDir)\include\QtCore;$(QtRootDir)\mkspecs\win32-msvc;$(ViewerPluginSdkDir)\include;..\..\..\code;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories><PreprocessorDefinitions>QT_NO_DEBUG;NDEBUG;QT_CORE_LIB;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions><AdditionalOptions>/utf-8 /permissive- /Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions><RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary><Optimization>MaxSpeed</Optimization></ClCompile>
+    <Link><SubSystem>Console</SubSystem><AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\code\plugin\mapping_engine.cpp" />
+    <ClCompile Include="..\..\..\test\test_main.cpp" />
+    <ClInclude Include="..\..\..\code\plugin\log_expand_types.h" />
+    <ClInclude Include="..\..\..\code\plugin\mapping_engine.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>

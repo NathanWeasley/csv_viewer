@@ -5,6 +5,11 @@ VisualStudioVersion = 17.14.37411.7 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LogExpand", "LogExpand.vcxproj", "{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TEST", "TEST\TEST.vcxproj", "{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A} = {8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -15,6 +20,10 @@ Global
 		{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}.Debug|x64.Build.0 = Debug|x64
 		{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}.Release|x64.ActiveCfg = Release|x64
 		{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}.Release|x64.Build.0 = Release|x64
+		{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}.Debug|x64.ActiveCfg = Debug|x64
+		{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}.Debug|x64.Build.0 = Debug|x64
+		{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}.Release|x64.ActiveCfg = Release|x64
+		{5E4742EC-E7AA-488E-BFC2-B01793B93CE7}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

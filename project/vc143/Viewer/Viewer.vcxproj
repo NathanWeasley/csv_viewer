@@ -18,6 +18,7 @@
     <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp" />
     <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp" />
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
+    <ClCompile Include="..\..\..\code_viewer\datamgr\expression_engine.cpp" />
     <ClCompile Include="..\..\..\code_viewer\jsonmgr\json_document_store.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\bookmark\bookmark_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\expr\expr_manager.cpp" />
@@ -44,9 +45,11 @@
     <ClInclude Include="..\..\..\code_viewer\base\exprtk_keywords.h" />
     <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_plugin_sdk.h" />
     <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_json_sdk.h" />
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_expression_data_sdk.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\custom_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\custom_expr\diff_func.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_manager.h" />
+    <ClInclude Include="..\..\..\code_viewer\datamgr\expression_engine.h" />
     <ClInclude Include="..\..\..\code_viewer\jsonmgr\json_document_store.h" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp" />
     <ClInclude Include="..\..\..\code_viewer\datamgr\math\fft_core.h" />

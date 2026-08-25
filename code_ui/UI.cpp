@@ -181,6 +181,12 @@ void UI::initializePluginSystem()
         m_dockManager,
         m_pluginMenu,
         [this]() { rebuildDataTree(); },
+        [this](const QStringList& oldNames,
+               const QStringList& newNames,
+               const QStringList& affectedNames)
+        {
+            refreshDataColumns(oldNames, newNames, affectedNames);
+        },
         this);
     m_pluginManager = std::make_unique<PluginManager>(*m_pluginHost);
 

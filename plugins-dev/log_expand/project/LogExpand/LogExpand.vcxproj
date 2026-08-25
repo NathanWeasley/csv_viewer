@@ -19,9 +19,16 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\code\plugin\log_expand_dialogs.cpp" />
     <ClCompile Include="..\..\code\plugin\log_expand_plugin.cpp" />
+    <ClCompile Include="..\..\code\plugin\mapping_engine.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\code\plugin\log_expand_dialogs.h" />
+    <ClInclude Include="..\..\code\plugin\log_expand_types.h" />
+    <ClInclude Include="..\..\code\plugin\mapping_engine.h" />
+    <None Include="..\..\data\log_expand_expressions.json" />
+    <None Include="..\..\data\log_expand_mapping.json" />
     <None Include="..\..\plugin.json" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -149,22 +156,26 @@
   <Target Name="CopyPluginManifest" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\plugin.json"
           DestinationFolder="$(OutDir)" />
+    <MakeDir Directories="$(OutDir)data" />
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\..\..\data\log_expand_mapping.json;$(MSBuildProjectDirectory)\..\..\data\log_expand_expressions.json"
+          DestinationFolder="$(OutDir)data"
+          SkipUnchangedFiles="true" />
   </Target>
   <Target Name="DeployViewerPlugin" AfterTargets="CopyPluginManifest">
     <ItemGroup>
       <ViewerPluginPackageFile Include="$(TargetPath)" />
       <ViewerPluginPackageFile Include="$(OutDir)*.json" />
-      <ViewerPluginDataFile Include="$(OutDir)data\**\*" />
     </ItemGroup>
     <MakeDir Directories="$(ViewerPluginDeployDir)" />
-    <MakeDir Directories="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)')"
-             Condition="'@(ViewerPluginDataFile)' != ''" />
+    <MakeDir Directories="$(ViewerPluginDeployDir)\data" />
     <Copy SourceFiles="@(ViewerPluginPackageFile)"
           DestinationFolder="$(ViewerPluginDeployDir)"
           SkipUnchangedFiles="true" />
-    <Copy SourceFiles="@(ViewerPluginDataFile)"
-          DestinationFiles="@(ViewerPluginDataFile->'$(ViewerPluginDeployDir)\data\%(RecursiveDir)%(Filename)%(Extension)')"
-          SkipUnchangedFiles="true"
-          Condition="'@(ViewerPluginDataFile)' != ''" />
+    <Copy SourceFiles="$(OutDir)data\log_expand_mapping.json"
+          DestinationFolder="$(ViewerPluginDeployDir)\data"
+          Condition="Exists('$(OutDir)data\log_expand_mapping.json') and !Exists('$(ViewerPluginDeployDir)\data\log_expand_mapping.json')" />
+    <Copy SourceFiles="$(OutDir)data\log_expand_expressions.json"
+          DestinationFolder="$(ViewerPluginDeployDir)\data"
+          Condition="Exists('$(OutDir)data\log_expand_expressions.json') and !Exists('$(ViewerPluginDeployDir)\data\log_expand_expressions.json')" />
   </Target>
 </Project>

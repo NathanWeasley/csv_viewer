@@ -106,6 +106,9 @@ private:
     void normalizeAllPlotDocksToMainContainer();
 
     void rebuildDataTree();
+    void refreshDataColumns(const QStringList& oldNames,
+                            const QStringList& newNames,
+                            const QStringList& affectedNames);
     void onDataTreeContextMenu(const QPoint& pos);
     void plotDataColumnByName(const QString& dataName);
     void plotDataGroupInNewPage(QTreeWidgetItem* groupItem);

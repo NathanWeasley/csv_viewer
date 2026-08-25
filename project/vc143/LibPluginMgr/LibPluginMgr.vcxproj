@@ -11,10 +11,12 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code_plugin\CoreExpressionDataService.cpp" />
     <ClCompile Include="..\..\..\code_plugin\PluginHost.cpp" />
     <ClCompile Include="..\..\..\code_plugin\PluginManager.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <QtMoc Include="..\..\..\code_plugin\CoreExpressionDataService.h" />
     <ClInclude Include="..\..\..\code_plugin\export.h" />
     <ClInclude Include="..\..\..\code_plugin\PluginHost.h" />
     <ClInclude Include="..\..\..\code_plugin\PluginManager.h" />

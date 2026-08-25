@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h"
+#include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_expression_data_sdk.h"
 
 #include <QHash>
 #include <QPointer>
@@ -13,6 +14,8 @@
 class QAction;
 class QMainWindow;
 class QMenu;
+class CoreExpressionDataService;
+class DerivedColumnBatchWriterImpl;
 
 namespace ads
 {
@@ -42,6 +45,9 @@ public:
                ads::CDockManager* dockManager,
                QMenu* pluginMenu,
                std::function<void()> rebuildDataTree,
+               std::function<void(const QStringList&,
+                                  const QStringList&,
+                                  const QStringList&)> refreshDataColumns,
                QObject* parent = nullptr);
     ~PluginHost() override;
 
@@ -161,6 +167,19 @@ public:
 
 private:
     friend class DerivedColumnWriterImpl;
+    friend class DerivedColumnBatchWriterImpl;
+    friend class CoreExpressionDataService;
+
+    viewer::plugin::DerivedColumnBatchCreateResult createDerivedColumnBatch(
+        const QString& providerPluginId,
+        quint64 sessionId,
+        const QStringList& columnNames,
+        qsizetype rowCount);
+    viewer::plugin::DerivedColumnBatchCommitResult commitDerivedColumnBatch(
+        const QString& providerPluginId,
+        quint64 sessionId,
+        QStringList names,
+        std::vector<std::vector<double>> values);
 
     viewer::plugin::DataCommitResult commitDerivedColumn(
         quint64 sessionId,
@@ -204,11 +223,15 @@ private:
     ads::CDockManager* m_dockManager = nullptr;
     QPointer<QMenu> m_pluginMenu;
     std::function<void()> m_rebuildDataTree;
+    std::function<void(const QStringList&,
+                       const QStringList&,
+                       const QStringList&)> m_refreshDataColumns;
     bool m_shuttingDown = false;
     quint64 m_nextHandle = 1;
 
     QHash<QString, viewer::plugin::PluginState> m_pluginStates;
     QHash<QString, ServiceRecord> m_services;
+    QPointer<CoreExpressionDataService> m_coreExpressionDataService;
     QHash<quint64, ActionRecord> m_actions;
     QHash<quint64, MenuRecord> m_menus;
     QHash<quint64, DockRecord> m_docks;

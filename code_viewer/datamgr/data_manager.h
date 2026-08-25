@@ -129,6 +129,28 @@ enum class AddDerivedColumnStatus
     RowCountMismatch
 };
 
+enum class ColumnOrigin
+{
+    Loaded,
+    ViewerExpression,
+    PluginDerived
+};
+
+struct ColumnMetadata
+{
+    ColumnOrigin origin = ColumnOrigin::Loaded;
+    std::string ownerPluginId;
+};
+
+enum class PublishDerivedColumnsStatus
+{
+    Success,
+    InvalidProvider,
+    InvalidName,
+    NameCollision,
+    RowCountMismatch
+};
+
 // ============================================================
 // DataManager: CSV 数据管理器
 // ============================================================
@@ -159,6 +181,12 @@ public:
     // Existing columns remain valid because column storage is shared.
     AddDerivedColumnStatus AddDerivedColumn(std::string name,
                                             std::vector<double>&& values);
+
+    PublishDerivedColumnsStatus PublishPluginDerivedColumns(
+        const std::string& ownerPluginId,
+        std::vector<std::string> names,
+        std::vector<std::vector<double>> values,
+        std::vector<std::shared_ptr<Column>>* removedColumns = nullptr);
 
     // ============================================================
     // 表达式加载接口
@@ -200,6 +228,11 @@ public:
 
     // 原始列名列表（清洗前，来自 CSV 表头）
     const std::vector<std::string>& GetRawColumnNames() const noexcept { return m_rawColumnNames; }
+
+    const ColumnMetadata* GetColumnMetadata(size_t index) const noexcept
+    {
+        return index < m_columnMetadata.size() ? &m_columnMetadata[index] : nullptr;
+    }
 
     // 按列名查找索引（未找到返回 npos）
     size_t GetColumnIndex(const std::string& name) const;
@@ -281,6 +314,7 @@ private:
 
     // ---- 内部数据 ----
     std::vector<std::shared_ptr<Column>> m_columns;
+    std::vector<ColumnMetadata> m_columnMetadata;
 
     std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名

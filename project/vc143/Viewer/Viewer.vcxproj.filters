@@ -62,6 +62,9 @@
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp">
       <Filter>datamgr</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\datamgr\expression_engine.cpp">
+      <Filter>datamgr</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\jsonmgr\json_document_store.cpp">
       <Filter>jsonmgr</Filter>
     </ClCompile>
@@ -126,6 +129,12 @@
     </ClInclude>
     <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_json_sdk.h">
       <Filter>jsonmgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\sdk\viewer_plugin_sdk\include\viewer_plugin\viewer_expression_data_sdk.h">
+      <Filter>jsonmgr</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\datamgr\expression_engine.h">
+      <Filter>datamgr</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_viewer\datamgr\data_struct.hpp">
       <Filter>datamgr</Filter>

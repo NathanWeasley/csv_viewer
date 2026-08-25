@@ -364,32 +364,43 @@ void UI::rebuildDataTree()
 
     const QIcon folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirIcon);
     const QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
+    const auto applyColumnAppearance = [this](QTreeWidgetItem* item, size_t index)
+    {
+        const viewer::ColumnMetadata* metadata =
+            m_viewer.GetDataManager().GetColumnMetadata(index);
+        if (metadata && metadata->origin == viewer::ColumnOrigin::PluginDerived)
+            item->setForeground(0, QBrush(QColor(45, 125, 220)));
+    };
 
     if (!isDataGroupingEnabledForDisplay())
     {
-        for (const auto& name : colNames)
+        for (size_t index = 0; index < colNames.size(); ++index)
         {
+            const auto& name = colNames[index];
             auto* item = new QTreeWidgetItem(m_dataTree);
             const QString qName = QString::fromStdString(name);
             item->setText(0, qName);
             item->setIcon(0, fileIcon);
             item->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
             item->setData(0, kDataTreeNameRole, qName);
+            applyColumnAppearance(item, index);
         }
         return;
     }
 
     QHash<QString, int> prefixCounts;
-    for (const auto& name : colNames)
+    for (size_t index = 0; index < colNames.size(); ++index)
     {
+        const auto& name = colNames[index];
         const QString prefix = dataGroupPrefix(QString::fromStdString(name));
         if (!prefix.isEmpty())
             ++prefixCounts[prefix];
     }
 
     QHash<QString, QTreeWidgetItem*> groupItems;
-    for (const auto& name : colNames)
+    for (size_t index = 0; index < colNames.size(); ++index)
     {
+        const auto& name = colNames[index];
         const QString qName = QString::fromStdString(name);
         const QString prefix = dataGroupPrefix(qName);
         const bool shouldGroup = !prefix.isEmpty() && prefixCounts.value(prefix) >= kAutoGroupMinItemCount;
@@ -411,6 +422,7 @@ void UI::rebuildDataTree()
             childItem->setIcon(0, fileIcon);
             childItem->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
             childItem->setData(0, kDataTreeNameRole, qName);
+            applyColumnAppearance(childItem, index);
         }
         else
         {
@@ -419,11 +431,103 @@ void UI::rebuildDataTree()
             item->setIcon(0, fileIcon);
             item->setData(0, kDataTreeKindRole, kDataTreeLeafKind);
             item->setData(0, kDataTreeNameRole, qName);
+            applyColumnAppearance(item, index);
         }
     }
 
     // 自动分组仅组织数据项，不替用户展开文件夹。
     m_dataTree->collapseAll();
+}
+
+void UI::refreshDataColumns(const QStringList& oldNames,
+                            const QStringList& newNames,
+                            const QStringList& affectedNames)
+{
+    rebuildDataTree();
+
+    auto& dataManager = m_viewer.GetDataManager();
+    auto& plotManager = m_viewer.GetPlotManager();
+    const QSet<QString> affected(affectedNames.begin(), affectedNames.end());
+
+    for (int pageIndex = 0; pageIndex < plotManager.pageCount(); ++pageIndex)
+    {
+        if (!plotManager.usesIndexXAxis(pageIndex))
+        {
+            const size_t oldIndex = plotManager.xAxisColumn(pageIndex);
+            const QString oldXAxis = oldIndex < static_cast<size_t>(oldNames.size())
+                ? oldNames[static_cast<qsizetype>(oldIndex)] : QString{};
+            const qsizetype newIndex = newNames.indexOf(oldXAxis);
+            if (newIndex >= 0)
+                plotManager.setXAxisColumn(pageIndex, static_cast<size_t>(newIndex));
+            else if (!oldXAxis.isEmpty())
+                plotManager.setUseIndexXAxis(pageIndex, true);
+        }
+
+        std::vector<std::string> missingItems;
+        for (const std::string& itemName : plotManager.pageInfo(pageIndex).dataItems)
+        {
+            const QString qName = QString::fromStdString(itemName);
+            if (affected.contains(qName)
+                && dataManager.GetColumnIndex(itemName) == static_cast<size_t>(-1))
+            {
+                missingItems.push_back(itemName);
+            }
+        }
+        for (const std::string& itemName : missingItems)
+            plotManager.removeDataItem(pageIndex, itemName);
+
+        QWidget* container = getPlotContainer(pageIndex);
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+        if (!plot)
+            continue;
+
+        bool changed = false;
+        auto& expressionManager = plotManager.pageInfo(pageIndex).exprMgr;
+        for (const std::string& itemName : plotManager.pageInfo(pageIndex).dataItems)
+        {
+            viewer::PlotExpression* plotExpression = expressionManager.get(itemName);
+            if (plotExpression && plotExpression->isEdited)
+                expressionManager.recompute(itemName, dataManager);
+
+            const viewer::Column* valueColumn =
+                plotExpression && plotExpression->isEdited && plotExpression->computedData
+                ? plotExpression->computedData.get()
+                : dataManager.GetColumn(itemName);
+            if (!valueColumn)
+                continue;
+
+            viewer::QCPColumnGraph* graph = nullptr;
+            for (int graphIndex = 0; graphIndex < plot->plottableCount(); ++graphIndex)
+            {
+                auto* candidate = dynamic_cast<viewer::QCPColumnGraph*>(
+                    plot->plottable(graphIndex));
+                if (candidate && candidate->name().toStdString() == itemName)
+                {
+                    graph = candidate;
+                    break;
+                }
+            }
+            if (!graph)
+                continue;
+
+            const viewer::Column* keyColumn = nullptr;
+            if (plotManager.usesIndexXAxis(pageIndex))
+            {
+                dataManager.ensureIndexColumnBuilt();
+                keyColumn = dataManager.GetIndexColumn();
+            }
+            else
+            {
+                keyColumn = dataManager.GetColumn(
+                    plotManager.xAxisColumn(pageIndex));
+            }
+            graph->setDataColumns(keyColumn, valueColumn);
+            graph->notifyDataChanged();
+            changed = true;
+        }
+        if (changed)
+            plot->replot();
+    }
 }
 
 void UI::onDataTreeContextMenu(const QPoint& pos)

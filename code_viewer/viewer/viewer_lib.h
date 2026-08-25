@@ -36,6 +36,12 @@ public:
                           const QString& name,
                           std::vector<double>&& values,
                           QString* error = nullptr);
+    bool PublishPluginDerivedColumns(
+        quint64 sessionId,
+        const QString& providerPluginId,
+        const QStringList& names,
+        std::vector<std::vector<double>> values,
+        QString* error = nullptr);
 
     static bool ReadZipCatalog(
         const std::filesystem::path& archivePath,
@@ -101,6 +107,10 @@ Q_SIGNALS:
     void DataLoaded(quint64 sessionId);
     void DataAboutToUnload(quint64 sessionId);
     void DataColumnAdded(quint64 sessionId, const QString& columnName);
+    void DataColumnsChanged(quint64 sessionId,
+                            const QStringList& oldColumnNames,
+                            const QStringList& newColumnNames,
+                            const QStringList& affectedColumnNames);
     void JsonDocumentsChanged(quint64 sessionId, const QString& providerPluginId);
 
 public Q_SLOTS:

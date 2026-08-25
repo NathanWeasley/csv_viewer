@@ -200,6 +200,7 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
     m_columns = std::move(columns);
     m_rawColumnNames = std::move(columnNames);
     m_columnNames = std::move(displayNames);
+    m_columnMetadata.assign(m_columns.size(), ColumnMetadata{});
     m_nameIndex = std::move(nameIndex);
     m_filePath = sourcePath;
     m_xAxisColumn = AutoDetectXAxis();
@@ -223,8 +224,111 @@ AddDerivedColumnStatus DataManager::AddDerivedColumn(std::string name,
     m_columns.push_back(std::move(column));
     m_columnNames.push_back(name);
     m_rawColumnNames.push_back(name);
+    m_columnMetadata.push_back({ColumnOrigin::PluginDerived, {}});
     m_nameIndex.emplace(std::move(name), index);
     return AddDerivedColumnStatus::Success;
+}
+
+PublishDerivedColumnsStatus DataManager::PublishPluginDerivedColumns(
+    const std::string& ownerPluginId,
+    std::vector<std::string> names,
+    std::vector<std::vector<double>> values,
+    std::vector<std::shared_ptr<Column>>* removedColumns)
+{
+    if (ownerPluginId.empty())
+        return PublishDerivedColumnsStatus::InvalidProvider;
+    if (names.size() != values.size())
+        return PublishDerivedColumnsStatus::RowCountMismatch;
+
+    const size_t rowCount = GetRowCount();
+    const std::string previousXAxisName = m_xAxisColumn < m_columnNames.size()
+        ? m_columnNames[m_xAxisColumn] : std::string{};
+    std::unordered_set<std::string> incomingNames;
+    incomingNames.reserve(names.size());
+    for (size_t index = 0; index < names.size(); ++index)
+    {
+        const std::string& name = names[index];
+        if (name.empty() || !incomingNames.insert(name).second)
+            return PublishDerivedColumnsStatus::InvalidName;
+        if (values[index].size() != rowCount)
+            return PublishDerivedColumnsStatus::RowCountMismatch;
+
+        const auto existing = m_nameIndex.find(name);
+        if (existing != m_nameIndex.end())
+        {
+            const size_t existingIndex = existing->second;
+            const ColumnMetadata* metadata = existingIndex < m_columnMetadata.size()
+                ? &m_columnMetadata[existingIndex] : nullptr;
+            if (!metadata || metadata->origin != ColumnOrigin::PluginDerived
+                || metadata->ownerPluginId != ownerPluginId)
+            {
+                return PublishDerivedColumnsStatus::NameCollision;
+            }
+        }
+    }
+
+    std::vector<std::shared_ptr<Column>> incomingColumns;
+    incomingColumns.reserve(values.size());
+    for (auto& columnValues : values)
+    {
+        auto column = std::make_shared<Column>(std::move(columnValues));
+        column->recalcMinMax();
+        incomingColumns.push_back(std::move(column));
+    }
+
+    std::vector<std::shared_ptr<Column>> nextColumns;
+    std::vector<std::string> nextNames;
+    std::vector<std::string> nextRawNames;
+    std::vector<ColumnMetadata> nextMetadata;
+    nextColumns.reserve(m_columns.size() + incomingColumns.size());
+    nextNames.reserve(m_columnNames.size() + names.size());
+    nextRawNames.reserve(m_rawColumnNames.size() + names.size());
+    nextMetadata.reserve(m_columns.size() + names.size());
+    if (removedColumns)
+        removedColumns->clear();
+
+    for (size_t index = 0; index < m_columns.size(); ++index)
+    {
+        const ColumnMetadata metadata = index < m_columnMetadata.size()
+            ? m_columnMetadata[index] : ColumnMetadata{};
+        if (metadata.origin == ColumnOrigin::PluginDerived
+            && metadata.ownerPluginId == ownerPluginId)
+        {
+            if (removedColumns)
+                removedColumns->push_back(m_columns[index]);
+            continue;
+        }
+        nextColumns.push_back(m_columns[index]);
+        nextNames.push_back(m_columnNames[index]);
+        nextRawNames.push_back(index < m_rawColumnNames.size()
+            ? m_rawColumnNames[index] : m_columnNames[index]);
+        nextMetadata.push_back(metadata);
+    }
+
+    for (size_t index = 0; index < names.size(); ++index)
+    {
+        nextColumns.push_back(std::move(incomingColumns[index]));
+        nextNames.push_back(names[index]);
+        nextRawNames.push_back(names[index]);
+        nextMetadata.push_back({ColumnOrigin::PluginDerived, ownerPluginId});
+    }
+
+    std::unordered_map<std::string, size_t> nextNameIndex;
+    nextNameIndex.reserve(nextNames.size());
+    for (size_t index = 0; index < nextNames.size(); ++index)
+        nextNameIndex.emplace(nextNames[index], index);
+
+    m_columns = std::move(nextColumns);
+    m_columnNames = std::move(nextNames);
+    m_rawColumnNames = std::move(nextRawNames);
+    m_columnMetadata = std::move(nextMetadata);
+    m_nameIndex = std::move(nextNameIndex);
+    const auto previousXAxis = m_nameIndex.find(previousXAxisName);
+    if (previousXAxis != m_nameIndex.end())
+        m_xAxisColumn = previousXAxis->second;
+    else
+        m_xAxisColumn = AutoDetectXAxis();
+    return PublishDerivedColumnsStatus::Success;
 }
 
 bool DataManager::LoadFromCSV(const LoadConfig& config)
@@ -451,6 +555,7 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
     // 所有列统一使用 Column
     m_columns.resize(colCount);
+    m_columnMetadata.assign(colCount, ColumnMetadata{});
     for (size_t c = 0; c < colCount; ++c)
     {
         m_columns[c] = std::make_shared<Column>(static_cast<size_t>(totalDataRows));
@@ -610,6 +715,7 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
     m_columns.push_back(std::move(resultCol));
     m_columnNames.push_back(exprName);
     m_nameIndex[exprName] = newIdx;
+    m_columnMetadata.push_back({ColumnOrigin::ViewerExpression, {}});
     m_rawColumnNames.push_back(exprName);  // 表达式列的 raw name 同 cleaned name
 
     // 计算表达式列的 min/max 缓存
@@ -806,6 +912,7 @@ std::string DataManager::PreprocessCustomFuncs(const std::string& exprStr, size_
             m_columns.push_back(std::shared_ptr<Column>(std::move(tempCol)));
             m_columnNames.push_back(uniqueName);
             m_nameIndex[uniqueName] = tempIdx;
+            m_columnMetadata.push_back({ColumnOrigin::ViewerExpression, {}});
             m_rawColumnNames.push_back(uniqueName);
 
             // 替换表达式中的函数调用为列名
@@ -842,6 +949,7 @@ void DataManager::ensureIndexColumnBuilt()
 void DataManager::Clear()
 {
     m_columns.clear();
+    m_columnMetadata.clear();
     m_columnNames.clear();
     m_rawColumnNames.clear();
     m_nameIndex.clear();

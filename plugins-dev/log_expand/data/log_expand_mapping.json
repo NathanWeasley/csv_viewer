@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "source": "capa.device_info.product_type",
+      "name": "robot_name"
+    },
+    {
+      "source": "capa.robot.link_len[1]",
+      "name": "len_1"
+    },
+    {
+      "source": "capa.robot.inertia[0].Izz",
+      "name": "Izz_0"
+    }
+  ]
+}

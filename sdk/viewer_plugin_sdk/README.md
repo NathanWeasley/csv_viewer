@@ -32,6 +32,11 @@ plugins/<plugin-id>/
 使用它，否则回退到 `entry`。SDK v2 还提供由 Viewer 托管的会话级 JSON 文档
 服务，以及由插件声明、宿主创建的层级菜单。
 
+`viewer_expression_data_sdk.h` 定义 Viewer 核心提供的可选
+`IExpressionDataService`。插件可从 `viewer.core/expression-data` 查询 v1 服务，
+用 Viewer 数据快照和插件标量计算表达式，并通过 provider-owned batch 原子替换
+自己发布的扩充数据列。该扩展不改变 `IViewerPlugin` 的 SDK v2 ABI。
+
 依赖项支持 `mode` 为 `required` 或 `runtime`。`runtime` 依赖缺失时插件仍会
 加载，插件可以在用户触发功能时通过 `IPluginRegistry` 显示具体错误。
 

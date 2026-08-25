@@ -1,11 +1,56 @@
 #include "log_expand_plugin.h"
 
+#include "log_expand_dialogs.h"
+#include "mapping_engine.h"
+
+#include <QApplication>
+#include <QCoreApplication>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QMetaObject>
+#include <QRegularExpression>
+#include <QSaveFile>
+#include <QSet>
+
+#include <algorithm>
+
 using namespace viewer::plugin;
 
 namespace
 {
 
 const QString kDatDecryptPluginId = QStringLiteral("dat_decrypt");
+
+PluginMenuItemSpec menuItem(const QString& id,
+                            PluginMenuItemType type,
+                            const char* text,
+                            int order)
+{
+    PluginMenuItemSpec item;
+    item.id = id;
+    item.type = type;
+    item.text = QString::fromUtf8(text);
+    item.order = order;
+    return item;
+}
+
+QStringList expressionIdentifiers(const QString& expression)
+{
+    static const QRegularExpression identifier(
+        QStringLiteral("[A-Za-z_][A-Za-z0-9_]*"));
+    QStringList result;
+    QRegularExpressionMatchIterator matches = identifier.globalMatch(expression);
+    while (matches.hasNext())
+    {
+        const QString value = matches.next().captured();
+        if (!result.contains(value))
+            result.push_back(value);
+    }
+    return result;
+}
 
 } // namespace
 
@@ -21,7 +66,7 @@ QString LogExpandPlugin::name() const
 
 QString LogExpandPlugin::version() const
 {
-    return QStringLiteral("1.0.0");
+    return QStringLiteral("1.1.0");
 }
 
 bool LogExpandPlugin::initialize(IViewerHost* host)
@@ -32,31 +77,40 @@ bool LogExpandPlugin::initialize(IViewerHost* host)
     {
         return false;
     }
-    if (host->plugins()->pluginState(kDatDecryptPluginId)
-        != PluginState::Started)
+    if (host->plugins()->pluginState(kDatDecryptPluginId) != PluginState::Started)
     {
         host->log()->write(id(), LogLevel::Error,
             QStringLiteral("Required plugin 'dat_decrypt' is not started."));
         return false;
     }
 
+    QObject* serviceObject = host->plugins()->queryService(
+        QString::fromLatin1(kViewerCoreProviderId),
+        QString::fromLatin1(kExpressionDataServiceId),
+        kExpressionDataServiceVersion);
+    m_expressionData = qobject_cast<IExpressionDataService*>(serviceObject);
+    if (!m_expressionData)
+    {
+        host->log()->write(id(), LogLevel::Error,
+            QStringLiteral("Viewer core expression-data service v1 is unavailable."));
+        return false;
+    }
+
     m_host = host;
     m_shuttingDown = false;
+    m_workerPool.setMaxThreadCount(1);
+    m_workerPool.setExpiryTimeout(-1);
 
-    PluginMenuItemSpec status;
-    status.id = QStringLiteral("input_status");
-    status.type = PluginMenuItemType::Action;
-    status.text = QString::fromUtf8(u8"查看扩充输入状态");
-    status.order = 10;
-    status.enabled = false;
-    m_menu = m_host->ui()->addPluginMenu(
-        id(), name(), {status},
-        [this](const QString& itemId, bool)
-        {
-            if (itemId == QStringLiteral("input_status"))
-                showInputStatus();
-        });
+    QString rootDirectory = property(kPluginRootDirectoryProperty).toString();
+    if (rootDirectory.isEmpty())
+        rootDirectory = QCoreApplication::applicationDirPath();
+    m_mappingPath = QDir(rootDirectory).absoluteFilePath(
+        QStringLiteral("data/log_expand_mapping.json"));
+    m_expressionsPath = QDir(rootDirectory).absoluteFilePath(
+        QStringLiteral("data/log_expand_expressions.json"));
 
+    loadExpansionDefinitions();
+    createMenu();
     m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
         id(), [this](const LoadSessionInfo& session) { handleDataLoaded(session); });
     m_dataUnloadSubscription = m_host->events()->subscribeDataAboutToUnload(
@@ -70,11 +124,14 @@ bool LogExpandPlugin::initialize(IViewerHost* host)
     if (!m_menu || !m_dataLoadedSubscription || !m_dataUnloadSubscription
         || !m_jsonChangedSubscription)
     {
+        shutdown();
         return false;
     }
 
     const LoadSessionInfo session = m_host->data()->currentSession();
     m_currentSessionId = session.isValid() ? session.sessionId : 0;
+    if (m_currentSessionId && refreshMappings(false))
+        scheduleRecompute(QStringLiteral("plugin initialization"));
     refreshMenuState();
     log(LogLevel::Info, QStringLiteral("log_expand initialized."));
     return true;
@@ -85,6 +142,9 @@ void LogExpandPlugin::shutdown()
     if (m_shuttingDown)
         return;
     m_shuttingDown = true;
+    ++m_generation;
+    m_workerPool.clear();
+    m_workerPool.waitForDone();
     if (m_host)
     {
         if (m_dataLoadedSubscription)
@@ -98,14 +158,60 @@ void LogExpandPlugin::shutdown()
     m_dataLoadedSubscription = 0;
     m_dataUnloadSubscription = 0;
     m_jsonChangedSubscription = 0;
+    m_workerPool.clear();
+    m_mappedVariables.clear();
+    m_publishedNames.clear();
     m_currentSessionId = 0;
     m_menu = 0;
+    m_expressionData = nullptr;
     m_host = nullptr;
+}
+
+void LogExpandPlugin::createMenu()
+{
+    QList<PluginMenuItemSpec> items;
+    items.push_back(menuItem(QStringLiteral("mapped_variables"),
+        PluginMenuItemType::Action, u8"查看映射变量...", 10));
+    items.push_back(menuItem(QStringLiteral("edit_expansions"),
+        PluginMenuItemType::Action, u8"编辑扩充数据项...", 20));
+    items.push_back(menuItem(QStringLiteral("recompute"),
+        PluginMenuItemType::Action, u8"重新计算", 30));
+    items.push_back(menuItem(QStringLiteral("separator"),
+        PluginMenuItemType::Separator, "", 40));
+    items.push_back(menuItem(QStringLiteral("diagnostics"),
+        PluginMenuItemType::Action, u8"查看告警和状态...", 50));
+    m_menu = m_host->ui()->addPluginMenu(
+        id(), name(), items,
+        [this](const QString& itemId, bool) { handleMenuCommand(itemId); });
+}
+
+void LogExpandPlugin::handleMenuCommand(const QString& itemId)
+{
+    if (itemId == QStringLiteral("mapped_variables"))
+        showMappedVariables();
+    else if (itemId == QStringLiteral("edit_expansions"))
+        editExpansionDefinitions();
+    else if (itemId == QStringLiteral("recompute"))
+    {
+        const bool expressionsReady = loadExpansionDefinitions();
+        if (refreshMappings(false) && expressionsReady)
+            scheduleRecompute(QStringLiteral("manual request"));
+    }
+    else if (itemId == QStringLiteral("diagnostics"))
+        showDiagnostics();
 }
 
 void LogExpandPlugin::handleDataLoaded(const LoadSessionInfo& session)
 {
+    ++m_generation;
+    m_workerPool.clear();
     m_currentSessionId = session.isValid() ? session.sessionId : 0;
+    m_datBatchAvailable = false;
+    m_mappingConfigValid = false;
+    m_mappedVariables.clear();
+    m_mappingDiagnostics.clear();
+    m_expansionResults.clear();
+    m_publishedNames.clear();
     refreshMenuState();
 }
 
@@ -113,34 +219,388 @@ void LogExpandPlugin::handleDataAboutToUnload(quint64 sessionId)
 {
     if (sessionId != m_currentSessionId)
         return;
+    ++m_generation;
+    m_workerPool.clear();
     m_currentSessionId = 0;
+    m_datBatchAvailable = false;
+    m_mappingConfigValid = false;
+    m_mappedVariables.clear();
+    m_mappingDiagnostics.clear();
+    m_expansionResults.clear();
+    m_publishedNames.clear();
     refreshMenuState();
 }
 
 void LogExpandPlugin::handleJsonDocumentsChanged(
     quint64 sessionId, const QString& providerPluginId)
 {
-    if (sessionId != m_currentSessionId)
+    if (sessionId != m_currentSessionId
+        || providerPluginId != kDatDecryptPluginId)
+    {
         return;
-    if (providerPluginId.isEmpty() || providerPluginId == kDatDecryptPluginId)
-        refreshMenuState();
+    }
+    refreshMappings(true);
 }
 
-void LogExpandPlugin::showInputStatus()
+bool LogExpandPlugin::loadExpansionDefinitions()
 {
+    m_expressionConfigValid = false;
+    m_configDiagnostics.clear();
+    QList<ExpansionDefinition> loaded;
+    QFile file(m_expressionsPath);
+    if (!file.open(QIODevice::ReadOnly))
+    {
+        m_configDiagnostics.push_back({PluginDiagnosticSeverity::Error,
+            QStringLiteral("configuration"), {},
+            QStringLiteral("Cannot open expression file: %1").arg(m_expressionsPath)});
+        return false;
+    }
+    QJsonParseError parseError;
+    const QJsonDocument document = QJsonDocument::fromJson(file.readAll(), &parseError);
+    if (parseError.error != QJsonParseError::NoError || !document.isObject())
+    {
+        m_configDiagnostics.push_back({PluginDiagnosticSeverity::Error,
+            QStringLiteral("configuration"), {},
+            QStringLiteral("Expression JSON is invalid: %1").arg(parseError.errorString())});
+        return false;
+    }
+
+    const QRegularExpression identifier(QStringLiteral("^[A-Za-z_][A-Za-z0-9_]*$"));
+    QSet<QString> names;
+    const QJsonArray items = document.object().value(QStringLiteral("items")).toArray();
+    for (qsizetype index = 0; index < items.size(); ++index)
+    {
+        const QJsonObject object = items[index].toObject();
+        const QString itemName = object.value(QStringLiteral("name")).toString().trimmed();
+        const QString expression = object.value(QStringLiteral("expression")).toString().trimmed();
+        if (!identifier.match(itemName).hasMatch() || expression.isEmpty()
+            || names.contains(itemName))
+        {
+            m_configDiagnostics.push_back({PluginDiagnosticSeverity::Error,
+                QStringLiteral("configuration"), itemName,
+                QStringLiteral("Expression item %1 has an invalid or duplicate name/expression.")
+                    .arg(index)});
+            continue;
+        }
+        names.insert(itemName);
+        loaded.push_back({object.value(QStringLiteral("enabled")).toBool(true),
+                          itemName, expression});
+    }
+    m_expansionDefinitions = std::move(loaded);
+    m_expressionConfigValid = true;
+    return true;
+}
+
+bool LogExpandPlugin::saveExpansionDefinitions(
+    const QList<ExpansionDefinition>& definitions)
+{
+    QJsonArray items;
+    for (const ExpansionDefinition& definition : definitions)
+    {
+        QJsonObject object;
+        object.insert(QStringLiteral("enabled"), definition.enabled);
+        object.insert(QStringLiteral("name"), definition.name);
+        object.insert(QStringLiteral("expression"), definition.expression);
+        items.append(object);
+    }
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("items"), items);
+
+    QSaveFile file(m_expressionsPath);
+    if (!file.open(QIODevice::WriteOnly)
+        || file.write(QJsonDocument(root).toJson(QJsonDocument::Indented)) < 0
+        || !file.commit())
+    {
+        if (m_host)
+            m_host->ui()->showError(name(),
+                QString::fromUtf8(u8"无法保存扩充数据项配置：") + m_expressionsPath);
+        return false;
+    }
+    return true;
+}
+
+bool LogExpandPlugin::refreshMappings(bool scheduleCalculation)
+{
+    ++m_generation;
+    m_workerPool.clear();
+    m_mappingDiagnostics.clear();
+    m_mappedVariables.clear();
+    m_datBatchAvailable = false;
+    m_mappingConfigValid = false;
     if (!m_host || !m_currentSessionId)
-        return;
-    const QList<JsonDocumentInfo> documents =
+    {
+        refreshMenuState();
+        return false;
+    }
+
+    QList<MappingDefinition> definitions;
+    m_mappingConfigValid = MappingEngine::loadDefinitions(
+        m_mappingPath, definitions, m_mappingDiagnostics);
+
+    const QList<JsonDocumentInfo> documentInfos =
         m_host->jsonDocuments()->listDocuments(
             m_currentSessionId, kDatDecryptPluginId);
-    int readyCount = 0;
-    for (const JsonDocumentInfo& document : documents)
-        readyCount += document.isReady() ? 1 : 0;
-    m_host->ui()->showInformation(
-        name(),
-        QString::fromUtf8(u8"dat_decrypt 已提供 %1 个可用 JSON 输入。\n"
-                          u8"扩充计算规则将在后续功能规格中定义。")
-            .arg(readyCount));
+
+    QHash<QString, JsonDocumentPtr> documents;
+    for (const JsonDocumentInfo& info : documentInfos)
+    {
+        if (!info.isReady())
+            continue;
+        JsonDocumentInfo acquiredInfo;
+        JsonDocumentPtr document = m_host->jsonDocuments()->acquireDocument(
+            m_currentSessionId, kDatDecryptPluginId, info.documentId, &acquiredInfo);
+        if (document && acquiredInfo.isReady())
+            documents.insert(info.documentId, std::move(document));
+    }
+    m_datBatchAvailable = documents.contains(QStringLiteral("robot.capa"))
+        && documents.contains(QStringLiteral("robot.calib"))
+        && documents.contains(QStringLiteral("robot.config"));
+
+    if (m_mappingConfigValid && m_datBatchAvailable)
+    {
+        m_mappedVariables = MappingEngine::resolve(
+            definitions, documents, m_mappingDiagnostics);
+
+        const DataSnapshotPtr snapshot = m_host->data()->acquireSnapshot();
+        if (snapshot)
+        {
+            for (MappedVariable& variable : m_mappedVariables)
+            {
+                if (variable.expressionEligible && snapshot->contains(variable.name))
+                {
+                    variable.expressionEligible = false;
+                    m_mappingDiagnostics.push_back({PluginDiagnosticSeverity::Warning,
+                        QStringLiteral("mapping"), variable.name,
+                        QStringLiteral("The mapped variable name collides with a Viewer data item and is view-only.")});
+                }
+            }
+        }
+    }
+
+    for (const PluginDiagnostic& diagnostic : m_mappingDiagnostics)
+    {
+        log(diagnostic.severity == PluginDiagnosticSeverity::Error
+                ? LogLevel::Error : LogLevel::Warning,
+            QStringLiteral("%1: %2").arg(diagnostic.itemName, diagnostic.message));
+    }
+    refreshMenuState();
+    const bool ready = m_mappingConfigValid && m_datBatchAvailable;
+    if (ready && scheduleCalculation)
+        scheduleRecompute(QStringLiteral("dat_decrypt documents changed"));
+    return ready;
+}
+
+void LogExpandPlugin::scheduleRecompute(const QString& reason)
+{
+    if (m_shuttingDown || !m_host || !m_expressionData || !m_currentSessionId
+        || !m_mappingConfigValid || !m_expressionConfigValid
+        || !m_datBatchAvailable)
+    {
+        return;
+    }
+    const DataSnapshotPtr snapshot = m_host->data()->acquireSnapshot();
+    if (!snapshot || snapshot->sessionId() != m_currentSessionId
+        || snapshot->rowCount() <= 0)
+    {
+        return;
+    }
+
+    QList<ExpressionScalar> scalars;
+    for (const MappedVariable& variable : m_mappedVariables)
+    {
+        if (variable.expressionEligible)
+            scalars.push_back({variable.name, variable.numericValue});
+    }
+
+    const QSet<QString> previousNames(m_publishedNames.begin(), m_publishedNames.end());
+    const QSet<QString> allExpansionNames = [&]()
+    {
+        QSet<QString> names;
+        for (const ExpansionDefinition& definition : m_expansionDefinitions)
+            names.insert(definition.name);
+        return names;
+    }();
+
+    QList<ExpansionDefinition> candidates;
+    QList<ExpansionResult> initialResults;
+    QStringList outputNames;
+    for (const ExpansionDefinition& definition : m_expansionDefinitions)
+    {
+        if (!definition.enabled)
+        {
+            initialResults.push_back({definition.name, false,
+                QStringLiteral("Disabled."), {}});
+            continue;
+        }
+        if (snapshot->contains(definition.name)
+            && !previousNames.contains(definition.name))
+        {
+            initialResults.push_back({definition.name, false,
+                QStringLiteral("The output name collides with a Viewer data item."), {}});
+            continue;
+        }
+
+        QStringList dependentOutputs;
+        for (const QString& identifier : expressionIdentifiers(definition.expression))
+        {
+            if (allExpansionNames.contains(identifier))
+                dependentOutputs.push_back(identifier);
+        }
+        if (!dependentOutputs.isEmpty())
+        {
+            initialResults.push_back({definition.name, false,
+                QStringLiteral("References between log_expand output items are not supported."),
+                dependentOutputs});
+            continue;
+        }
+        candidates.push_back(definition);
+        outputNames.push_back(definition.name);
+    }
+
+    const DerivedColumnBatchCreateResult created =
+        m_expressionData->createDerivedColumnBatch(
+            id(), snapshot->sessionId(), outputNames, snapshot->rowCount());
+    if (!created.success())
+    {
+        m_expansionResults = std::move(initialResults);
+        m_expansionResults.push_back({QStringLiteral("<batch>"), false,
+                                      created.error, {}});
+        log(LogLevel::Error, QStringLiteral("Cannot create derived-column batch: %1")
+                                .arg(created.error));
+        refreshMenuState();
+        return;
+    }
+
+    const quint64 generation = ++m_generation;
+    m_workerPool.clear();
+    const auto* expressionService = m_expressionData;
+    const DerivedColumnBatchWriterPtr writer = created.writer;
+    log(LogLevel::Info, QStringLiteral("Recomputing %1 expansion item(s): %2")
+                            .arg(candidates.size()).arg(reason));
+    m_workerPool.start([this, generation, snapshot, scalars,
+                        candidates, initialResults = std::move(initialResults),
+                        expressionService, writer]() mutable
+    {
+        QList<ExpansionResult> results = std::move(initialResults);
+        for (const ExpansionDefinition& definition : candidates)
+        {
+            if (m_generation.load() != generation)
+                return;
+            double* output = writer->data(definition.name);
+            const ExpressionEvaluationResult evaluated = expressionService->evaluate(
+                snapshot, definition.expression, scalars,
+                output, writer->rowCount());
+            if (!evaluated.success())
+            {
+                writer->discard(definition.name);
+                results.push_back({definition.name, false,
+                    evaluated.error, evaluated.missingSymbols});
+            }
+            else
+            {
+                results.push_back({definition.name, true,
+                    QStringLiteral("Calculated successfully."), {}});
+            }
+        }
+        if (m_generation.load() != generation)
+            return;
+        QMetaObject::invokeMethod(this,
+            [this, generation, writer, results = std::move(results)]() mutable
+            {
+                finishRecompute(generation, writer, std::move(results));
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void LogExpandPlugin::finishRecompute(
+    quint64 generation,
+    const DerivedColumnBatchWriterPtr& writer,
+    QList<ExpansionResult> results)
+{
+    if (m_shuttingDown || generation != m_generation.load()
+        || !m_host || !writer)
+    {
+        return;
+    }
+    const DerivedColumnBatchCommitResult committed = writer->commit();
+    if (!committed.success())
+    {
+        for (ExpansionResult& result : results)
+        {
+            if (result.success)
+            {
+                result.success = false;
+                result.message = QStringLiteral("Batch commit failed: %1")
+                                     .arg(committed.error);
+            }
+        }
+        results.push_back({QStringLiteral("<batch>"), false,
+                           committed.error, {}});
+        log(LogLevel::Error, QStringLiteral("Derived-column batch commit failed: %1")
+                                .arg(committed.error));
+    }
+    else
+    {
+        m_publishedNames = committed.columnNames;
+        log(LogLevel::Info, QStringLiteral("Published %1 expansion item(s).")
+                                .arg(committed.columnNames.size()));
+    }
+    m_expansionResults = std::move(results);
+    for (const ExpansionResult& result : m_expansionResults)
+    {
+        if (!result.success && result.message != QStringLiteral("Disabled."))
+        {
+            log(LogLevel::Warning, QStringLiteral("%1: %2 %3")
+                .arg(result.name, result.message,
+                     result.missingSymbols.join(QStringLiteral(", "))));
+        }
+    }
+    refreshMenuState();
+}
+
+void LogExpandPlugin::showMappedVariables()
+{
+    MappedVariablesDialog dialog(m_mappedVariables, QApplication::activeWindow());
+    dialog.exec();
+}
+
+void LogExpandPlugin::editExpansionDefinitions()
+{
+    QStringList viewerItems;
+    QStringList reservedNames;
+    if (m_host)
+    {
+        const DataSnapshotPtr snapshot = m_host->data()->acquireSnapshot();
+        if (snapshot)
+        {
+            viewerItems = snapshot->columnNames();
+            reservedNames = viewerItems;
+            for (const QString& publishedName : m_publishedNames)
+                reservedNames.removeAll(publishedName);
+        }
+    }
+    ExpansionEditorDialog dialog(
+        m_expansionDefinitions, viewerItems, m_mappedVariables,
+        lastStatusMap(), reservedNames, QApplication::activeWindow());
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+    const QList<ExpansionDefinition> definitions = dialog.definitions();
+    if (!saveExpansionDefinitions(definitions))
+        return;
+    m_expansionDefinitions = definitions;
+    m_expressionConfigValid = true;
+    m_configDiagnostics.clear();
+    if (m_mappingConfigValid && m_datBatchAvailable)
+        scheduleRecompute(QStringLiteral("expression definitions changed"));
+}
+
+void LogExpandPlugin::showDiagnostics()
+{
+    DiagnosticsDialog dialog(
+        allDiagnostics(), m_expansionResults, QApplication::activeWindow());
+    dialog.exec();
 }
 
 void LogExpandPlugin::refreshMenuState()
@@ -148,28 +608,32 @@ void LogExpandPlugin::refreshMenuState()
     if (!m_host || !m_menu)
         return;
     m_host->ui()->setPluginMenuItemEnabled(
-        m_menu, QStringLiteral("input_status"), hasReadyDatDecryptInput());
-}
-
-bool LogExpandPlugin::hasReadyDatDecryptInput() const
-{
-    if (!m_host || !m_currentSessionId)
-        return false;
-    const QList<JsonDocumentInfo> documents =
-        m_host->jsonDocuments()->listDocuments(
-            m_currentSessionId, kDatDecryptPluginId);
-    for (const JsonDocumentInfo& document : documents)
-    {
-        if (document.isReady())
-            return true;
-    }
-    return false;
+        m_menu, QStringLiteral("mapped_variables"), !m_mappedVariables.isEmpty());
+    m_host->ui()->setPluginMenuItemEnabled(
+        m_menu, QStringLiteral("recompute"),
+        m_currentSessionId && m_datBatchAvailable && m_mappingConfigValid
+            && m_expressionConfigValid);
 }
 
 void LogExpandPlugin::log(LogLevel level, const QString& message) const
 {
     if (m_host)
         m_host->log()->write(id(), level, message);
+}
+
+QList<PluginDiagnostic> LogExpandPlugin::allDiagnostics() const
+{
+    QList<PluginDiagnostic> result = m_configDiagnostics;
+    result.append(m_mappingDiagnostics);
+    return result;
+}
+
+QHash<QString, QString> LogExpandPlugin::lastStatusMap() const
+{
+    QHash<QString, QString> result;
+    for (const ExpansionResult& item : m_expansionResults)
+        result.insert(item.name, item.message);
+    return result;
 }
 
 #include "moc_log_expand_plugin.cpp"

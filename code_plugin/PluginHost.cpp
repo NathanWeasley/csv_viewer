@@ -1,4 +1,5 @@
 #include "code_plugin/PluginHost.h"
+#include "code_plugin/CoreExpressionDataService.h"
 
 #include "DockManager.h"
 #include "code_viewer/base/trace_logger.h"
@@ -136,11 +137,118 @@ private:
     bool m_committed = false;
 };
 
+class DerivedColumnBatchWriterImpl final : public IDerivedColumnBatchWriter
+{
+public:
+    DerivedColumnBatchWriterImpl(PluginHost* host,
+                                 QString providerPluginId,
+                                 quint64 sessionId,
+                                 QStringList names,
+                                 qsizetype rowCount)
+        : m_host(host)
+        , m_providerPluginId(std::move(providerPluginId))
+        , m_sessionId(sessionId)
+        , m_names(std::move(names))
+        , m_values(static_cast<size_t>(m_names.size()))
+        , m_active(static_cast<size_t>(m_names.size()), 1)
+    {
+        for (size_t index = 0; index < m_values.size(); ++index)
+        {
+            m_indices.insert(m_names[static_cast<qsizetype>(index)],
+                             static_cast<int>(index));
+            m_values[index].resize(static_cast<size_t>(rowCount));
+        }
+        m_rowCount = rowCount;
+    }
+
+    quint64 sessionId() const noexcept override { return m_sessionId; }
+    QString providerPluginId() const override { return m_providerPluginId; }
+    QStringList columnNames() const override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        QStringList result;
+        for (qsizetype index = 0; index < m_names.size(); ++index)
+        {
+            if (m_active[static_cast<size_t>(index)])
+                result.push_back(m_names[index]);
+        }
+        return result;
+    }
+    qsizetype rowCount() const noexcept override { return m_rowCount; }
+    double* data(const QString& columnName) noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_committed)
+            return nullptr;
+        const auto index = m_indices.constFind(columnName);
+        if (index == m_indices.constEnd()
+            || !m_active[static_cast<size_t>(index.value())])
+        {
+            return nullptr;
+        }
+        return m_values[static_cast<size_t>(index.value())].data();
+    }
+    bool discard(const QString& columnName) noexcept override
+    {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        if (m_committed)
+            return false;
+        const auto index = m_indices.constFind(columnName);
+        if (index == m_indices.constEnd())
+            return false;
+        m_active[static_cast<size_t>(index.value())] = 0;
+        return true;
+    }
+    DerivedColumnBatchCommitResult commit() override
+    {
+        QStringList names;
+        std::vector<std::vector<double>> values;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            if (m_committed)
+            {
+                return {DerivedColumnBatchCommitStatus::InvalidWriter, {},
+                        QStringLiteral("This derived-column batch has already been committed.")};
+            }
+            m_committed = true;
+            for (qsizetype index = 0; index < m_names.size(); ++index)
+            {
+                if (!m_active[static_cast<size_t>(index)])
+                    continue;
+                names.push_back(m_names[index]);
+                values.push_back(std::move(m_values[static_cast<size_t>(index)]));
+            }
+        }
+        if (!m_host)
+        {
+            return {DerivedColumnBatchCommitStatus::HostShuttingDown, {},
+                    QStringLiteral("The Viewer plugin host is no longer available.")};
+        }
+        return m_host->commitDerivedColumnBatch(
+            m_providerPluginId, m_sessionId, std::move(names), std::move(values));
+    }
+
+private:
+    QPointer<PluginHost> m_host;
+    QString m_providerPluginId;
+    quint64 m_sessionId = 0;
+    QStringList m_names;
+    QHash<QString, int> m_indices;
+    std::vector<std::vector<double>> m_values;
+    std::vector<unsigned char> m_active;
+    qsizetype m_rowCount = 0;
+    mutable std::mutex m_mutex;
+    bool m_committed = false;
+};
+
 PluginHost::PluginHost(viewer::Viewer& viewer,
                        QMainWindow* mainWindow,
                        ads::CDockManager* dockManager,
                        QMenu* pluginMenu,
                        std::function<void()> rebuildDataTree,
+                       std::function<void(const QStringList&,
+                                          const QStringList&,
+                                          const QStringList&)> refreshDataColumns,
                        QObject* parent)
     : QObject(parent)
     , m_viewer(viewer)
@@ -148,7 +256,17 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
     , m_dockManager(dockManager)
     , m_pluginMenu(pluginMenu)
     , m_rebuildDataTree(std::move(rebuildDataTree))
+    , m_refreshDataColumns(std::move(refreshDataColumns))
 {
+    m_coreExpressionDataService = new CoreExpressionDataService(this, this);
+    m_services.insert(
+        serviceKey(QString::fromLatin1(kViewerCoreProviderId),
+                   QString::fromLatin1(kExpressionDataServiceId)),
+        {QString::fromLatin1(kViewerCoreProviderId),
+         QString::fromLatin1(kExpressionDataServiceId),
+         kExpressionDataServiceVersion,
+         m_coreExpressionDataService});
+
     connect(&m_viewer, &viewer::Viewer::DataLoaded, this,
         [this](quint64)
         {
@@ -184,6 +302,17 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                 catch (...) { write(record.ownerPluginId, LogLevel::Error,
                                     QStringLiteral("Unhandled exception in ColumnAdded callback.")); }
             }
+        });
+    connect(&m_viewer, &viewer::Viewer::DataColumnsChanged, this,
+        [this](quint64,
+               const QStringList& oldNames,
+               const QStringList& newNames,
+               const QStringList& affectedNames)
+        {
+            if (m_refreshDataColumns)
+                m_refreshDataColumns(oldNames, newNames, affectedNames);
+            else if (m_rebuildDataTree)
+                m_rebuildDataTree();
         });
     connect(&m_viewer, &viewer::Viewer::JsonDocumentsChanged, this,
         [this](quint64 sessionId, const QString& providerPluginId)
@@ -343,6 +472,109 @@ DataCommitResult PluginHost::commitDerivedColumn(
     if (!m_viewer.AddDerivedColumn(sessionId, name, std::move(values), &error))
         return {DataCommitStatus::InternalError, {}, error};
     return {DataCommitStatus::Success, name, {}};
+}
+
+DerivedColumnBatchCreateResult PluginHost::createDerivedColumnBatch(
+    const QString& providerPluginId,
+    quint64 sessionId,
+    const QStringList& columnNames,
+    qsizetype rowCount)
+{
+    if (QThread::currentThread() != thread())
+    {
+        DerivedColumnBatchCreateResult result;
+        QMetaObject::invokeMethod(this,
+            [this, &result, providerPluginId, sessionId, columnNames, rowCount]()
+            {
+                result = createDerivedColumnBatch(
+                    providerPluginId, sessionId, columnNames, rowCount);
+            },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+    if (m_shuttingDown)
+        return {{}, QStringLiteral("The Viewer plugin host is shutting down.")};
+    if (providerPluginId.isEmpty() || !isPluginLoaded(providerPluginId))
+        return {{}, QStringLiteral("The derived-column provider is not loaded.")};
+
+    const LoadSessionInfo session = m_viewer.GetLoadSessionInfo();
+    if (!session.isValid() || session.sessionId != sessionId)
+        return {{}, QStringLiteral("The loaded dataset changed before the batch was created.")};
+    if (rowCount <= 0
+        || static_cast<size_t>(rowCount) != m_viewer.GetDataManager().GetRowCount())
+    {
+        return {{}, QStringLiteral("The derived-column row count does not match the loaded dataset.")};
+    }
+
+    QSet<QString> seen;
+    const auto& dataManager = m_viewer.GetDataManager();
+    const std::string owner = providerPluginId.toUtf8().toStdString();
+    for (const QString& name : columnNames)
+    {
+        if (name.trimmed().isEmpty() || seen.contains(name))
+            return {{}, QStringLiteral("A derived-column name is empty or duplicated.")};
+        seen.insert(name);
+        const size_t index = dataManager.GetColumnIndex(name.toUtf8().toStdString());
+        if (index == static_cast<size_t>(-1))
+            continue;
+        const viewer::ColumnMetadata* metadata = dataManager.GetColumnMetadata(index);
+        if (!metadata || metadata->origin != viewer::ColumnOrigin::PluginDerived
+            || metadata->ownerPluginId != owner)
+        {
+            return {{}, QStringLiteral("A data item named '%1' is owned by the loaded data or another provider.")
+                            .arg(name)};
+        }
+    }
+
+    try
+    {
+        return {std::make_shared<DerivedColumnBatchWriterImpl>(
+                    this, providerPluginId, sessionId, columnNames, rowCount), {}};
+    }
+    catch (const std::bad_alloc&)
+    {
+        return {{}, QStringLiteral("Not enough memory to allocate the derived-column batch.")};
+    }
+}
+
+DerivedColumnBatchCommitResult PluginHost::commitDerivedColumnBatch(
+    const QString& providerPluginId,
+    quint64 sessionId,
+    QStringList names,
+    std::vector<std::vector<double>> values)
+{
+    if (QThread::currentThread() != thread())
+    {
+        DerivedColumnBatchCommitResult result;
+        QMetaObject::invokeMethod(this,
+            [this, &result, providerPluginId, sessionId,
+             names = std::move(names), values = std::move(values)]() mutable
+            {
+                result = commitDerivedColumnBatch(
+                    providerPluginId, sessionId, std::move(names), std::move(values));
+            },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+    if (m_shuttingDown)
+    {
+        return {DerivedColumnBatchCommitStatus::HostShuttingDown, {},
+                QStringLiteral("The Viewer plugin host is shutting down.")};
+    }
+    const LoadSessionInfo session = m_viewer.GetLoadSessionInfo();
+    if (!session.isValid() || session.sessionId != sessionId)
+    {
+        return {DerivedColumnBatchCommitStatus::StaleSession, {},
+                QStringLiteral("The loaded dataset changed before the batch was committed.")};
+    }
+
+    QString error;
+    if (!m_viewer.PublishPluginDerivedColumns(
+            sessionId, providerPluginId, names, std::move(values), &error))
+    {
+        return {DerivedColumnBatchCommitStatus::InternalError, {}, error};
+    }
+    return {DerivedColumnBatchCommitStatus::Success, names, {}};
 }
 
 QList<ArchiveEntryInfo> PluginHost::listCurrentZipEntries(

@@ -305,6 +305,80 @@ bool Viewer::AddDerivedColumn(quint64 sessionId,
     return false;
 }
 
+bool Viewer::PublishPluginDerivedColumns(
+    quint64 sessionId,
+    const QString& providerPluginId,
+    const QStringList& names,
+    std::vector<std::vector<double>> values,
+    QString* error)
+{
+    if (!m_loadSession.isValid() || sessionId != m_loadSession.sessionId)
+    {
+        if (error)
+            *error = QStringLiteral("The loaded dataset changed before the columns were committed.");
+        return false;
+    }
+
+    QStringList oldNames;
+    QStringList affectedNames;
+    const auto& currentNames = m_data.GetColumnNames();
+    oldNames.reserve(static_cast<qsizetype>(currentNames.size()));
+    for (size_t index = 0; index < currentNames.size(); ++index)
+    {
+        const QString currentName = QString::fromStdString(currentNames[index]);
+        oldNames.push_back(currentName);
+        const ColumnMetadata* metadata = m_data.GetColumnMetadata(index);
+        if (metadata && metadata->origin == ColumnOrigin::PluginDerived
+            && metadata->ownerPluginId == providerPluginId.toUtf8().toStdString())
+        {
+            affectedNames.push_back(currentName);
+        }
+    }
+    for (const QString& name : names)
+    {
+        if (!affectedNames.contains(name))
+            affectedNames.push_back(name);
+    }
+
+    std::vector<std::string> utf8Names;
+    utf8Names.reserve(static_cast<size_t>(names.size()));
+    for (const QString& name : names)
+        utf8Names.push_back(name.toUtf8().toStdString());
+
+    std::vector<std::shared_ptr<Column>> retiredColumns;
+    const PublishDerivedColumnsStatus status = m_data.PublishPluginDerivedColumns(
+        providerPluginId.toUtf8().toStdString(), std::move(utf8Names),
+        std::move(values), &retiredColumns);
+    switch (status)
+    {
+    case PublishDerivedColumnsStatus::Success:
+        break;
+    case PublishDerivedColumnsStatus::InvalidProvider:
+        if (error) *error = QStringLiteral("The derived-column provider id is invalid.");
+        return false;
+    case PublishDerivedColumnsStatus::InvalidName:
+        if (error) *error = QStringLiteral("A derived-column name is empty or duplicated.");
+        return false;
+    case PublishDerivedColumnsStatus::NameCollision:
+        if (error) *error = QStringLiteral("A derived-column name is owned by the loaded data or another provider.");
+        return false;
+    case PublishDerivedColumnsStatus::RowCountMismatch:
+        if (error) *error = QStringLiteral("A derived-column row count does not match the loaded dataset.");
+        return false;
+    }
+
+    QStringList newNames;
+    const auto& publishedNames = m_data.GetColumnNames();
+    newNames.reserve(static_cast<qsizetype>(publishedNames.size()));
+    for (const std::string& name : publishedNames)
+        newNames.push_back(QString::fromStdString(name));
+
+    emit DataColumnsChanged(sessionId, oldNames, newNames, affectedNames);
+    for (const QString& name : names)
+        emit DataColumnAdded(sessionId, name);
+    return true;
+}
+
 void Viewer::activateLoadSession(plugin::SourceType sourceType,
                                  const QString& sourcePath)
 {
