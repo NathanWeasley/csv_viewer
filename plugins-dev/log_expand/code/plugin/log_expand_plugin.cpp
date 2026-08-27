@@ -500,7 +500,7 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
             else
             {
                 results.push_back({definition.name, true,
-                    QStringLiteral("Calculated successfully."), {}});
+                    QStringLiteral("OK"), {}});
             }
         }
         if (m_generation.load() != generation)
