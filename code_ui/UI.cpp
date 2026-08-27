@@ -187,6 +187,16 @@ void UI::initializePluginSystem()
         {
             refreshDataColumns(oldNames, newNames, affectedNames);
         },
+        [this](quint64 progressHandle,
+               const QString& ownerPluginId,
+               const QString& title,
+               float value,
+               const QString& detail,
+               bool finished)
+        {
+            handlePluginLoadProgress(progressHandle, ownerPluginId, title,
+                                     value, detail, finished);
+        },
         this);
     m_pluginManager = std::make_unique<PluginManager>(*m_pluginHost);
 

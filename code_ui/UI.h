@@ -60,6 +60,13 @@ private:
     void createToolbar();
     void createMain();
     void createStatusbar();
+    void handlePluginLoadProgress(
+        quint64 progressHandle,
+        const QString& ownerPluginId,
+        const QString& title,
+        float value,
+        const QString& detail,
+        bool finished);
     void bindPlotManagerCallbacks();
     void bindCursorManagerCallbacks();
     void initializePluginSystem();
@@ -235,6 +242,8 @@ private:
     bool m_binaryLogProgressActive = false;
     quint64 m_binaryLogProgressGeneration = 0;
     QElapsedTimer m_binaryLogProgressTimer;
+    quint64 m_activePluginProgressHandle = 0;
+    quint64 m_pluginProgressGeneration = 0;
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;

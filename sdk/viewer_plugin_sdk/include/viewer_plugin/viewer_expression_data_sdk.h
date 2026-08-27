@@ -21,6 +21,17 @@ struct ExpressionScalar
     double value = 0.0;
 };
 
+// A caller-owned row-wise input that is available only for the current
+// evaluation. The data buffer must remain valid until evaluate() returns.
+// This is primarily used by a derived-column batch to make outputs computed
+// earlier in the same batch available to later expressions.
+struct ExpressionColumn
+{
+    QString name;
+    const double* data = nullptr;
+    qsizetype size = 0;
+};
+
 enum class ExpressionEvaluationStatus
 {
     Success,
@@ -103,6 +114,8 @@ public:
         const DataSnapshotPtr& snapshot,
         const QString& expression,
         const QList<ExpressionScalar>& scalars,
+        const QList<ExpressionColumn>& temporaryColumns,
+        const QStringList& excludedSnapshotColumns,
         double* output,
         qsizetype outputSize) const = 0;
 

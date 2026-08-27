@@ -33,8 +33,10 @@
     <Link><SubSystem>Console</SubSystem><AdditionalLibraryDirectories>$(QtRootDir)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories><AdditionalDependencies>Qt6Core.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\..\code\plugin\expansion_dependency.cpp" />
     <ClCompile Include="..\..\..\code\plugin\mapping_engine.cpp" />
     <ClCompile Include="..\..\..\test\test_main.cpp" />
+    <ClInclude Include="..\..\..\code\plugin\expansion_dependency.h" />
     <ClInclude Include="..\..\..\code\plugin\log_expand_types.h" />
     <ClInclude Include="..\..\..\code\plugin\mapping_engine.h" />
   </ItemGroup>

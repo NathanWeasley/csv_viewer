@@ -1,5 +1,6 @@
 #include "log_expand_plugin.h"
 
+#include "expansion_dependency.h"
 #include "log_expand_dialogs.h"
 #include "mapping_engine.h"
 
@@ -24,6 +25,12 @@ namespace
 
 const QString kDatDecryptPluginId = QStringLiteral("dat_decrypt");
 
+struct ExpansionCandidate
+{
+    ExpansionDefinition definition;
+    QStringList dependencies;
+};
+
 PluginMenuItemSpec menuItem(const QString& id,
                             PluginMenuItemType type,
                             const char* text,
@@ -35,21 +42,6 @@ PluginMenuItemSpec menuItem(const QString& id,
     item.text = QString::fromUtf8(text);
     item.order = order;
     return item;
-}
-
-QStringList expressionIdentifiers(const QString& expression)
-{
-    static const QRegularExpression identifier(
-        QStringLiteral("[A-Za-z_][A-Za-z0-9_]*"));
-    QStringList result;
-    QRegularExpressionMatchIterator matches = identifier.globalMatch(expression);
-    while (matches.hasNext())
-    {
-        const QString value = matches.next().captured();
-        if (!result.contains(value))
-            result.push_back(value);
-    }
-    return result;
 }
 
 } // namespace
@@ -147,6 +139,8 @@ void LogExpandPlugin::shutdown()
     m_workerPool.waitForDone();
     if (m_host)
     {
+        if (m_progress)
+            m_host->ui()->finishLoadProgress(m_progress);
         if (m_dataLoadedSubscription)
             m_host->events()->unsubscribe(m_dataLoadedSubscription);
         if (m_dataUnloadSubscription)
@@ -158,6 +152,7 @@ void LogExpandPlugin::shutdown()
     m_dataLoadedSubscription = 0;
     m_dataUnloadSubscription = 0;
     m_jsonChangedSubscription = 0;
+    m_progress = 0;
     m_workerPool.clear();
     m_mappedVariables.clear();
     m_publishedNames.clear();
@@ -203,6 +198,9 @@ void LogExpandPlugin::handleMenuCommand(const QString& itemId)
 
 void LogExpandPlugin::handleDataLoaded(const LoadSessionInfo& session)
 {
+    if (m_host && m_progress)
+        m_host->ui()->finishLoadProgress(m_progress);
+    m_progress = 0;
     ++m_generation;
     m_workerPool.clear();
     m_currentSessionId = session.isValid() ? session.sessionId : 0;
@@ -219,6 +217,9 @@ void LogExpandPlugin::handleDataAboutToUnload(quint64 sessionId)
 {
     if (sessionId != m_currentSessionId)
         return;
+    if (m_host && m_progress)
+        m_host->ui()->finishLoadProgress(m_progress);
+    m_progress = 0;
     ++m_generation;
     m_workerPool.clear();
     m_currentSessionId = 0;
@@ -414,19 +415,26 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
     }
 
     const QSet<QString> previousNames(m_publishedNames.begin(), m_publishedNames.end());
-    const QSet<QString> allExpansionNames = [&]()
+    QSet<QString> allExpansionNames;
+    for (qsizetype index = 0; index < m_expansionDefinitions.size(); ++index)
     {
-        QSet<QString> names;
-        for (const ExpansionDefinition& definition : m_expansionDefinitions)
-            names.insert(definition.name);
-        return names;
-    }();
+        const QString& name = m_expansionDefinitions[index].name;
+        allExpansionNames.insert(name);
+    }
+    const QList<ExpansionDependencyInfo> dependencyInfo =
+        analyzeExpansionDependencies(m_expansionDefinitions);
+    QSet<QString> excludedNames = allExpansionNames;
+    excludedNames.unite(previousNames);
+    const QStringList excludedSnapshotColumns(excludedNames.begin(), excludedNames.end());
 
-    QList<ExpansionDefinition> candidates;
+    QList<ExpansionCandidate> candidates;
     QList<ExpansionResult> initialResults;
     QStringList outputNames;
-    for (const ExpansionDefinition& definition : m_expansionDefinitions)
+    QSet<QString> scheduledNames;
+    for (qsizetype definitionIndex = 0;
+         definitionIndex < m_expansionDefinitions.size(); ++definitionIndex)
     {
+        const ExpansionDefinition& definition = m_expansionDefinitions[definitionIndex];
         if (!definition.enabled)
         {
             initialResults.push_back({definition.name, false,
@@ -441,20 +449,32 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
             continue;
         }
 
-        QStringList dependentOutputs;
-        for (const QString& identifier : expressionIdentifiers(definition.expression))
-        {
-            if (allExpansionNames.contains(identifier))
-                dependentOutputs.push_back(identifier);
-        }
-        if (!dependentOutputs.isEmpty())
+        const QStringList& dependentOutputs =
+            dependencyInfo[definitionIndex].dependencies;
+        const QStringList& invalidDependencies =
+            dependencyInfo[definitionIndex].invalidDependencies;
+        if (!invalidDependencies.isEmpty())
         {
             initialResults.push_back({definition.name, false,
-                QStringLiteral("References between log_expand output items are not supported."),
-                dependentOutputs});
+                QStringLiteral("An expansion item may reference only items defined earlier in the JSON array."),
+                invalidDependencies});
             continue;
         }
-        candidates.push_back(definition);
+        QStringList unavailableDependencies;
+        for (const QString& dependency : dependentOutputs)
+        {
+            if (!scheduledNames.contains(dependency))
+                unavailableDependencies.push_back(dependency);
+        }
+        if (!unavailableDependencies.isEmpty())
+        {
+            initialResults.push_back({definition.name, false,
+                QStringLiteral("A referenced earlier expansion item is disabled or unavailable."),
+                unavailableDependencies});
+            continue;
+        }
+        candidates.push_back({definition, dependentOutputs});
+        scheduledNames.insert(definition.name);
         outputNames.push_back(definition.name);
     }
 
@@ -472,24 +492,71 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
         return;
     }
 
+    if (m_progress)
+        m_host->ui()->finishLoadProgress(m_progress);
+    m_progress = m_host->ui()->beginLoadProgress(
+        id(), snapshot->sessionId(), QString::fromUtf8(u8"计算扩充表达式"));
+    if (m_progress)
+    {
+        m_host->ui()->reportLoadProgress(
+            m_progress, 0.0f, QString::fromUtf8(u8"正在准备表达式输入…"));
+    }
+
     const quint64 generation = ++m_generation;
     m_workerPool.clear();
     const auto* expressionService = m_expressionData;
+    auto* progressUi = m_host->ui();
+    const PluginProgressHandle progress = m_progress;
     const DerivedColumnBatchWriterPtr writer = created.writer;
     log(LogLevel::Info, QStringLiteral("Recomputing %1 expansion item(s): %2")
                             .arg(candidates.size()).arg(reason));
     m_workerPool.start([this, generation, snapshot, scalars,
+                        excludedSnapshotColumns,
                         candidates, initialResults = std::move(initialResults),
-                        expressionService, writer]() mutable
+                        expressionService, progressUi, progress, writer]() mutable
     {
         QList<ExpansionResult> results = std::move(initialResults);
-        for (const ExpansionDefinition& definition : candidates)
+        QList<ExpressionColumn> temporaryColumns;
+        QSet<QString> completedNames;
+        qsizetype processedCount = 0;
+        const auto reportProgress = [&]()
+        {
+            ++processedCount;
+            if (progress && progressUi)
+            {
+                const float value = candidates.isEmpty() ? 1.0f
+                    : static_cast<float>(processedCount)
+                        / static_cast<float>(candidates.size());
+                progressUi->reportLoadProgress(
+                    progress, value,
+                    QString::fromUtf8(u8"已计算 %1/%2 项")
+                        .arg(processedCount).arg(candidates.size()));
+            }
+        };
+        for (const ExpansionCandidate& candidate : candidates)
         {
             if (m_generation.load() != generation)
                 return;
+            const ExpansionDefinition& definition = candidate.definition;
+            QStringList failedDependencies;
+            for (const QString& dependency : candidate.dependencies)
+            {
+                if (!completedNames.contains(dependency))
+                    failedDependencies.push_back(dependency);
+            }
+            if (!failedDependencies.isEmpty())
+            {
+                writer->discard(definition.name);
+                results.push_back({definition.name, false,
+                    QStringLiteral("A referenced earlier expansion item failed to calculate."),
+                    failedDependencies});
+                reportProgress();
+                continue;
+            }
             double* output = writer->data(definition.name);
             const ExpressionEvaluationResult evaluated = expressionService->evaluate(
-                snapshot, definition.expression, scalars,
+                snapshot, definition.expression, scalars, temporaryColumns,
+                excludedSnapshotColumns,
                 output, writer->rowCount());
             if (!evaluated.success())
             {
@@ -499,16 +566,23 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
             }
             else
             {
+                temporaryColumns.push_back(
+                    {definition.name, output, writer->rowCount()});
+                completedNames.insert(definition.name);
                 results.push_back({definition.name, true,
                     QStringLiteral("OK"), {}});
             }
+            reportProgress();
         }
+        if (candidates.isEmpty() && progress && progressUi)
+            progressUi->reportLoadProgress(progress, 1.0f, {});
         if (m_generation.load() != generation)
             return;
         QMetaObject::invokeMethod(this,
-            [this, generation, writer, results = std::move(results)]() mutable
+            [this, generation, progress, writer,
+             results = std::move(results)]() mutable
             {
-                finishRecompute(generation, writer, std::move(results));
+                finishRecompute(generation, progress, writer, std::move(results));
             },
             Qt::QueuedConnection);
     });
@@ -516,6 +590,7 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
 
 void LogExpandPlugin::finishRecompute(
     quint64 generation,
+    PluginProgressHandle progress,
     const DerivedColumnBatchWriterPtr& writer,
     QList<ExpansionResult> results)
 {
@@ -556,6 +631,11 @@ void LogExpandPlugin::finishRecompute(
                 .arg(result.name, result.message,
                      result.missingSymbols.join(QStringLiteral(", "))));
         }
+    }
+    if (m_host && progress && m_progress == progress)
+    {
+        m_host->ui()->finishLoadProgress(progress);
+        m_progress = 0;
     }
     refreshMenuState();
 }

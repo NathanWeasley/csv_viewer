@@ -139,6 +139,12 @@ QString dataGroupPrefix(const QString& name)
         return QString();
     return name.left(underscorePos);
 }
+
+QColor markerAccentColor()
+{
+    return isSystemInDark() ? QColor(QStringLiteral("#FFD700"))
+                            : QColor(QStringLiteral("#2266cc"));
+}
 }
 
 void UI::createMain()
@@ -211,10 +217,9 @@ void UI::createStatusbar()
     // Cursor status label (between X-axis and progress bar)
     m_cursorStatusLabel = new QLabel("");
     {
-        bool dark = isSystemInDark();
-        QString color = dark ? "#FFD700" : "#2266cc";
         m_cursorStatusLabel->setStyleSheet(
-            QString("color: %1; font-weight: bold; padding: 0 12px;").arg(color));
+            QStringLiteral("color: %1; font-weight: bold; padding: 0 12px;")
+                .arg(markerAccentColor().name()));
     }
     statusBar()->addWidget(m_cursorStatusLabel);
 
@@ -259,7 +264,8 @@ void UI::createStatusbar()
                      .arg(m_viewer.GetDataManager().GetColumnCount())
                      .arg(m_viewer.GetDataManager().GetRowCount())
                      .arg(m_pendingSkippedFiles.size()));
-        m_progressBar->setValue(1000);
+        if (!m_activePluginProgressHandle)
+            m_progressBar->setValue(1000);
         if (m_binaryLogProgressActive)
         {
             constexpr qint64 kMinimumHikLogProgressMs = 1200;
@@ -282,7 +288,7 @@ void UI::createStatusbar()
                 m_binaryLogProgressActive = false;
             });
         }
-        else
+        else if (!m_activePluginProgressHandle)
         {
             m_progressBar->hide();
             m_progressBar->setFormat(QStringLiteral("%p%"));
@@ -364,12 +370,26 @@ void UI::rebuildDataTree()
 
     const QIcon folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirIcon);
     const QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
-    const auto applyColumnAppearance = [this](QTreeWidgetItem* item, size_t index)
+    const QIcon derivedFolderIcon = QApplication::style()->standardIcon(QStyle::SP_DirLinkIcon);
+    const QIcon derivedFileIcon = QApplication::style()->standardIcon(QStyle::SP_FileLinkIcon);
+    const QColor derivedTextColor = markerAccentColor();
+    const auto isDerivedColumn = [this](size_t index)
     {
         const viewer::ColumnMetadata* metadata =
             m_viewer.GetDataManager().GetColumnMetadata(index);
-        if (metadata && metadata->origin == viewer::ColumnOrigin::PluginDerived)
-            item->setForeground(0, QBrush(QColor(45, 125, 220)));
+        return metadata && metadata->origin == viewer::ColumnOrigin::PluginDerived;
+    };
+    const auto applyColumnAppearance = [&](QTreeWidgetItem* item, size_t index)
+    {
+        if (isDerivedColumn(index))
+        {
+            item->setForeground(0, QBrush(derivedTextColor));
+            item->setIcon(0, derivedFileIcon);
+        }
+        else
+        {
+            item->setIcon(0, fileIcon);
+        }
     };
 
     if (!isDataGroupingEnabledForDisplay())
@@ -389,12 +409,17 @@ void UI::rebuildDataTree()
     }
 
     QHash<QString, int> prefixCounts;
+    QHash<QString, bool> prefixHasDerivedColumns;
     for (size_t index = 0; index < colNames.size(); ++index)
     {
         const auto& name = colNames[index];
         const QString prefix = dataGroupPrefix(QString::fromStdString(name));
         if (!prefix.isEmpty())
+        {
             ++prefixCounts[prefix];
+            if (isDerivedColumn(index))
+                prefixHasDerivedColumns[prefix] = true;
+        }
     }
 
     QHash<QString, QTreeWidgetItem*> groupItems;
@@ -412,7 +437,15 @@ void UI::rebuildDataTree()
             {
                 groupItem = new QTreeWidgetItem(m_dataTree);
                 groupItem->setText(0, prefix);
-                groupItem->setIcon(0, folderIcon);
+                if (prefixHasDerivedColumns.value(prefix))
+                {
+                    groupItem->setIcon(0, derivedFolderIcon);
+                    groupItem->setForeground(0, QBrush(derivedTextColor));
+                }
+                else
+                {
+                    groupItem->setIcon(0, folderIcon);
+                }
                 groupItem->setData(0, kDataTreeKindRole, kDataTreeGroupKind);
                 groupItems.insert(prefix, groupItem);
             }
@@ -437,6 +470,60 @@ void UI::rebuildDataTree()
 
     // 自动分组仅组织数据项，不替用户展开文件夹。
     m_dataTree->collapseAll();
+}
+
+void UI::handlePluginLoadProgress(
+    quint64 progressHandle,
+    const QString& ownerPluginId,
+    const QString& title,
+    float value,
+    const QString& detail,
+    bool finished)
+{
+    if (!m_progressBar || !progressHandle)
+        return;
+
+    if (!finished)
+    {
+        if (m_activePluginProgressHandle != progressHandle)
+        {
+            m_activePluginProgressHandle = progressHandle;
+            ++m_pluginProgressGeneration;
+            m_binaryLogProgressActive = false;
+            ++m_binaryLogProgressGeneration;
+        }
+        const int progressValue = static_cast<int>(
+            std::clamp(value, 0.0f, 1.0f) * 1000.0f);
+        m_progressBar->setRange(0, 1000);
+        m_progressBar->setValue(progressValue);
+        m_progressBar->setFormat(title + QStringLiteral(" %p%"));
+        m_progressBar->setTextVisible(true);
+        m_progressBar->show();
+        statusBar()->showMessage(detail.isEmpty()
+            ? title
+            : QStringLiteral("%1：%2").arg(title, detail));
+        logFileTrace(QStringLiteral("plugin progress owner=%1 handle=%2 value=%3 detail=\"%4\"")
+                         .arg(ownerPluginId).arg(progressHandle)
+                         .arg(progressValue).arg(detail));
+        return;
+    }
+
+    if (m_activePluginProgressHandle != progressHandle)
+        return;
+    m_progressBar->setValue(1000);
+    statusBar()->showMessage(title + QString::fromUtf8(u8"完成。"), 3000);
+    m_activePluginProgressHandle = 0;
+    const quint64 generation = ++m_pluginProgressGeneration;
+    QTimer::singleShot(350, this, [this, generation]()
+    {
+        if (m_activePluginProgressHandle
+            || generation != m_pluginProgressGeneration)
+        {
+            return;
+        }
+        m_progressBar->hide();
+        m_progressBar->setFormat(QStringLiteral("%p%"));
+    });
 }
 
 void UI::refreshDataColumns(const QStringList& oldNames,

@@ -40,6 +40,14 @@ class PM_API PluginHost final
     , public viewer::plugin::ILogService
 {
 public:
+    using PluginProgressCallback = std::function<void(
+        viewer::plugin::PluginProgressHandle,
+        const QString&,
+        const QString&,
+        float,
+        const QString&,
+        bool)>;
+
     PluginHost(viewer::Viewer& viewer,
                QMainWindow* mainWindow,
                ads::CDockManager* dockManager,
@@ -48,6 +56,7 @@ public:
                std::function<void(const QStringList&,
                                   const QStringList&,
                                   const QStringList&)> refreshDataColumns,
+               PluginProgressCallback pluginProgress,
                QObject* parent = nullptr);
     ~PluginHost() override;
 
@@ -152,6 +161,16 @@ public:
         viewer::plugin::DockArea preferredArea) override;
     bool showDock(viewer::plugin::PluginDockHandle dock) override;
     bool closeDock(viewer::plugin::PluginDockHandle dock) override;
+    viewer::plugin::PluginProgressHandle beginLoadProgress(
+        const QString& ownerPluginId,
+        quint64 sessionId,
+        const QString& title) override;
+    bool reportLoadProgress(
+        viewer::plugin::PluginProgressHandle progress,
+        float value,
+        const QString& detail = {}) override;
+    void finishLoadProgress(
+        viewer::plugin::PluginProgressHandle progress) override;
     void showError(const QString& title, const QString& message) override;
     void showInformation(const QString& title, const QString& message) override;
 
@@ -211,6 +230,14 @@ private:
         QString ownerPluginId;
         QPointer<ads::CDockWidget> dock;
     };
+    struct ProgressRecord
+    {
+        QString ownerPluginId;
+        quint64 sessionId = 0;
+        QString title;
+        QString detail;
+        float value = 0.0f;
+    };
     template<typename Callback>
     struct SubscriptionRecord
     {
@@ -226,6 +253,7 @@ private:
     std::function<void(const QStringList&,
                        const QStringList&,
                        const QStringList&)> m_refreshDataColumns;
+    PluginProgressCallback m_pluginProgress;
     bool m_shuttingDown = false;
     quint64 m_nextHandle = 1;
 
@@ -235,6 +263,7 @@ private:
     QHash<quint64, ActionRecord> m_actions;
     QHash<quint64, MenuRecord> m_menus;
     QHash<quint64, DockRecord> m_docks;
+    QHash<quint64, ProgressRecord> m_progressRecords;
     QHash<quint64, SubscriptionRecord<DataLoadedCallback>> m_dataLoadedSubscriptions;
     QHash<quint64, SubscriptionRecord<DataAboutToUnloadCallback>> m_dataUnloadSubscriptions;
     QHash<quint64, SubscriptionRecord<ColumnAddedCallback>> m_columnAddedSubscriptions;

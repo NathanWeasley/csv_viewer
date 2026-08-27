@@ -1,3 +1,4 @@
+#include "plugin/expansion_dependency.h"
 #include "plugin/mapping_engine.h"
 
 #include <QCoreApplication>
@@ -76,6 +77,31 @@ void testMappingResolution()
           "nested repeated-object numeric mapping");
 }
 
+void testExpansionDependencyOrder()
+{
+    const QList<ExpansionDefinition> definitions{
+        {true, QStringLiteral("first"), QStringLiteral("axis_0 * 2")},
+        {true, QStringLiteral("second"), QStringLiteral("first + 1")},
+        {true, QStringLiteral("self"), QStringLiteral("self + 1")},
+        {true, QStringLiteral("forward_user"), QStringLiteral("later + second")},
+        {true, QStringLiteral("later"), QStringLiteral("axis_1")}
+    };
+    const QList<ExpansionDependencyInfo> info =
+        analyzeExpansionDependencies(definitions);
+
+    check(info.size() == definitions.size(), "dependency result count");
+    check(info[0].dependencies.isEmpty(),
+          "viewer inputs are not expansion dependencies");
+    check(info[1].dependencies == QStringList{QStringLiteral("first")}
+              && info[1].invalidDependencies.isEmpty(),
+          "later item may reference an earlier item");
+    check(info[2].invalidDependencies == QStringList{QStringLiteral("self")},
+          "self reference is rejected");
+    check(info[3].dependencies.contains(QStringLiteral("second"))
+              && info[3].invalidDependencies == QStringList{QStringLiteral("later")},
+          "forward reference is rejected while earlier reference remains valid");
+}
+
 void testPluginBinaryLoads()
 {
 #ifdef QT_DEBUG
@@ -106,6 +132,7 @@ int main(int argc, char** argv)
     QCoreApplication application(argc, argv);
     testDefinitionLoading();
     testMappingResolution();
+    testExpansionDependencyOrder();
     testPluginBinaryLoads();
     if (failures == 0)
         std::cout << "All log_expand tests passed.\n";

@@ -249,6 +249,7 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                        std::function<void(const QStringList&,
                                           const QStringList&,
                                           const QStringList&)> refreshDataColumns,
+                       PluginProgressCallback pluginProgress,
                        QObject* parent)
     : QObject(parent)
     , m_viewer(viewer)
@@ -257,6 +258,7 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
     , m_pluginMenu(pluginMenu)
     , m_rebuildDataTree(std::move(rebuildDataTree))
     , m_refreshDataColumns(std::move(refreshDataColumns))
+    , m_pluginProgress(std::move(pluginProgress))
 {
     m_coreExpressionDataService = new CoreExpressionDataService(this, this);
     m_services.insert(
@@ -289,6 +291,15 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                 catch (...) { write(record.ownerPluginId, LogLevel::Error,
                                     QStringLiteral("Unhandled exception in DataAboutToUnload callback.")); }
             }
+            QList<PluginProgressHandle> staleProgress;
+            for (auto it = m_progressRecords.constBegin();
+                 it != m_progressRecords.constEnd(); ++it)
+            {
+                if (it->sessionId == sessionId)
+                    staleProgress.push_back(it.key());
+            }
+            for (const PluginProgressHandle progress : staleProgress)
+                finishLoadProgress(progress);
         });
     connect(&m_viewer, &viewer::Viewer::DataColumnAdded, this,
         [this](quint64 sessionId, const QString& name)
@@ -1016,6 +1027,91 @@ bool PluginHost::closeDock(PluginDockHandle dockHandle)
     return true;
 }
 
+PluginProgressHandle PluginHost::beginLoadProgress(
+    const QString& ownerPluginId,
+    quint64 sessionId,
+    const QString& title)
+{
+    if (QThread::currentThread() != thread())
+    {
+        PluginProgressHandle result = 0;
+        QMetaObject::invokeMethod(this,
+            [this, &result, ownerPluginId, sessionId, title]()
+            {
+                result = beginLoadProgress(ownerPluginId, sessionId, title);
+            },
+            Qt::BlockingQueuedConnection);
+        return result;
+    }
+    const LoadSessionInfo session = m_viewer.GetLoadSessionInfo();
+    if (m_shuttingDown || ownerPluginId.isEmpty() || title.trimmed().isEmpty()
+        || !isPluginLoaded(ownerPluginId) || !session.isValid()
+        || session.sessionId != sessionId)
+    {
+        return 0;
+    }
+
+    const PluginProgressHandle handle = nextHandle();
+    const ProgressRecord record{ownerPluginId, sessionId, title, {}, 0.0f};
+    m_progressRecords.insert(handle, record);
+    if (m_pluginProgress)
+        m_pluginProgress(handle, ownerPluginId, title, 0.0f, {}, false);
+    return handle;
+}
+
+bool PluginHost::reportLoadProgress(
+    PluginProgressHandle progress,
+    float value,
+    const QString& detail)
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this,
+            [this, progress, value, detail]()
+            {
+                reportLoadProgress(progress, value, detail);
+            },
+            Qt::QueuedConnection);
+        return true;
+    }
+    auto it = m_progressRecords.find(progress);
+    if (m_shuttingDown || it == m_progressRecords.end())
+        return false;
+    const LoadSessionInfo session = m_viewer.GetLoadSessionInfo();
+    if (!session.isValid() || session.sessionId != it->sessionId)
+        return false;
+
+    it->value = std::clamp(value, 0.0f, 1.0f);
+    it->detail = detail;
+    if (m_pluginProgress)
+    {
+        m_pluginProgress(progress, it->ownerPluginId, it->title,
+                         it->value, it->detail, false);
+    }
+    return true;
+}
+
+void PluginHost::finishLoadProgress(PluginProgressHandle progress)
+{
+    if (QThread::currentThread() != thread())
+    {
+        QMetaObject::invokeMethod(this,
+            [this, progress]() { finishLoadProgress(progress); },
+            Qt::QueuedConnection);
+        return;
+    }
+    const auto it = m_progressRecords.find(progress);
+    if (it == m_progressRecords.end())
+        return;
+    const ProgressRecord record = it.value();
+    m_progressRecords.erase(it);
+    if (m_pluginProgress)
+    {
+        m_pluginProgress(progress, record.ownerPluginId, record.title,
+                         1.0f, record.detail, true);
+    }
+}
+
 void PluginHost::showError(const QString& title, const QString& message)
 {
     if (QThread::currentThread() != thread())
@@ -1063,6 +1159,16 @@ void PluginHost::setPluginState(const QString& pluginId, PluginState state)
 
 void PluginHost::removeOwnedResources(const QString& pluginId)
 {
+    QList<PluginProgressHandle> progressHandles;
+    for (auto it = m_progressRecords.constBegin();
+         it != m_progressRecords.constEnd(); ++it)
+    {
+        if (it->ownerPluginId == pluginId)
+            progressHandles.push_back(it.key());
+    }
+    for (const PluginProgressHandle progress : progressHandles)
+        finishLoadProgress(progress);
+
     for (auto it = m_services.begin(); it != m_services.end(); )
         it = it->providerPluginId == pluginId ? m_services.erase(it) : ++it;
     for (auto it = m_dataLoadedSubscriptions.begin(); it != m_dataLoadedSubscriptions.end(); )
@@ -1118,6 +1224,9 @@ void PluginHost::beginShutdown()
 {
     if (m_shuttingDown)
         return;
+    const QList<PluginProgressHandle> progressHandles = m_progressRecords.keys();
+    for (const PluginProgressHandle progress : progressHandles)
+        finishLoadProgress(progress);
     m_shuttingDown = true;
     disconnect(&m_viewer, nullptr, this, nullptr);
 }

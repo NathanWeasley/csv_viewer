@@ -51,8 +51,14 @@ After a hiklog session and all three `dat_decrypt` documents are ready, enabled
 expressions are evaluated against the current Viewer data snapshot and
 published atomically as plugin-owned columns. Missing source paths or expression
 symbols skip the affected output and are reported by the diagnostics dialog.
-Expanded items are managed by Viewer after publication and are shown in blue in
-the data tree.
+Expressions are evaluated in JSON order: a later expression may use an earlier
+successfully calculated output as an input, while self-references and forward
+references are rejected. Calculation progress is reported to Viewer's load
+progress bar.
+
+Expanded items are managed by Viewer after publication. Their names use the
+same theme-aware accent color as markers, and prefix groups containing expanded
+items use a distinct accent color and folder icon in the data tree.
 
 The two runtime JSON files are copied to a Viewer plugin directory only when the
 corresponding destination file does not exist, so user edits survive rebuilds.

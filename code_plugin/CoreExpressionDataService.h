@@ -20,6 +20,8 @@ public:
         const viewer::plugin::DataSnapshotPtr& snapshot,
         const QString& expression,
         const QList<viewer::plugin::ExpressionScalar>& scalars,
+        const QList<viewer::plugin::ExpressionColumn>& temporaryColumns,
+        const QStringList& excludedSnapshotColumns,
         double* output,
         qsizetype outputSize) const override;
 

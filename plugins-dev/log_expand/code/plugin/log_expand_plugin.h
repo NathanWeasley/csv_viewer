@@ -41,6 +41,7 @@ private:
     void scheduleRecompute(const QString& reason);
     void finishRecompute(
         quint64 generation,
+        viewer::plugin::PluginProgressHandle progress,
         const viewer::plugin::DerivedColumnBatchWriterPtr& writer,
         QList<ExpansionResult> results);
 
@@ -59,6 +60,7 @@ private:
     viewer::plugin::SubscriptionId m_dataLoadedSubscription = 0;
     viewer::plugin::SubscriptionId m_dataUnloadSubscription = 0;
     viewer::plugin::JsonSubscriptionId m_jsonChangedSubscription = 0;
+    viewer::plugin::PluginProgressHandle m_progress = 0;
 
     QString m_mappingPath;
     QString m_expressionsPath;

@@ -6,6 +6,9 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\code\plugin\expansion_dependency.cpp">
+      <Filter>Plugin</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\code\plugin\log_expand_dialogs.cpp">
       <Filter>Plugin</Filter>
     </ClCompile>
@@ -17,6 +20,9 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\..\code\plugin\expansion_dependency.h">
+      <Filter>Plugin</Filter>
+    </ClInclude>
     <CustomBuild Include="..\..\code\plugin\log_expand_plugin.h">
       <Filter>Plugin</Filter>
     </CustomBuild>

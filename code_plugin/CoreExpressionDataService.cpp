@@ -3,6 +3,8 @@
 #include "code_plugin/PluginHost.h"
 #include "code_viewer/datamgr/expression_engine.h"
 
+#include <QSet>
+
 #include <exception>
 #include <new>
 #include <utility>
@@ -21,6 +23,8 @@ ExpressionEvaluationResult CoreExpressionDataService::evaluate(
     const DataSnapshotPtr& snapshot,
     const QString& expression,
     const QList<ExpressionScalar>& scalars,
+    const QList<ExpressionColumn>& temporaryColumns,
+    const QStringList& excludedSnapshotColumns,
     double* output,
     qsizetype outputSize) const
 {
@@ -32,14 +36,23 @@ ExpressionEvaluationResult CoreExpressionDataService::evaluate(
 
     try
     {
+        const QSet<QString> excluded(excludedSnapshotColumns.begin(),
+                                     excludedSnapshotColumns.end());
         std::vector<viewer::ExpressionColumnView> columns;
         const QStringList names = snapshot->columnNames();
-        columns.reserve(static_cast<size_t>(names.size()));
+        columns.reserve(static_cast<size_t>(names.size() + temporaryColumns.size()));
         for (const QString& name : names)
         {
+            if (excluded.contains(name))
+                continue;
             const ColumnView column = snapshot->column(name);
             columns.push_back({name.toUtf8().toStdString(), column.data,
                                static_cast<size_t>(column.size)});
+        }
+        for (const ExpressionColumn& column : temporaryColumns)
+        {
+            columns.push_back({column.name.toUtf8().toStdString(), column.data,
+                               column.size > 0 ? static_cast<size_t>(column.size) : 0});
         }
 
         std::vector<viewer::ExpressionScalarValue> scalarValues;

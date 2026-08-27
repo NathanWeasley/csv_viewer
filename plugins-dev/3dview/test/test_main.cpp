@@ -238,6 +238,17 @@ public:
         return true;
     }
     bool closeDock(viewer::plugin::PluginDockHandle) override { return true; }
+    viewer::plugin::PluginProgressHandle beginLoadProgress(
+        const QString&, quint64, const QString&) override
+    {
+        return 1;
+    }
+    bool reportLoadProgress(
+        viewer::plugin::PluginProgressHandle, float, const QString&) override
+    {
+        return true;
+    }
+    void finishLoadProgress(viewer::plugin::PluginProgressHandle) override {}
     void showError(const QString&, const QString& message) override
     {
         lastError = message;

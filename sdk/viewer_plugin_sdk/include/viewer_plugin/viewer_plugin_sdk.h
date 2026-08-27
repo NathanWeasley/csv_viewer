@@ -209,6 +209,7 @@ enum class DockArea
 using PluginActionHandle = quint64;
 using PluginDockHandle = quint64;
 using PluginMenuHandle = quint64;
+using PluginProgressHandle = quint64;
 
 enum class PluginMenuItemType
 {
@@ -259,6 +260,18 @@ public:
         DockArea preferredArea = DockArea::Right) = 0;
     virtual bool showDock(PluginDockHandle dock) = 0;
     virtual bool closeDock(PluginDockHandle dock) = 0;
+    // Reports a plugin stage that belongs to the active data-load session.
+    // Progress is normalized to 0.0..1.0 and is displayed by Viewer using the
+    // same status-bar progress control as the main data loader.
+    virtual PluginProgressHandle beginLoadProgress(
+        const QString& ownerPluginId,
+        quint64 sessionId,
+        const QString& title) = 0;
+    virtual bool reportLoadProgress(
+        PluginProgressHandle progress,
+        float value,
+        const QString& detail = {}) = 0;
+    virtual void finishLoadProgress(PluginProgressHandle progress) = 0;
     virtual void showError(const QString& title, const QString& message) = 0;
     virtual void showInformation(const QString& title, const QString& message) = 0;
 };
