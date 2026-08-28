@@ -1,0 +1,190 @@
+{
+    "items": [
+        {
+            "enabled": true,
+            "expression": "(axis_0_rmp_pos_cmd-zero1)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_pos_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_rmp_pos_cmd-zero2)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_pos_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_rmp_pos_cmd-zero3)*ratio3/8388608*dir3 + (axis_3_rmp_pos_cmd-zero4)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_pos_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_rmp_pos_cmd-zero4)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_pos_rmp"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_rmc_pos_cmd-zero1)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_pos_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_rmc_pos_cmd-zero2)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_pos_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_rmc_pos_cmd-zero3)*ratio3/8388608*dir3 + (axis_3_rmp_pos_cmd-zero4)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_pos_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_rmc_pos_cmd-zero4)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_pos_rmc"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_demand_pos-zero1)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_pos_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_demand_pos-zero2)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_pos_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_demand_pos-zero3)*ratio3/8388608*dir3 + (axis_3_demand_pos-zero4)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_pos_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_demand_pos-zero4)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_pos_cmd"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_cur_pos-zero1)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_pos_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_cur_pos-zero2)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_pos_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_cur_pos-zero3)*ratio3/8388608*dir3 + (axis_3_cur_pos-zero4)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_pos_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_cur_pos-zero4)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_pos_fdbk"
+        },
+
+
+
+
+
+
+
+
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_rmp_vel_cmd)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_vel_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_rmp_vel_cmd)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_vel_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_rmp_vel_cmd)*ratio3/8388608*dir3 + (axis_3_rmp_vel_cmd)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_vel_rmp"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_rmp_vel_cmd)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_vel_rmp"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_rmc_vel_cmd)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_vel_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_rmc_vel_cmd)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_vel_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_rmc_vel_cmd)*ratio3/8388608*dir3 + (axis_3_rmp_vel_cmd)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_vel_rmc"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_rmc_vel_cmd)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_vel_rmc"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_demand_vel)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_vel_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_demand_vel)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_vel_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_demand_vel)*ratio3/8388608*dir3 + (axis_3_demand_vel)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_vel_cmd"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_demand_vel)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_vel_cmd"
+        },
+
+        {
+            "enabled": true,
+            "expression": "(axis_0_cur_vel)/ratio1*360/8388608*dir1",
+            "name": "sp_jnt_1_vel_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_1_cur_vel)/ratio2*360/8388608*dir2",
+            "name": "sp_jnt_2_vel_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_2_cur_vel)*ratio3/8388608*dir3 + (axis_3_cur_vel)/ratio4*360/8388608*cpl43",
+            "name": "sp_jnt_3_vel_fdbk"
+        },
+        {
+            "enabled": true,
+            "expression": "(axis_3_cur_vel)/ratio4*360/8388608*dir4",
+            "name": "sp_jnt_4_vel_fdbk"
+        }
+
+
+
+
+
+
+
+
+
+        
+    ],
+    "version": 1
+}

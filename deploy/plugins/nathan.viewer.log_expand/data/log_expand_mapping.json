@@ -1,0 +1,73 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "source": "capa.device_info.product_type",
+      "name": "modelname"
+    },
+    {
+      "source": "capa.robot.link_len[1]",
+      "name": "linklen1"
+    },
+	  {
+      "source": "capa.robot.link_len[2]",
+      "name": "linklen2"
+    },
+    {
+      "source": "capa.robot.cpl_ratio[11]",
+      "name": "cpl43"
+    },
+	  {
+      "source": "capa.servo_param[0].motor_ratio",
+      "name": "ratio1"
+    },
+    {
+	    "source": "capa.servo_param[1].motor_ratio",
+      "name": "ratio2"
+    },
+    {
+	    "source": "capa.servo_param[2].motor_ratio",
+      "name": "ratio3"
+    },
+    {
+	    "source": "capa.servo_param[3].motor_ratio",
+      "name": "ratio4"
+    },
+	  {
+	    "source": "calib.is_encode_zero_valid",
+      "name": "zerovalid"
+    },
+	  {
+	    "source": "calib.encode_zero[0]",
+      "name": "zero1"
+    },
+	  {
+	    "source": "calib.encode_zero[1]",
+      "name": "zero2"
+    },
+	  {
+	    "source": "calib.encode_zero[2]",
+      "name": "zero3"
+    },
+	  {
+	    "source": "calib.encode_zero[3]",
+      "name": "zero4"
+    },
+    {
+      "source": "capa.robot.axis_dir[0]",
+      "name": "dir1"
+    },
+    {
+      "source": "capa.robot.axis_dir[1]",
+      "name": "dir2"
+    },
+    {
+      "source": "capa.robot.axis_dir[2]",
+      "name": "dir3"
+    },
+    {
+      "source": "capa.robot.axis_dir[3]",
+      "name": "dir4"
+    }
+  ]
+}

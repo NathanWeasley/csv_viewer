@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "time": "timestamp",
+  "sampleRate": 100.0,
+  "units": {
+    "position": "mm",
+    "angle": "deg",
+    "time": "s"
+  },
+  "joint": {
+    "actual_joint": [
+      {
+        "name": "jnt_0",
+        "type": "revolute"
+      },
+      {
+        "name": "jnt_1",
+        "type": "revolute"
+      },
+      {
+        "name": "jnt_2",
+        "type": "prismatic"
+      },
+      {
+        "name": "jnt_3",
+        "type": "revolute"
+      }
+    ]
+  },
+  "tcp": {
+    "actual_tcp": [ "spaceInfo_x", "spaceInfo_y", "spaceInfo_z", "spaceInfo_roll", "spaceInfo_pitch", "spaceInfo_yaw" ]
+  },
+  "presets": {
+    "actual": {
+      "joint": "actual_joint",
+      "tcp": [ "actual_tcp" ],
+      "pose": "actual_tcp"
+    }
+  },
+  "defaultPreset": "actual"
+}
