@@ -1012,8 +1012,10 @@ void UI::createMenu()
     auto* openCSV = fileMenu->addAction("载入多个CSV文件");
     connect(openCSV, &QAction::triggered, this, &UI::onLoadCSVClicked);
     auto* openFolder = fileMenu->addAction("载入多个文件夹下的全部CSV文件");
-    auto* openBinary = fileMenu->addAction(QString::fromUtf8(u8"从 ZIP 载入 HikLog"));
+    auto* openBinary = fileMenu->addAction(QString::fromUtf8(u8"从 ZIP 载入日志"));
     connect(openBinary, &QAction::triggered, this, &UI::onLoadHiklogClicked);
+    auto* viewRbtLogs = fileMenu->addAction(QString::fromUtf8(u8"查看 RBT 文本日志…"));
+    connect(viewRbtLogs, &QAction::triggered, this, &UI::onShowRbtLogsClicked);
     connect(openFolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
     fileMenu->addSeparator();
     auto* clearAll = fileMenu->addAction("清空全部数据");

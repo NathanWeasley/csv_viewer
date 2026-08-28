@@ -444,6 +444,17 @@ logparse::ParseResult Viewer::ParseZipEntries(
     return parser.parseInputs(std::move(inputs), options);
 }
 
+logparse::RbtLogBatchResult Viewer::ParseRbtZipEntries(
+    const std::filesystem::path& archivePath,
+    const std::vector<uint64_t>& entryIndices,
+    const std::filesystem::path& outputDirectory,
+    const logparse::RbtLogParseOptions& options)
+{
+    logparse::RbtLogParser parser;
+    return parser.parseZipEntries(
+        archivePath, entryIndices, outputDirectory, options);
+}
+
 bool Viewer::ReadZipEntry(const std::filesystem::path& archivePath,
                           uint64_t entryIndex,
                           QByteArray& bytes,

@@ -78,7 +78,7 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::LOADHIKLOG,
 		0,
-		"Load HikRobot Logs",
+		"Load ZIP Logs (HikLog / RBT)",
 		IconSource::SvgFile,
 		":/icons/SVG/loadhiklog.svg"
 	},

@@ -239,7 +239,7 @@ void UI::beginShutdownCleanup(bool persistUiState)
     m_isShuttingDown = true;
     if (m_binaryLogCancel)
     {
-        logFileTrace("ZIP hiklog cancellation requested: UI shutdown");
+        logFileTrace("ZIP log cancellation requested: UI shutdown");
         m_binaryLogCancel->store(true, std::memory_order_relaxed);
     }
     logShutdownTrace(QString("beginShutdownCleanup enter persist=%1 pageDocks=%2 plotDockMgr=%3 dockMgr=%4")

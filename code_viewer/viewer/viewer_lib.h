@@ -12,6 +12,7 @@
 #include "code_viewer/stylemgr/style_manager.h"
 #include "code_logparse/binary_log_types.h"
 #include "code_logparse/binary_log_parser.h"
+#include "code_logparse/rbt_log_parser.h"
 #include "code_logparse/ziplog/zip_entry_info.h"
 #include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h"
 
@@ -51,6 +52,11 @@ public:
         const std::filesystem::path& archivePath,
         const std::vector<uint64_t>& entryIndices,
         const logparse::ParseOptions& options = {});
+    static logparse::RbtLogBatchResult ParseRbtZipEntries(
+        const std::filesystem::path& archivePath,
+        const std::vector<uint64_t>& entryIndices,
+        const std::filesystem::path& outputDirectory,
+        const logparse::RbtLogParseOptions& options = {});
     static bool ReadZipEntry(
         const std::filesystem::path& archivePath,
         uint64_t entryIndex,

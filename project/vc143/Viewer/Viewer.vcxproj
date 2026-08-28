@@ -15,6 +15,7 @@
     <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_input.cpp" />
     <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\rbt_log_parser.cpp" />
     <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp" />
     <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp" />
     <ClCompile Include="..\..\..\code_viewer\datamgr\data_manager.cpp" />
@@ -37,6 +38,7 @@
     <ClInclude Include="..\..\..\code_logparse\binary_log_types.h" />
     <ClInclude Include="..\..\..\code_logparse\binary_input.h" />
     <ClInclude Include="..\..\..\code_logparse\binary_reader.h" />
+    <ClInclude Include="..\..\..\code_logparse\rbt_log_parser.h" />
     <ClInclude Include="..\..\..\code_logparse\ziplog\zip_archive.h" />
     <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.h" />
     <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_info.h" />
@@ -123,13 +125,13 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>..\..\..\;..\..\..\extra\libzip\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\;..\..\..\extra\libzip\include\;..\..\..\extra\zlib\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\..\..\lib\;..\..\..\extra\libzip\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;zip.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\lib\;..\..\..\extra\libzip\lib\;..\..\..\extra\zlib\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;zip.lib;z.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -141,13 +143,13 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalIncludeDirectories>..\..\..\;..\..\..\extra\libzip\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>..\..\..\;..\..\..\extra\libzip\include\;..\..\..\extra\zlib\include\;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4819;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
-      <AdditionalLibraryDirectories>..\..\..\lib\;..\..\..\extra\libzip\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;zip.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>..\..\..\lib\;..\..\..\extra\libzip\lib\;..\..\..\extra\zlib\lib\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>LibQCustomPlot_$(PlatformToolset)_$(Platform)_$(Configuration).lib;zip.lib;z.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'" Label="Configuration">

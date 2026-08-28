@@ -39,6 +39,7 @@
 class HighlightDialog;
 class PluginHost;
 class PluginManager;
+class RbtLogViewerWindow;
 class QMenu;
 namespace ads { class CDockWidget; }
 
@@ -138,6 +139,7 @@ private Q_SLOTS:
     void onLoadCSVClicked();
     void onLoadFolderClicked();
     void onLoadHiklogClicked();
+    void onShowRbtLogsClicked();
     void onDataItemDoubleClicked(QTreeWidgetItem* item, int column);
 
     QPair<viewer::QCPColumnGraph*, size_t> findNearestDataPoint(
@@ -168,6 +170,10 @@ private Q_SLOTS:
     void cancelFFTSelection();
     void onSTFTRequested(int pageIndex);
     void showSTFTDialog(int pageIndex);
+
+    QString rbtLogDirectory() const;
+    bool resetRbtLogDirectory(QString* error = nullptr);
+    QStringList availableRbtLogFiles() const;
 
 private:
     Ui::UIClass ui;
@@ -244,6 +250,7 @@ private:
     QElapsedTimer m_binaryLogProgressTimer;
     quint64 m_activePluginProgressHandle = 0;
     quint64 m_pluginProgressGeneration = 0;
+    RbtLogViewerWindow* m_rbtLogViewer = nullptr;
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;

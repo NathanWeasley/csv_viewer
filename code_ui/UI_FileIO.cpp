@@ -1,4 +1,5 @@
 #include "UI.h"
+#include "RbtLogViewer.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -65,6 +66,17 @@ namespace
 {
 
 constexpr int kZipEntryIndexRole = Qt::UserRole + 40;
+constexpr int kZipEntryKindRole = Qt::UserRole + 41;
+constexpr int kZipEntryKindHiklog = 1;
+constexpr int kZipEntryKindRbt = 2;
+
+struct ZipLogLoadResult
+{
+    viewer::logparse::ParseResult hiklog;
+    viewer::logparse::RbtLogBatchResult rbt;
+    bool hasHiklog = false;
+    bool cancelled = false;
+};
 
 QString formatByteCount(uint64_t bytes)
 {
@@ -103,12 +115,12 @@ public:
                           QWidget* parent)
         : QDialog(parent)
     {
-        setWindowTitle(QString::fromUtf8(u8"选择 ZIP 中的 HikLog"));
+        setWindowTitle(QString::fromUtf8(u8"选择 ZIP 中的日志"));
         resize(1050, 680);
 
         auto* layout = new QVBoxLayout(this);
         auto* description = new QLabel(
-            QString::fromUtf8(u8"压缩包：%1\n勾选要解析的 .hiklog 文件，右侧顺序决定连续解析顺序。")
+            QString::fromUtf8(u8"压缩包：%1\n勾选要解析的 .hiklog 或文件名以 RBT 开头的日志；右侧仅设置 HikLog 的连续解析顺序。")
                 .arg(QDir::toNativeSeparators(
                     QString::fromStdWString(archivePath.wstring()))),
             this);
@@ -134,7 +146,7 @@ public:
         auto* orderPanel = new QWidget(splitter);
         auto* orderLayout = new QVBoxLayout(orderPanel);
         orderLayout->addWidget(new QLabel(
-            QString::fromUtf8(u8"连续解析顺序（首文件定义主结构）"), orderPanel));
+            QString::fromUtf8(u8"HikLog 连续解析顺序（首文件定义主结构）"), orderPanel));
         m_order = new QListWidget(orderPanel);
         m_order->setAlternatingRowColors(true);
         orderLayout->addWidget(m_order, 1);
@@ -217,15 +229,29 @@ public:
             m_entrySizes.insert(entry.index, entry.uncompressedSize);
 
             const bool isHiklog = path.endsWith(QStringLiteral(".hiklog"),
-                                                Qt::CaseInsensitive);
-            if (entry.canRead() && isHiklog)
+                                                 Qt::CaseInsensitive);
+            const bool isRbt = components.back().startsWith(
+                QStringLiteral("RBT"), Qt::CaseInsensitive);
+            if (entry.canRead() && (isHiklog || isRbt))
             {
                 item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
                 item->setCheckState(0, Qt::Unchecked);
+                item->setData(0, kZipEntryKindRole,
+                              isHiklog ? kZipEntryKindHiklog : kZipEntryKindRbt);
                 QFont candidateFont = item->font(0);
                 candidateFont.setBold(true);
                 item->setFont(0, candidateFont);
-                item->setToolTip(0, QString::fromUtf8(u8"可选择的 HikLog 文件"));
+                if (isHiklog)
+                {
+                    item->setText(3, QStringLiteral("HikLog"));
+                    item->setToolTip(0, QString::fromUtf8(u8"可选择的 HikLog 文件"));
+                }
+                else
+                {
+                    item->setText(3, QString::fromUtf8(u8"RBT 文本日志"));
+                    item->setToolTip(0, QString::fromUtf8(u8"可选择的 RBT 分块压缩文本日志"));
+                    m_rbtEntryIndices.push_back(entry.index);
+                }
             }
             else
             {
@@ -240,12 +266,14 @@ public:
                 if (column != 0 || !item->data(0, kZipEntryIndexRole).isValid())
                     return;
                 const uint64_t index = item->data(0, kZipEntryIndexRole).toULongLong();
-                if (item->checkState(0) == Qt::Checked)
+                const int kind = item->data(0, kZipEntryKindRole).toInt();
+                if (kind == kZipEntryKindHiklog
+                    && item->checkState(0) == Qt::Checked)
                 {
                     if (findOrderRow(index) < 0)
                         addOrderItem(index, fullTreePath(item));
                 }
-                else
+                else if (kind == kZipEntryKindHiklog)
                 {
                     const int row = findOrderRow(index);
                     if (row >= 0)
@@ -270,12 +298,25 @@ public:
         updateSummary();
     }
 
-    std::vector<uint64_t> selectedEntryIndices() const
+    std::vector<uint64_t> selectedHiklogEntryIndices() const
     {
         std::vector<uint64_t> result;
         result.reserve(static_cast<size_t>(m_order->count()));
         for (int row = 0; row < m_order->count(); ++row)
             result.push_back(m_order->item(row)->data(kZipEntryIndexRole).toULongLong());
+        return result;
+    }
+
+    std::vector<uint64_t> selectedRbtEntryIndices() const
+    {
+        std::vector<uint64_t> result;
+        result.reserve(m_rbtEntryIndices.size());
+        for (const uint64_t index : m_rbtEntryIndices)
+        {
+            const QTreeWidgetItem* item = m_entryItems.value(index, nullptr);
+            if (item && item->checkState(0) == Qt::Checked)
+                result.push_back(index);
+        }
         return result;
     }
 
@@ -328,9 +369,22 @@ private:
             total = size > std::numeric_limits<uint64_t>::max() - total
                 ? std::numeric_limits<uint64_t>::max() : total + size;
         }
-        m_summary->setText(QString::fromUtf8(u8"已选 %1 个文件，原始数据共 %2（不解压到磁盘）")
-                               .arg(m_order->count()).arg(formatByteCount(total)));
-        m_buttons->button(QDialogButtonBox::Ok)->setEnabled(m_order->count() > 0);
+        int rbtCount = 0;
+        for (const uint64_t index : m_rbtEntryIndices)
+        {
+            const QTreeWidgetItem* item = m_entryItems.value(index, nullptr);
+            if (!item || item->checkState(0) != Qt::Checked)
+                continue;
+            ++rbtCount;
+            const uint64_t size = m_entrySizes.value(index, 0);
+            total = size > std::numeric_limits<uint64_t>::max() - total
+                ? std::numeric_limits<uint64_t>::max() : total + size;
+        }
+        m_summary->setText(QString::fromUtf8(
+            u8"已选 %1 个 HikLog、%2 个 RBT 日志，ZIP 内原始数据共 %3")
+            .arg(m_order->count()).arg(rbtCount).arg(formatByteCount(total)));
+        m_buttons->button(QDialogButtonBox::Ok)->setEnabled(
+            m_order->count() > 0 || rbtCount > 0);
     }
 
     QTreeWidget* m_tree = nullptr;
@@ -339,6 +393,7 @@ private:
     QDialogButtonBox* m_buttons = nullptr;
     QHash<qulonglong, QTreeWidgetItem*> m_entryItems;
     QHash<qulonglong, qulonglong> m_entrySizes;
+    std::vector<uint64_t> m_rbtEntryIndices;
 };
 
 QString parseDiagnosticsText(const viewer::logparse::ParseResult& result)
@@ -364,6 +419,78 @@ QString parseDiagnosticsText(const viewer::logparse::ParseResult& result)
 }
 
 } // namespace
+
+QString UI::rbtLogDirectory() const
+{
+    return QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(
+        QStringLiteral("user/rbt_log"));
+}
+
+bool UI::resetRbtLogDirectory(QString* error)
+{
+    if (m_rbtLogViewer)
+        m_rbtLogViewer->releaseFiles();
+
+    const QString applicationDirectory = QDir(
+        QCoreApplication::applicationDirPath()).absolutePath();
+    const QString target = QDir(rbtLogDirectory()).absolutePath();
+    const QString relativeTarget = QDir(applicationDirectory).relativeFilePath(target);
+    if (relativeTarget.compare(QStringLiteral("user/rbt_log"),
+                               Qt::CaseInsensitive) != 0)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"RBT 临时目录路径校验失败。");
+        return false;
+    }
+
+    QDir directory(target);
+    if (directory.exists() && !directory.removeRecursively())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"无法清空 RBT 临时目录，文件可能正被其他软件占用：%1")
+                .arg(QDir::toNativeSeparators(target));
+        return false;
+    }
+    if (!QDir().mkpath(target))
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"无法创建 RBT 临时目录：%1")
+                .arg(QDir::toNativeSeparators(target));
+        return false;
+    }
+    return true;
+}
+
+QStringList UI::availableRbtLogFiles() const
+{
+    const QString path = rbtLogDirectory();
+    if (!QDir().mkpath(path))
+        return {};
+    QDir directory(path);
+    const QFileInfoList files = directory.entryInfoList(
+        QStringList{QStringLiteral("*.log"), QStringLiteral("*.txt")},
+        QDir::Files | QDir::Readable, QDir::Name | QDir::IgnoreCase);
+    QStringList paths;
+    paths.reserve(files.size());
+    for (const QFileInfo& file : files)
+        paths.push_back(file.absoluteFilePath());
+    return paths;
+}
+
+void UI::onShowRbtLogsClicked()
+{
+    const QStringList files = availableRbtLogFiles();
+    if (files.isEmpty())
+    {
+        QMessageBox::information(
+            this, QString::fromUtf8(u8"RBT 日志快速查看"),
+            QString::fromUtf8(u8"当前临时目录中没有已解析的 RBT 日志。"));
+        return;
+    }
+    if (!m_rbtLogViewer)
+        m_rbtLogViewer = new RbtLogViewerWindow(this);
+    m_rbtLogViewer->openFiles(files);
+}
 
 #ifdef Q_OS_WIN
 static QStringList selectFoldersNativeWin32(QWidget* parent, const QString& title)
@@ -515,13 +642,13 @@ void UI::onLoadHiklogClicked()
 {
     if (m_binaryLogLoading)
     {
-        statusBar()->showMessage(QString::fromUtf8(u8"HikLog 正在解析中。"), 3000);
+        statusBar()->showMessage(QString::fromUtf8(u8"ZIP 日志正在解析中。"), 3000);
         return;
     }
 
     const QString selectedArchive = QFileDialog::getOpenFileName(
         this,
-        QString::fromUtf8(u8"选择包含 HikLog 的 ZIP 文件"),
+        QString::fromUtf8(u8"选择包含 HikLog 或 RBT 日志的 ZIP 文件"),
         QString(),
         QString::fromUtf8(u8"ZIP 压缩包 (*.zip);;所有文件 (*.*)"));
     if (selectedArchive.isEmpty())
@@ -561,23 +688,43 @@ void UI::onLoadHiklogClicked()
     ZipLogSelectionDialog selectionDialog(archivePath, entries, this);
     if (selectionDialog.exec() != QDialog::Accepted)
         return;
-    const std::vector<uint64_t> selectedIndices =
-        selectionDialog.selectedEntryIndices();
-    if (selectedIndices.empty())
+    const std::vector<uint64_t> hiklogIndices =
+        selectionDialog.selectedHiklogEntryIndices();
+    const std::vector<uint64_t> rbtIndices =
+        selectionDialog.selectedRbtEntryIndices();
+    if (hiklogIndices.empty() && rbtIndices.empty())
         return;
+
+    QString resetError;
+    if (!resetRbtLogDirectory(&resetError))
+    {
+        QMessageBox::critical(
+            this, QString::fromUtf8(u8"RBT 临时目录不可用"), resetError);
+        return;
+    }
 
     std::unordered_map<uint64_t, uint64_t> sizeByIndex;
     for (const auto& entry : entries)
         sizeByIndex.emplace(entry.index, entry.uncompressedSize);
-    auto selectedSizes = std::make_shared<std::vector<uint64_t>>();
-    selectedSizes->reserve(selectedIndices.size());
-    uint64_t totalBytes = 0;
-    for (const uint64_t index : selectedIndices)
+    auto hiklogSizes = std::make_shared<std::vector<uint64_t>>();
+    auto rbtSizes = std::make_shared<std::vector<uint64_t>>();
+    hiklogSizes->reserve(hiklogIndices.size());
+    rbtSizes->reserve(rbtIndices.size());
+    uint64_t rbtBytes = 0;
+    for (const uint64_t index : rbtIndices)
     {
         const uint64_t size = sizeByIndex[index];
-        selectedSizes->push_back(size);
-        totalBytes += size;
+        rbtSizes->push_back(size);
+        rbtBytes += size;
     }
+    uint64_t hiklogBytes = 0;
+    for (const uint64_t index : hiklogIndices)
+    {
+        const uint64_t size = sizeByIndex[index];
+        hiklogSizes->push_back(size);
+        hiklogBytes += size;
+    }
+    const uint64_t totalBytes = rbtBytes + hiklogBytes;
 
     auto cancelled = std::make_shared<std::atomic_bool>(false);
     m_binaryLogCancel = cancelled;
@@ -588,99 +735,194 @@ void UI::onLoadHiklogClicked()
     m_progressBar->setRange(0, 1000);
     m_progressBar->setValue(0);
     m_progressBar->setTextVisible(true);
-    m_progressBar->setFormat(QStringLiteral("HikLog %p%"));
+    m_progressBar->setFormat(QString::fromUtf8(u8"ZIP 日志 %p%"));
     m_progressBar->setMinimumWidth(180);
     m_progressBar->show();
-    statusBar()->showMessage(QString::fromUtf8(u8"正在直接读取 ZIP 中的 HikLog…"));
+    statusBar()->showMessage(QString::fromUtf8(u8"正在解析 ZIP 中的日志…"));
     statusBar()->repaint();
     m_progressBar->repaint();
     QCoreApplication::processEvents(QEventLoop::ExcludeUserInputEvents);
 
     const QPointer<UI> uiGuard(this);
     auto lastProgressBucket = std::make_shared<std::atomic_int>(-1);
-    viewer::logparse::ParseOptions options;
-    options.isCancelled = [cancelled]()
+    const auto postProgress =
+        [uiGuard, totalBytes, lastProgressBucket](uint64_t completed,
+                                                  const QString& stage,
+                                                  const QString& sourceText)
+    {
+        if (!uiGuard)
+            return;
+        const int value = totalBytes == 0 ? 0 : static_cast<int>(
+            std::min<long double>(1000.0L,
+                static_cast<long double>(completed) * 1000.0L
+                    / static_cast<long double>(totalBytes)));
+        const int bucket = value / 100;
+        const int previousBucket = lastProgressBucket->exchange(
+            bucket, std::memory_order_relaxed);
+        const bool logProgress = bucket != previousBucket;
+        QMetaObject::invokeMethod(uiGuard.data(),
+            [uiGuard, value, stage, sourceText, logProgress]()
+            {
+                if (!uiGuard || !uiGuard->m_binaryLogLoading)
+                    return;
+                uiGuard->m_progressBar->setValue(value);
+                uiGuard->statusBar()->showMessage(
+                    QString::fromUtf8(u8"正在解析 %1：%2").arg(stage, sourceText));
+                if (logProgress)
+                {
+                    uiGuard->logFileTrace(
+                        QStringLiteral("ZIP log progress stage=%1 value=%2 source=\"%3\"")
+                            .arg(stage).arg(value).arg(sourceText));
+                }
+            }, Qt::QueuedConnection);
+    };
+
+    viewer::logparse::RbtLogParseOptions rbtOptions;
+    rbtOptions.isCancelled = [cancelled]()
     {
         return cancelled->load(std::memory_order_relaxed);
     };
-    options.progress = [uiGuard, selectedSizes, totalBytes, lastProgressBucket](
+    rbtOptions.progress = [rbtSizes, postProgress](
         const std::filesystem::path& source,
         uint64_t processedBytes,
         uint64_t,
         size_t inputIndex,
         size_t)
     {
-        if (!uiGuard)
-            return;
         uint64_t completed = 0;
-        for (size_t index = 0; index < inputIndex && index < selectedSizes->size(); ++index)
-            completed += (*selectedSizes)[index];
+        for (size_t index = 0; index < inputIndex && index < rbtSizes->size(); ++index)
+            completed += (*rbtSizes)[index];
         completed += processedBytes;
-        const int value = totalBytes == 0 ? 0 : static_cast<int>(
-            std::min<uint64_t>(1000, completed * 1000 / totalBytes));
-        const int bucket = value / 100;
-        const int previousBucket = lastProgressBucket->exchange(
-            bucket, std::memory_order_relaxed);
-        const bool logProgress = bucket != previousBucket;
-        const QString sourceText = QString::fromStdWString(source.wstring());
-        QMetaObject::invokeMethod(uiGuard.data(),
-            [uiGuard, value, sourceText, logProgress]()
-            {
-                if (!uiGuard || !uiGuard->m_binaryLogLoading)
-                    return;
-                uiGuard->m_progressBar->setValue(value);
-                uiGuard->statusBar()->showMessage(
-                    QString::fromUtf8(u8"正在解析 HikLog：%1").arg(sourceText));
-                if (logProgress)
-                {
-                    uiGuard->logFileTrace(
-                        QString("ZIP hiklog progress value=%1 visible=%2 source=\"%3\"")
-                            .arg(value)
-                            .arg(uiGuard->m_progressBar->isVisible())
-                            .arg(sourceText));
-                }
-            }, Qt::QueuedConnection);
+        postProgress(completed, QStringLiteral("RBT"),
+                     QString::fromStdWString(source.wstring()));
     };
 
-    logFileTrace(QString("ZIP hiklog parse dispatch archive=\"%1\" entries=%2 bytes=%3")
-                 .arg(selectedArchive).arg(selectedIndices.size()).arg(totalBytes));
-    logFileTrace(QString("ZIP hiklog status progress shown visible=%1 value=%2 range=%3..%4")
+    viewer::logparse::ParseOptions options;
+    options.isCancelled = [cancelled]()
+    {
+        return cancelled->load(std::memory_order_relaxed);
+    };
+    options.progress = [hiklogSizes, rbtBytes, postProgress](
+        const std::filesystem::path& source,
+        uint64_t processedBytes,
+        uint64_t,
+        size_t inputIndex,
+        size_t)
+    {
+        uint64_t completed = rbtBytes;
+        for (size_t index = 0; index < inputIndex && index < hiklogSizes->size(); ++index)
+            completed += (*hiklogSizes)[index];
+        completed += processedBytes;
+        postProgress(completed, QStringLiteral("HikLog"),
+                     QString::fromStdWString(source.wstring()));
+    };
+
+    logFileTrace(QStringLiteral(
+        "ZIP log parse dispatch archive=\"%1\" hiklogEntries=%2 rbtEntries=%3 bytes=%4")
+        .arg(selectedArchive).arg(hiklogIndices.size())
+        .arg(rbtIndices.size()).arg(totalBytes));
+    logFileTrace(QString("ZIP log status progress shown visible=%1 value=%2 range=%3..%4")
                  .arg(m_progressBar->isVisible())
                  .arg(m_progressBar->value())
                  .arg(m_progressBar->minimum())
                  .arg(m_progressBar->maximum()));
-    for (size_t order = 0; order < selectedIndices.size(); ++order)
+    for (size_t order = 0; order < hiklogIndices.size(); ++order)
     {
         logFileTrace(QString("ZIP hiklog parse input order=%1 entryIndex=%2 bytes=%3")
                      .arg(order)
-                     .arg(selectedIndices[order])
-                     .arg((*selectedSizes)[order]));
+                     .arg(hiklogIndices[order])
+                     .arg((*hiklogSizes)[order]));
+    }
+    for (size_t order = 0; order < rbtIndices.size(); ++order)
+    {
+        logFileTrace(QStringLiteral("ZIP RBT parse input order=%1 entryIndex=%2 bytes=%3")
+                     .arg(order).arg(rbtIndices[order]).arg((*rbtSizes)[order]));
     }
 
-    using ParseResult = viewer::logparse::ParseResult;
-    auto* watcher = new QFutureWatcher<ParseResult>(this);
-    connect(watcher, &QFutureWatcher<ParseResult>::finished, this,
+    auto* watcher = new QFutureWatcher<ZipLogLoadResult>(this);
+    connect(watcher, &QFutureWatcher<ZipLogLoadResult>::finished, this,
         [this, watcher, cancelled, selectedArchive]()
         {
             m_binaryLogLoading = false;
-            ParseResult result = watcher->future().takeResult();
+            ZipLogLoadResult loadResult = watcher->future().takeResult();
             watcher->deleteLater();
             const bool cancelRequested = cancelled->load(std::memory_order_relaxed);
             m_binaryLogCancel.reset();
-            m_progressBar->setValue(result.cancelled ? 0 : 1000);
+            const bool cancelledResult = loadResult.cancelled
+                || loadResult.rbt.cancelled
+                || (loadResult.hasHiklog && loadResult.hiklog.cancelled);
+            m_progressBar->setValue(cancelledResult ? 0 : 1000);
 
-            logFileTrace(QString("ZIP hiklog worker finished archive=\"%1\" "
+            QStringList rbtFiles;
+            QStringList rbtErrors;
+            for (const auto& file : loadResult.rbt.files)
+            {
+                const QString source = QString::fromStdWString(file.sourcePath.wstring());
+                if (file.success())
+                {
+                    rbtFiles.push_back(QString::fromStdWString(file.outputPath.wstring()));
+                    logFileTrace(QStringLiteral(
+                        "ZIP RBT parse complete source=\"%1\" output=\"%2\" blocks=%3 bytes=%4")
+                        .arg(source, rbtFiles.back())
+                        .arg(file.blockCount).arg(file.outputBytes));
+                }
+                else if (!loadResult.rbt.cancelled)
+                {
+                    rbtErrors.push_back(QStringLiteral("%1：%2")
+                        .arg(source, QString::fromUtf8(file.error.c_str())));
+                    logFileTrace(QStringLiteral("ZIP RBT parse failed source=\"%1\" error=\"%2\"")
+                        .arg(source, QString::fromUtf8(file.error.c_str())));
+                }
+            }
+            if (!loadResult.rbt.archiveError.empty())
+                rbtErrors.push_back(QString::fromUtf8(loadResult.rbt.archiveError.c_str()));
+            if (!rbtFiles.isEmpty())
+            {
+                if (!m_rbtLogViewer)
+                    m_rbtLogViewer = new RbtLogViewerWindow(this);
+                m_rbtLogViewer->openFiles(rbtFiles);
+            }
+
+            logFileTrace(QString("ZIP log worker finished archive=\"%1\" "
                                  "cancelRequested=%2 parserCancelled=%3 shuttingDown=%4 "
-                                 "success=%5 columns=%6 rows=%7 diagnostics=%8 ranges=%9")
+                                 "hiklog=%5 hikSuccess=%6 rbtSuccess=%7 rbtErrors=%8")
                          .arg(selectedArchive)
                          .arg(cancelRequested)
-                         .arg(result.cancelled)
+                         .arg(cancelledResult)
                          .arg(m_isShuttingDown)
-                         .arg(result.success())
-                         .arg(result.columns.size())
-                         .arg(result.timestampCount)
-                         .arg(result.diagnostics.size())
-                         .arg(result.fileRanges.size()));
+                         .arg(loadResult.hasHiklog)
+                         .arg(loadResult.hasHiklog && loadResult.hiklog.success())
+                         .arg(rbtFiles.size()).arg(rbtErrors.size()));
+
+            if (cancelledResult)
+            {
+                m_binaryLogProgressActive = false;
+                ++m_binaryLogProgressGeneration;
+                m_progressBar->hide();
+                m_progressBar->setFormat(QStringLiteral("%p%"));
+                statusBar()->showMessage(QString::fromUtf8(u8"ZIP 日志解析已取消。"), 4000);
+                return;
+            }
+
+            if (!loadResult.hasHiklog)
+            {
+                m_binaryLogProgressActive = false;
+                ++m_binaryLogProgressGeneration;
+                m_progressBar->hide();
+                m_progressBar->setFormat(QStringLiteral("%p%"));
+                statusBar()->showMessage(
+                    QString::fromUtf8(u8"RBT 日志解析完成：成功 %1 个，失败 %2 个。")
+                        .arg(rbtFiles.size()).arg(rbtErrors.size()), 8000);
+                if (!rbtErrors.isEmpty())
+                {
+                    QMessageBox::warning(
+                        this, QString::fromUtf8(u8"部分 RBT 日志解析失败"),
+                        rbtErrors.join(QLatin1Char('\n')));
+                }
+                return;
+            }
+
+            viewer::logparse::ParseResult result = std::move(loadResult.hiklog);
             const size_t diagnosticLogCount = std::min<size_t>(result.diagnostics.size(), 20);
             for (size_t index = 0; index < diagnosticLogCount; ++index)
             {
@@ -699,22 +941,6 @@ void UI::onLoadHiklogClicked()
                              .arg(diagnosticLogCount).arg(result.diagnostics.size()));
             }
 
-            if (result.cancelled)
-            {
-                m_binaryLogProgressActive = false;
-                ++m_binaryLogProgressGeneration;
-                m_progressBar->hide();
-                m_progressBar->setFormat(QStringLiteral("%p%"));
-                statusBar()->showMessage(QString::fromUtf8(u8"HikLog 解析已取消。"), 4000);
-                logFileTrace(QString("ZIP hiklog parse cancelled archive=\"%1\" "
-                                     "requestFlag=%2 reason=%3")
-                             .arg(selectedArchive)
-                             .arg(cancelRequested)
-                             .arg(m_isShuttingDown
-                                      ? QStringLiteral("UI shutdown")
-                                      : QStringLiteral("external cancellation request")));
-                return;
-            }
             if (cancelRequested)
             {
                 logFileTrace(QString("ZIP hiklog cancellation request arrived after parsing completed; "
@@ -741,6 +967,12 @@ void UI::onLoadHiklogClicked()
                     this,
                     QString::fromUtf8(u8"HikLog 解析失败"),
                     parseDiagnosticsText(result));
+                if (!rbtErrors.isEmpty())
+                {
+                    QMessageBox::warning(
+                        this, QString::fromUtf8(u8"部分 RBT 日志解析失败"),
+                        rbtErrors.join(QLatin1Char('\n')));
+                }
                 return;
             }
 
@@ -759,21 +991,52 @@ void UI::onLoadHiklogClicked()
                     this,
                     QString::fromUtf8(u8"HikLog 载入失败"),
                     QString::fromUtf8(m_viewer.GetLastError().c_str()));
+                if (!rbtErrors.isEmpty())
+                {
+                    QMessageBox::warning(
+                        this, QString::fromUtf8(u8"部分 RBT 日志解析失败"),
+                        rbtErrors.join(QLatin1Char('\n')));
+                }
                 return;
             }
             statusBar()->showMessage(
-                QString::fromUtf8(u8"HikLog 载入完成：%1 列，%2 行，%3 条警告。")
-                    .arg(columns).arg(rows).arg(warningCount),
+                QString::fromUtf8(u8"ZIP 日志载入完成：HikLog %1 列、%2 行、%3 条警告；RBT 成功 %4 个。")
+                    .arg(columns).arg(rows).arg(warningCount).arg(rbtFiles.size()),
                 8000);
             logFileTrace(QString("ZIP hiklog parse complete archive=\"%1\" columns=%2 rows=%3 warnings=%4")
                          .arg(selectedArchive).arg(columns).arg(rows).arg(warningCount));
+            if (!rbtErrors.isEmpty())
+            {
+                QMessageBox::warning(
+                    this, QString::fromUtf8(u8"部分 RBT 日志解析失败"),
+                    rbtErrors.join(QLatin1Char('\n')));
+            }
         });
 
+    const std::filesystem::path rbtOutputDirectory(
+        rbtLogDirectory().toStdWString());
     watcher->setFuture(QtConcurrent::run(
-        [archivePath, selectedIndices, options]() mutable
+        [archivePath, hiklogIndices, rbtIndices, rbtOutputDirectory,
+         options, rbtOptions, cancelled]() mutable
         {
-            return viewer::Viewer::ParseZipEntries(
-                archivePath, selectedIndices, options);
+            ZipLogLoadResult result;
+            result.hasHiklog = !hiklogIndices.empty();
+            if (!rbtIndices.empty())
+            {
+                result.rbt = viewer::Viewer::ParseRbtZipEntries(
+                    archivePath, rbtIndices, rbtOutputDirectory, rbtOptions);
+            }
+            if (!cancelled->load(std::memory_order_relaxed)
+                && !hiklogIndices.empty())
+            {
+                result.hiklog = viewer::Viewer::ParseZipEntries(
+                    archivePath, hiklogIndices, options);
+            }
+            else if (!hiklogIndices.empty())
+            {
+                result.cancelled = true;
+            }
+            return result;
         }));
 }
 

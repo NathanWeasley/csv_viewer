@@ -27,6 +27,9 @@
     <ClCompile Include="..\..\..\code_ui\main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_ui\RbtLogViewer.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\..\code_ui\UI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -81,6 +84,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h">
+      <Filter>Source Files</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_ui\RbtLogViewer.h">
       <Filter>Source Files</Filter>
     </QtMoc>
     <QtMoc Include="..\..\..\code_ui\HighlightDialog.h">

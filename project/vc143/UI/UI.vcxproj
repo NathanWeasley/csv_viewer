@@ -130,6 +130,7 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
     <ClCompile Include="..\..\..\code_ui\FFTDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\HighlightDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\main.cpp" />
+    <ClCompile Include="..\..\..\code_ui\RbtLogViewer.cpp" />
     <ClCompile Include="..\..\..\code_ui\STFTDialog.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI.cpp" />
     <ClCompile Include="..\..\..\code_ui\UI_Alias.cpp" />
@@ -146,6 +147,7 @@ xcopy /Y "$(SolutionDir)..\..\lib\$(TargetName)$(TargetExt)" "$(SolutionDir)..\.
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\UI.h" />
+    <QtMoc Include="..\..\..\code_ui\RbtLogViewer.h" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_ui\XAxisDialog.h" />
