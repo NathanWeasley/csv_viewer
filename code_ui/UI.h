@@ -41,6 +41,7 @@ class PluginHost;
 class PluginManager;
 class RbtLogViewerWindow;
 class QMenu;
+class QFrame;
 namespace ads { class CDockWidget; }
 
 class UI : public QMainWindow
@@ -149,6 +150,16 @@ private Q_SLOTS:
     QCPItemText* hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx = nullptr) const;
     void updateCursorConnectorLine(int cursorIdx);
 
+    void createAxisCursor(int pageIndex, viewer::AxisCursorType type, double position);
+    void updateAxisCursorVisual(int id, const viewer::AxisCursorInfo& cursor);
+    void refreshAxisCursorValueBox(int id, bool resetToBottom = false);
+    void refreshAxisCursorValueBoxes(int pageIndex);
+    void refreshAxisCursorTheme();
+    void positionAxisCursorValueBox(int id);
+    int hitAxisCursor(int pageIndex, const QPoint& pos, double tolerance = 7.0) const;
+    void showAxisCursorObjectMenu(int id, const QPoint& globalPos);
+    bool showAxisCursorContextMenu(int pageIndex, QCustomPlot* plot, const QPoint& pos);
+
     void showHighlightDialog(int pageIndex);
     void renderHighlights(int pageIndex);
     void exportPlotImage(int pageIndex);
@@ -229,11 +240,24 @@ private:
     QHash<int, QCPItemText*> m_cursorLabels;
     QHash<int, QCPItemTracer*> m_cursorTracers;
     QHash<int, QCPItemLine*> m_cursorConnectorLines;
+    struct AxisCursorVisual
+    {
+        QCPItemStraightLine* line = nullptr;
+        QFrame* valueBox = nullptr;
+        QList<QLabel*> valueLabels;
+        QPoint valueBoxOffset;
+        bool valueBoxAtDefaultBottom = true;
+    };
+    QHash<int, AxisCursorVisual> m_axisCursorVisuals;
+    QHash<QWidget*, int> m_axisCursorValueBoxes;
     QPoint m_mousePressPos;
     bool m_mousePressOnPlot = false;
     bool m_clearingAllPlots = false;
     int m_draggingCursorLabelIdx = -1;
     QPointF m_cursorLabelDragOffset;
+    int m_draggingAxisCursorId = -1;
+    int m_draggingAxisCursorValueBoxId = -1;
+    QPoint m_axisCursorValueBoxDragOffset;
 
     // Expression bar state
     QHash<int, QLineEdit*> m_exprLineEdits;

@@ -20,6 +20,25 @@ struct CursorInfo
     bool        isActive      = false;
 };
 
+enum class AxisCursorType
+{
+    X,
+    Y
+};
+
+// ============================================================
+// AxisCursorInfo: 单个 X/Y 轴光标的数据
+// ============================================================
+struct AxisCursorInfo
+{
+    int            id                = -1;   // 稳定 ID，不随其它光标删除而改变
+    int            pageIndex         = -1;   // 所属图窗索引
+    AxisCursorType type              = AxisCursorType::X;
+    double         position          = 0.0;  // X 或 Y 轴坐标
+    bool           dataValuesVisible = true; // 仅 X 光标使用
+    bool           isActive          = false;
+};
+
 // ============================================================
 // CursorManager: 数据游标管理器（纯 C++，无 Qt 依赖）
 //
@@ -87,6 +106,23 @@ public:
     void shiftPageIndicesAfterRemoval(int removedPageIndex);
 
     // ============================================================
+    // X/Y 轴光标管理
+    // ============================================================
+
+    int addAxisCursor(int pageIndex, AxisCursorType type, double position);
+    bool removeAxisCursor(int id);
+    void removeAxisCursors(int pageIndex);
+    void removeAxisCursors(int pageIndex, AxisCursorType type);
+    bool setAxisCursorPosition(int id, double position);
+    bool setAxisCursorDataValuesVisible(int id, bool visible);
+    void setActiveAxisCursor(int id);
+
+    int activeAxisCursorId() const noexcept { return m_activeAxisCursorId; }
+    bool hasActiveAxisCursor() const noexcept { return m_activeAxisCursorId >= 0; }
+    const AxisCursorInfo* axisCursor(int id) const noexcept;
+    const std::vector<AxisCursorInfo>& axisCursors() const noexcept { return m_axisCursors; }
+
+    // ============================================================
     // 查询
     // ============================================================
 
@@ -119,6 +155,12 @@ public:
     // 参数: (游标索引, -1表示无激活)
     std::function<void(int cursorIdx)> onActiveCursorChanged;
 
+    // X/Y 轴光标回调均使用稳定 ID。
+    std::function<void(int id, const AxisCursorInfo& cursor)> onAxisCursorAdded;
+    std::function<void(int id)> onAxisCursorRemoved;
+    std::function<void(int id, const AxisCursorInfo& cursor)> onAxisCursorChanged;
+    std::function<void(int id)> onActiveAxisCursorChanged;
+
 private:
     // 预选状态
     bool        m_hasPreSel   = false;
@@ -131,6 +173,10 @@ private:
 
     // 激活游标索引（-1 = 无激活）
     int m_activeCursorIdx = -1;
+
+    std::vector<AxisCursorInfo> m_axisCursors;
+    int m_nextAxisCursorId = 1;
+    int m_activeAxisCursorId = -1;
 };
 
 } // namespace viewer

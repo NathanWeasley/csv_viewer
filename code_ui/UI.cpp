@@ -143,6 +143,17 @@ void UI::init()
         }
         sm.applySystemTheme(dark);
     }
+    connect(QGuiApplication::styleHints(), &QStyleHints::colorSchemeChanged,
+            this, [this](Qt::ColorScheme scheme)
+    {
+        m_viewer.GetStyleManager().applySystemTheme(scheme == Qt::ColorScheme::Dark);
+        refreshAxisCursorTheme();
+        for (int pageIndex = 0; pageIndex < plotPageCount(); ++pageIndex)
+        {
+            if (auto* plot = getPlot(pageIndex))
+                plot->replot(QCustomPlot::rpQueuedRefresh);
+        }
+    });
 
     createMenu();
     logOperationTrace("UI init menu created");
@@ -324,6 +335,10 @@ void UI::disconnectViewerCallbacks()
     cm.onCursorAdded = nullptr;
     cm.onCursorRemoved = nullptr;
     cm.onActiveCursorChanged = nullptr;
+    cm.onAxisCursorAdded = nullptr;
+    cm.onAxisCursorRemoved = nullptr;
+    cm.onAxisCursorChanged = nullptr;
+    cm.onActiveAxisCursorChanged = nullptr;
 
     m_viewer.GetStyleManager().onPaletteChanged = nullptr;
     logShutdownTrace("disconnectViewerCallbacks leave");

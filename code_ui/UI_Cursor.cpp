@@ -19,6 +19,11 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <qframe.h>
+#include <qboxlayout.h>
+#include <qfontmetrics.h>
+#include <algorithm>
+#include <cmath>
 #include <limits>
 
 #include "icons_base64.h"
@@ -30,6 +35,35 @@
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
+
+extern bool isSystemInDark();
+
+namespace
+{
+QColor axisCursorColor()
+{
+    return isSystemInDark() ? QColor(0xd0, 0xd0, 0xd0)
+                            : QColor(0x4a, 0x4a, 0x4a);
+}
+
+int nearestGraphIndex(viewer::QCPColumnGraph* graph, double x)
+{
+    if (!graph || graph->dataCount() <= 0)
+        return -1;
+
+    const int count = graph->dataCount();
+    int index = graph->findBegin(x, false);
+    index = std::clamp(index, 0, count - 1);
+    if (index > 0)
+    {
+        const double leftDistance = std::abs(graph->dataMainKey(index - 1) - x);
+        const double rightDistance = std::abs(graph->dataMainKey(index) - x);
+        if (leftDistance <= rightDistance)
+            --index;
+    }
+    return index;
+}
+}
 
 // ============================================================
 // CursorManager → Qt 控件绑定
@@ -75,6 +109,19 @@ void UI::bindCursorManagerCallbacks()
 
         m_plotToPageIndex[plot] = index;
         m_preSelTracers[plot] = tracer;
+        auto repositionAxisCursors = [this, index]()
+        {
+            const auto& cursors = m_viewer.GetCursorManager().axisCursors();
+            for (const auto& cursor : cursors)
+            {
+                if (cursor.pageIndex == index)
+                    updateAxisCursorVisual(cursor.id, cursor);
+            }
+        };
+        connect(plot->xAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
+                this, [repositionAxisCursors](const QCPRange&) { repositionAxisCursors(); });
+        connect(plot->yAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
+                this, [repositionAxisCursors](const QCPRange&) { repositionAxisCursors(); });
         logOperationTrace(QString("cursor page wrapper leave page=%1 plot=0x%2 preselectionTracer=0x%3")
                           .arg(index).arg(reinterpret_cast<quintptr>(plot), 0, 16)
                           .arg(reinterpret_cast<quintptr>(tracer), 0, 16));
@@ -115,6 +162,7 @@ void UI::bindCursorManagerCallbacks()
         {
             cm.removeCursor(*it);
         }
+        cm.removeAxisCursors(index);
 
         // 清除可能存在的预选
         cm.clearPreSelection();
@@ -145,10 +193,14 @@ void UI::bindCursorManagerCallbacks()
         m_cursorTracers.clear();
         m_cursorLabels.clear();
         m_cursorConnectorLines.clear();
+        m_axisCursorVisuals.clear();
+        m_axisCursorValueBoxes.clear();
         m_highlightRects.clear();
         m_highlightLines.clear();
         m_highlightLabels.clear();
         m_draggingCursorLabelIdx = -1;
+        m_draggingAxisCursorId = -1;
+        m_draggingAxisCursorValueBoxId = -1;
 
         if (originalOnAboutToClear)
             originalOnAboutToClear();
@@ -485,6 +537,92 @@ void UI::bindCursorManagerCallbacks()
             }
         }
     };
+
+    cm.onAxisCursorAdded = [this](int id, const viewer::AxisCursorInfo& cursor)
+    {
+        if (cursor.pageIndex < 0 || cursor.pageIndex >= plotPageCount())
+            return;
+
+        QCustomPlot* plot = getPlot(cursor.pageIndex);
+        if (!plot)
+            return;
+
+        AxisCursorVisual visual;
+        visual.line = new QCPItemStraightLine(plot);
+        visual.line->setLayer("overlay");
+        visual.line->setSelectable(false);
+        visual.line->setClipToAxisRect(true);
+        visual.line->setClipAxisRect(plot->axisRect());
+
+        if (cursor.type == viewer::AxisCursorType::X)
+        {
+            visual.valueBox = new QFrame(plot);
+            visual.valueBox->setObjectName(QStringLiteral("axisCursorValueBox"));
+            visual.valueBox->setAttribute(Qt::WA_StyledBackground, true);
+            visual.valueBox->setCursor(Qt::OpenHandCursor);
+            visual.valueBox->installEventFilter(this);
+            auto* layout = new QVBoxLayout(visual.valueBox);
+            layout->setContentsMargins(6, 4, 6, 4);
+            layout->setSpacing(1);
+            layout->setSizeConstraint(QLayout::SetFixedSize);
+            m_axisCursorValueBoxes.insert(visual.valueBox, id);
+        }
+
+        m_axisCursorVisuals.insert(id, visual);
+        updateAxisCursorVisual(id, cursor);
+        refreshAxisCursorTheme();
+        plot->replot(QCustomPlot::rpQueuedRefresh);
+    };
+
+    cm.onAxisCursorRemoved = [this](int id)
+    {
+        auto it = m_axisCursorVisuals.find(id);
+        if (it == m_axisCursorVisuals.end())
+            return;
+
+        QCustomPlot* plot = it->line ? it->line->parentPlot() : nullptr;
+        if (it->valueBox)
+        {
+            m_axisCursorValueBoxes.remove(it->valueBox);
+            it->valueBox->removeEventFilter(this);
+            it->valueBox->hide();
+            it->valueBox->deleteLater();
+        }
+        if (plot && it->line)
+            plot->removeItem(it->line);
+        m_axisCursorVisuals.erase(it);
+
+        if (m_draggingAxisCursorId == id)
+            m_draggingAxisCursorId = -1;
+        if (m_draggingAxisCursorValueBoxId == id)
+            m_draggingAxisCursorValueBoxId = -1;
+        if (plot && !m_clearingAllPlots)
+            plot->replot(QCustomPlot::rpQueuedRefresh);
+    };
+
+    cm.onAxisCursorChanged = [this](int id, const viewer::AxisCursorInfo& cursor)
+    {
+        updateAxisCursorVisual(id, cursor);
+        if (auto it = m_axisCursorVisuals.find(id);
+            it != m_axisCursorVisuals.end() && it->line && it->line->parentPlot())
+        {
+            it->line->parentPlot()->replot(QCustomPlot::rpQueuedRefresh);
+        }
+    };
+
+    cm.onActiveAxisCursorChanged = [this](int activeId)
+    {
+        const QColor color = axisCursorColor();
+        for (auto it = m_axisCursorVisuals.begin(); it != m_axisCursorVisuals.end(); ++it)
+        {
+            if (it->line)
+            {
+                it->line->setPen(QPen(color, it.key() == activeId ? 2.0 : 1.2));
+                if (it->line->parentPlot())
+                    it->line->parentPlot()->replot(QCustomPlot::rpQueuedRefresh);
+            }
+        }
+    };
     logOperationTrace("bind cursor manager callbacks leave");
 }
 
@@ -609,13 +747,275 @@ QCPItemText* UI::hitCursorLabel(int pageIndex, const QPoint& pos, int* cursorIdx
     return nullptr;
 }
 
+void UI::createAxisCursor(int pageIndex, viewer::AxisCursorType type, double position)
+{
+    QCustomPlot* plot = getPlot(pageIndex);
+    if (!plot || !plot->axisRect())
+        return;
+
+    const QCPRange range = (type == viewer::AxisCursorType::X)
+        ? plot->xAxis->range() : plot->yAxis->range();
+    position = std::clamp(position, range.lower, range.upper);
+
+    auto& manager = m_viewer.GetCursorManager();
+    manager.setActiveCursor(-1);
+    manager.addAxisCursor(pageIndex, type, position);
+}
+
+void UI::updateAxisCursorVisual(int id, const viewer::AxisCursorInfo& cursor)
+{
+    auto visualIt = m_axisCursorVisuals.find(id);
+    if (visualIt == m_axisCursorVisuals.end() || !visualIt->line)
+        return;
+
+    QCustomPlot* plot = visualIt->line->parentPlot();
+    if (!plot)
+        return;
+
+    visualIt->line->point1->setType(QCPItemPosition::ptPlotCoords);
+    visualIt->line->point2->setType(QCPItemPosition::ptPlotCoords);
+    visualIt->line->point1->setAxes(plot->xAxis, plot->yAxis);
+    visualIt->line->point2->setAxes(plot->xAxis, plot->yAxis);
+
+    if (cursor.type == viewer::AxisCursorType::X)
+    {
+        const QCPRange yRange = plot->yAxis->range();
+        visualIt->line->point1->setCoords(cursor.position, yRange.lower);
+        visualIt->line->point2->setCoords(cursor.position, yRange.upper);
+        refreshAxisCursorValueBox(id);
+    }
+    else
+    {
+        const QCPRange xRange = plot->xAxis->range();
+        visualIt->line->point1->setCoords(xRange.lower, cursor.position);
+        visualIt->line->point2->setCoords(xRange.upper, cursor.position);
+    }
+}
+
+void UI::refreshAxisCursorValueBox(int id, bool resetToBottom)
+{
+    const viewer::AxisCursorInfo* cursor = m_viewer.GetCursorManager().axisCursor(id);
+    auto visualIt = m_axisCursorVisuals.find(id);
+    if (!cursor || cursor->type != viewer::AxisCursorType::X
+        || visualIt == m_axisCursorVisuals.end() || !visualIt->valueBox)
+    {
+        return;
+    }
+
+    QFrame* box = visualIt->valueBox;
+    if (resetToBottom)
+        visualIt->valueBoxAtDefaultBottom = true;
+    if (!cursor->dataValuesVisible)
+    {
+        box->hide();
+        return;
+    }
+
+    QCustomPlot* plot = visualIt->line ? visualIt->line->parentPlot() : nullptr;
+    if (!plot)
+        return;
+
+    QStringList texts;
+    QList<QColor> colors;
+    texts.push_back(QStringLiteral("X: %1").arg(cursor->position, 0, 'g', 12));
+    colors.push_back(axisCursorColor());
+
+    for (int i = 0; i < plot->plottableCount(); ++i)
+    {
+        auto* graph = dynamic_cast<viewer::QCPColumnGraph*>(plot->plottable(i));
+        const int dataIndex = nearestGraphIndex(graph, cursor->position);
+        if (!graph || dataIndex < 0)
+            continue;
+
+        texts.push_back(QStringLiteral("%1: %2")
+                            .arg(graph->name())
+                            .arg(graph->dataMainValue(dataIndex), 0, 'g', 12));
+        QColor color = graph->pen().color();
+        if (!color.isValid())
+            color = axisCursorColor();
+        colors.push_back(color);
+    }
+
+    auto* layout = qobject_cast<QVBoxLayout*>(box->layout());
+    if (!layout)
+        return;
+
+    while (visualIt->valueLabels.size() > texts.size())
+    {
+        QLabel* label = visualIt->valueLabels.takeLast();
+        layout->removeWidget(label);
+        delete label;
+    }
+    while (visualIt->valueLabels.size() < texts.size())
+    {
+        auto* label = new QLabel(box);
+        label->setTextFormat(Qt::PlainText);
+        label->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        label->setMargin(0);
+        layout->addWidget(label);
+        visualIt->valueLabels.push_back(label);
+    }
+
+    const QFont valueFont = m_viewer.GetStyleManager().dataBoxStyle().toQFont();
+    for (qsizetype i = 0; i < texts.size(); ++i)
+    {
+        QLabel* label = visualIt->valueLabels[i];
+        label->setFont(valueFont);
+        label->setText(texts[i]);
+        label->setStyleSheet(QStringLiteral("color: %1; background: transparent;")
+                                 .arg(colors[i].name(QColor::HexArgb)));
+    }
+
+    layout->activate();
+    box->adjustSize();
+    box->show();
+    box->raise();
+    positionAxisCursorValueBox(id);
+}
+
+void UI::refreshAxisCursorValueBoxes(int pageIndex)
+{
+    const auto& cursors = m_viewer.GetCursorManager().axisCursors();
+    for (const auto& cursor : cursors)
+    {
+        if (cursor.pageIndex == pageIndex && cursor.type == viewer::AxisCursorType::X)
+            refreshAxisCursorValueBox(cursor.id);
+    }
+}
+
+void UI::refreshAxisCursorTheme()
+{
+    const QColor color = axisCursorColor();
+    const bool dark = isSystemInDark();
+    const int activeId = m_viewer.GetCursorManager().activeAxisCursorId();
+
+    for (auto it = m_axisCursorVisuals.begin(); it != m_axisCursorVisuals.end(); ++it)
+    {
+        if (it->line)
+            it->line->setPen(QPen(color, it.key() == activeId ? 2.0 : 1.2));
+        if (it->valueBox)
+        {
+            it->valueBox->setStyleSheet(dark
+                ? QStringLiteral("QFrame#axisCursorValueBox { background-color: rgba(45,45,45,230); border: 1px solid #d0d0d0; border-radius: 3px; }")
+                : QStringLiteral("QFrame#axisCursorValueBox { background-color: rgba(245,245,245,235); border: 1px solid #4a4a4a; border-radius: 3px; }"));
+            refreshAxisCursorValueBox(it.key());
+        }
+    }
+}
+
+void UI::positionAxisCursorValueBox(int id)
+{
+    const viewer::AxisCursorInfo* cursor = m_viewer.GetCursorManager().axisCursor(id);
+    auto visualIt = m_axisCursorVisuals.find(id);
+    if (!cursor || cursor->type != viewer::AxisCursorType::X
+        || visualIt == m_axisCursorVisuals.end() || !visualIt->valueBox
+        || !visualIt->line || !visualIt->line->parentPlot())
+    {
+        return;
+    }
+
+    QCustomPlot* plot = visualIt->line->parentPlot();
+    const QRect rect = plot->axisRect()->rect();
+    QFrame* box = visualIt->valueBox;
+    const QPoint anchor(qRound(plot->xAxis->coordToPixel(cursor->position)), rect.bottom());
+
+    if (visualIt->valueBoxAtDefaultBottom)
+    {
+        visualIt->valueBoxOffset = QPoint(-box->width() / 2, -box->height() - 6);
+    }
+
+    QPoint target = anchor + visualIt->valueBoxOffset;
+    const int maxX = std::max(rect.left(), rect.right() - box->width() + 1);
+    const int maxY = std::max(rect.top(), rect.bottom() - box->height() + 1);
+    target.setX(std::clamp(target.x(), rect.left(), maxX));
+    target.setY(std::clamp(target.y(), rect.top(), maxY));
+    box->move(target);
+}
+
+int UI::hitAxisCursor(int pageIndex, const QPoint& pos, double tolerance) const
+{
+    QCustomPlot* plot = getPlot(pageIndex);
+    if (!plot || !plot->axisRect() || !plot->axisRect()->rect().contains(pos))
+        return -1;
+
+    int bestId = -1;
+    double bestDistance = tolerance;
+    for (const auto& cursor : m_viewer.GetCursorManager().axisCursors())
+    {
+        if (cursor.pageIndex != pageIndex)
+            continue;
+
+        const double pixel = (cursor.type == viewer::AxisCursorType::X)
+            ? plot->xAxis->coordToPixel(cursor.position)
+            : plot->yAxis->coordToPixel(cursor.position);
+        const double distance = std::abs(pixel - (cursor.type == viewer::AxisCursorType::X
+                                                    ? pos.x() : pos.y()));
+        if (distance <= bestDistance)
+        {
+            bestDistance = distance;
+            bestId = cursor.id;
+        }
+    }
+    return bestId;
+}
+
+void UI::showAxisCursorObjectMenu(int id, const QPoint& globalPos)
+{
+    const viewer::AxisCursorInfo* cursor = m_viewer.GetCursorManager().axisCursor(id);
+    if (!cursor)
+        return;
+
+    const bool isXCursor = cursor->type == viewer::AxisCursorType::X;
+    const bool valuesVisible = cursor->dataValuesVisible;
+    QMenu menu;
+    QAction* deleteAction = menu.addAction(QString::fromUtf8("删除"));
+    QAction* valuesAction = nullptr;
+    if (isXCursor)
+    {
+        valuesAction = menu.addAction(valuesVisible
+            ? QString::fromUtf8("隐藏数据值") : QString::fromUtf8("显示数据值"));
+    }
+
+    connect(deleteAction, &QAction::triggered, this, [this, id]()
+    {
+        m_viewer.GetCursorManager().removeAxisCursor(id);
+    });
+    if (valuesAction)
+    {
+        connect(valuesAction, &QAction::triggered, this, [this, id, valuesVisible]()
+        {
+            if (!valuesVisible)
+            {
+                auto it = m_axisCursorVisuals.find(id);
+                if (it != m_axisCursorVisuals.end())
+                    it->valueBoxAtDefaultBottom = true;
+            }
+            m_viewer.GetCursorManager().setAxisCursorDataValuesVisible(id, !valuesVisible);
+        });
+    }
+    menu.exec(globalPos);
+}
+
+bool UI::showAxisCursorContextMenu(int pageIndex, QCustomPlot* plot, const QPoint& pos)
+{
+    const int id = hitAxisCursor(pageIndex, pos);
+    if (id < 0 || !plot)
+        return false;
+
+    m_viewer.GetCursorManager().setActiveCursor(-1);
+    m_viewer.GetCursorManager().setActiveAxisCursor(id);
+    showAxisCursorObjectMenu(id, plot->mapToGlobal(pos));
+    return true;
+}
+
 void UI::cleanupPlotOverlaysBeforeShutdown()
 {
-    logShutdownTrace(QString("cleanupPlotOverlaysBeforeShutdown enter labels=%1 tracers=%2 preSel=%3 lines=%4 highlightRects=%5 highlightLines=%6 highlightLabels=%7")
+    logShutdownTrace(QString("cleanupPlotOverlaysBeforeShutdown enter labels=%1 tracers=%2 preSel=%3 lines=%4 axisCursors=%5 highlightRects=%6 highlightLines=%7 highlightLabels=%8")
                          .arg(m_cursorLabels.size())
                          .arg(m_cursorTracers.size())
                          .arg(m_preSelTracers.size())
                          .arg(m_cursorConnectorLines.size())
+                         .arg(m_axisCursorVisuals.size())
                          .arg(m_highlightRects.size())
                          .arg(m_highlightLines.size())
                          .arg(m_highlightLabels.size()));
@@ -627,6 +1027,9 @@ void UI::cleanupPlotOverlaysBeforeShutdown()
     m_cursorTracers.clear();
 
     m_preSelTracers.clear();
+
+    m_axisCursorValueBoxes.clear();
+    m_axisCursorVisuals.clear();
 
     m_fftSelectRect = nullptr;
 
@@ -642,6 +1045,8 @@ void UI::cleanupPlotOverlaysBeforeShutdown()
 
     m_plotToPageIndex.clear();
     m_draggingCursorLabelIdx = -1;
+    m_draggingAxisCursorId = -1;
+    m_draggingAxisCursorValueBoxId = -1;
     m_fftSelecting = false;
     m_fftPageIndex = -1;
     logShutdownTrace("cleanupPlotOverlaysBeforeShutdown leave");

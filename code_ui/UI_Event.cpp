@@ -19,6 +19,8 @@
 #include <qlineedit.h>
 #include <qpushbutton.h>
 #include <qinputdialog.h>
+#include <QContextMenuEvent>
+#include <algorithm>
 
 #include "icons_base64.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
@@ -58,6 +60,76 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         return QMainWindow::eventFilter(obj, event);
 
     QCustomPlot* plot = qobject_cast<QCustomPlot*>(obj);
+
+    // X 光标数据浮窗是 QCustomPlot 的子控件，单独处理拖动和右键菜单。
+    QWidget* axisValueBox = qobject_cast<QWidget*>(obj);
+    auto valueBoxIt = axisValueBox ? m_axisCursorValueBoxes.find(axisValueBox)
+                                   : m_axisCursorValueBoxes.end();
+    if (valueBoxIt != m_axisCursorValueBoxes.end())
+    {
+        const int id = valueBoxIt.value();
+        QCustomPlot* parentPlot = qobject_cast<QCustomPlot*>(axisValueBox->parentWidget());
+        if (event->type() == QEvent::ContextMenu)
+        {
+            auto* contextEvent = static_cast<QContextMenuEvent*>(event);
+            m_viewer.GetCursorManager().setActiveAxisCursor(id);
+            showAxisCursorObjectMenu(id, contextEvent->globalPos());
+            return true;
+        }
+        if (event->type() == QEvent::MouseButtonPress)
+        {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton)
+            {
+                m_draggingAxisCursorValueBoxId = id;
+                m_axisCursorValueBoxDragOffset = mouseEvent->globalPosition().toPoint()
+                    - axisValueBox->mapToGlobal(QPoint());
+                m_viewer.GetCursorManager().setActiveCursor(-1);
+                m_viewer.GetCursorManager().setActiveAxisCursor(id);
+                axisValueBox->setCursor(Qt::ClosedHandCursor);
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseMove
+            && m_draggingAxisCursorValueBoxId == id && parentPlot)
+        {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->buttons() & Qt::LeftButton)
+            {
+                QPoint target = parentPlot->mapFromGlobal(
+                    mouseEvent->globalPosition().toPoint() - m_axisCursorValueBoxDragOffset);
+                const QRect rect = parentPlot->axisRect()->rect();
+                const int maxX = std::max(rect.left(), rect.right() - axisValueBox->width() + 1);
+                const int maxY = std::max(rect.top(), rect.bottom() - axisValueBox->height() + 1);
+                target.setX(std::clamp(target.x(), rect.left(), maxX));
+                target.setY(std::clamp(target.y(), rect.top(), maxY));
+                axisValueBox->move(target);
+
+                const auto* cursor = m_viewer.GetCursorManager().axisCursor(id);
+                auto visualIt = m_axisCursorVisuals.find(id);
+                if (cursor && visualIt != m_axisCursorVisuals.end())
+                {
+                    const QPoint anchor(qRound(parentPlot->xAxis->coordToPixel(cursor->position)),
+                                        rect.bottom());
+                    visualIt->valueBoxOffset = target - anchor;
+                    visualIt->valueBoxAtDefaultBottom = false;
+                }
+                return true;
+            }
+        }
+        if (event->type() == QEvent::MouseButtonRelease
+            && m_draggingAxisCursorValueBoxId == id)
+        {
+            auto* mouseEvent = static_cast<QMouseEvent*>(event);
+            if (mouseEvent->button() == Qt::LeftButton)
+            {
+                m_draggingAxisCursorValueBoxId = -1;
+                axisValueBox->setCursor(Qt::OpenHandCursor);
+                return true;
+            }
+        }
+    }
+
     if (plot && plot->openGl())
     {
         const char* eventName = plotEventTypeName(event->type());
@@ -91,6 +163,16 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     {
         if (plot)
         {
+            auto* contextEvent = static_cast<QContextMenuEvent*>(event);
+            const int contextPage = m_plotToPageIndex.value(plot, -1);
+            const int axisCursorId = hitAxisCursor(contextPage, contextEvent->pos());
+            if (axisCursorId >= 0)
+            {
+                m_viewer.GetCursorManager().setActiveAxisCursor(axisCursorId);
+                showAxisCursorObjectMenu(axisCursorId, contextEvent->globalPos());
+                return true;
+            }
+
             // FFT 框选模式中，右键取消框选
             if (m_fftSelecting && m_fftPageIndex >= 0)
             {
@@ -103,7 +185,7 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
                 }
             }
 
-            int pageIndex = m_plotToPageIndex.value(plot, -1);
+            int pageIndex = contextPage;
             if (pageIndex >= 0 && m_viewer.GetPlotManager().isRectZoomActive(pageIndex))
             {
                 m_viewer.GetPlotManager().setRectZoomActive(pageIndex, false);
@@ -250,6 +332,15 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
 
     auto& cm = m_viewer.GetCursorManager();
 
+    if (event->type() == QEvent::Resize)
+    {
+        for (const auto& cursor : cm.axisCursors())
+        {
+            if (cursor.pageIndex == pageIndex && cursor.type == viewer::AxisCursorType::X)
+                positionAxisCursorValueBox(cursor.id);
+        }
+    }
+
     if (event->type() == QEvent::MouseButtonPress)
     {
         QMouseEvent* me = static_cast<QMouseEvent*>(event);
@@ -260,10 +351,58 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
             {
                 m_draggingCursorLabelIdx = labelCursorIdx;
                 m_cursorLabelDragOffset = QPointF(me->pos()) - label->position->pixelPosition();
+                cm.setActiveAxisCursor(-1);
                 cm.setActiveCursor(labelCursorIdx);
                 plot->setCursor(Qt::ClosedHandCursor);
                 return true;
             }
+
+            const int axisCursorId = hitAxisCursor(pageIndex, me->pos());
+            if (axisCursorId >= 0)
+            {
+                const auto* axisCursor = cm.axisCursor(axisCursorId);
+                m_draggingAxisCursorId = axisCursorId;
+                cm.setActiveCursor(-1);
+                cm.setActiveAxisCursor(axisCursorId);
+                plot->setCursor(axisCursor && axisCursor->type == viewer::AxisCursorType::X
+                                    ? Qt::SizeHorCursor : Qt::SizeVerCursor);
+                return true;
+            }
+        }
+    }
+
+    if (event->type() == QEvent::MouseMove && m_draggingAxisCursorId >= 0)
+    {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        const auto* cursor = cm.axisCursor(m_draggingAxisCursorId);
+        if ((mouseEvent->buttons() & Qt::LeftButton) && cursor
+            && cursor->pageIndex == pageIndex)
+        {
+            const QRect rect = plot->axisRect()->rect();
+            if (cursor->type == viewer::AxisCursorType::X)
+            {
+                const int pixel = std::clamp(mouseEvent->pos().x(), rect.left(), rect.right());
+                cm.setAxisCursorPosition(cursor->id, plot->xAxis->pixelToCoord(pixel));
+            }
+            else
+            {
+                const int pixel = std::clamp(mouseEvent->pos().y(), rect.top(), rect.bottom());
+                cm.setAxisCursorPosition(cursor->id, plot->yAxis->pixelToCoord(pixel));
+            }
+            return true;
+        }
+        m_draggingAxisCursorId = -1;
+        plot->setCursor(Qt::ArrowCursor);
+    }
+
+    if (event->type() == QEvent::MouseButtonRelease && m_draggingAxisCursorId >= 0)
+    {
+        auto* mouseEvent = static_cast<QMouseEvent*>(event);
+        if (mouseEvent->button() == Qt::LeftButton)
+        {
+            m_draggingAxisCursorId = -1;
+            plot->setCursor(Qt::ArrowCursor);
+            return true;
         }
     }
 
@@ -299,6 +438,21 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
     if (event->type() == QEvent::MouseMove)
     {
         QMouseEvent* me = static_cast<QMouseEvent*>(event);
+
+        const int axisCursorId = hitAxisCursor(pageIndex, me->pos());
+        if (axisCursorId >= 0)
+        {
+            const auto* cursor = cm.axisCursor(axisCursorId);
+            plot->setCursor(cursor && cursor->type == viewer::AxisCursorType::X
+                                ? Qt::SizeHorCursor : Qt::SizeVerCursor);
+            cm.clearPreSelection();
+            return true;
+        }
+        if (plot->cursor().shape() == Qt::SizeHorCursor
+            || plot->cursor().shape() == Qt::SizeVerCursor)
+        {
+            plot->setCursor(Qt::ArrowCursor);
+        }
 
         auto result = findNearestDataPoint(plot, me->pos(), 10.0);
         viewer::QCPColumnGraph* graph = result.first;
@@ -410,6 +564,7 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
 
         if (hitCursorIdx >= 0)
         {
+            cm.setActiveAxisCursor(-1);
             cm.setActiveCursor(hitCursorIdx);
             return true;
         }
@@ -417,11 +572,13 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
         if (shiftHeld && cm.hasPreSelection()
             && cm.preSelPage() == pageIndex)
         {
+            cm.setActiveAxisCursor(-1);
             cm.addCursor(pageIndex, cm.preSelItem(), cm.preSelIndex());
             return true;
         }
         else
         {
+            cm.setActiveAxisCursor(-1);
             cm.setActiveCursor(-1);
             cm.clearPreSelection();
             return QMainWindow::eventFilter(obj, event);
@@ -444,6 +601,11 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
 
         if (ke->key() == Qt::Key_Delete)
         {
+            if (cm.hasActiveAxisCursor())
+            {
+                cm.removeAxisCursor(cm.activeAxisCursorId());
+                return true;
+            }
             if (cm.hasActiveCursor())
             {
                 cm.removeActiveCursor();

@@ -200,6 +200,8 @@ void UI::bindPlotManagerCallbacks()
                 int pageIndex = m_plotToPageIndex.value(plot, -1);
                 if (pageIndex < 0 || pageIndex >= pm.pageCount())
                     return;
+                if (showAxisCursorContextMenu(pageIndex, plot, pos))
+                    return;
                 bool isFFT = pm.isFFTPage(pageIndex);
 
                 QMenu menu;
@@ -289,11 +291,23 @@ void UI::bindPlotManagerCallbacks()
                         // ---- 复制游标 ----
                         {
                             auto& cm = m_viewer.GetCursorManager();
-                            const auto& cursors = cm.cursors();
-                            for (size_t ci = 0; ci < cursors.size(); ++ci)
+                            const auto cursors = cm.cursors();
+                            for (const auto& cursor : cursors)
                             {
-                                if (cursors[ci].pageIndex == pageIndex)
-                                    cm.addCursor(newIdx, cursors[ci].dataItemName, cursors[ci].dataIndex);
+                                if (cursor.pageIndex == pageIndex)
+                                    cm.addCursor(newIdx, cursor.dataItemName, cursor.dataIndex);
+                            }
+                            const auto axisCursors = cm.axisCursors();
+                            for (const auto& cursor : axisCursors)
+                            {
+                                if (cursor.pageIndex != pageIndex)
+                                    continue;
+                                const int id = cm.addAxisCursor(newIdx, cursor.type, cursor.position);
+                                if (cursor.type == viewer::AxisCursorType::X
+                                    && !cursor.dataValuesVisible)
+                                {
+                                    cm.setAxisCursorDataValuesVisible(id, false);
+                                }
                             }
                         }
 
@@ -342,6 +356,56 @@ void UI::bindPlotManagerCallbacks()
                 connect(rectZoomAction, &QAction::toggled, this, [this, pageIndex](bool checked)
                 {
                     m_viewer.GetPlotManager().setRectZoomActive(pageIndex, checked);
+                });
+
+                QMenu* cursorMenu = menu.addMenu(QString::fromUtf8("光标"));
+                QAction* newXCursorAction = cursorMenu->addAction(QString::fromUtf8("新建X光标"));
+                QAction* newYCursorAction = cursorMenu->addAction(QString::fromUtf8("新建Y光标"));
+                cursorMenu->addSeparator();
+                QAction* removeXCursorsAction = cursorMenu->addAction(QString::fromUtf8("删除所有X光标"));
+                QAction* removeYCursorsAction = cursorMenu->addAction(QString::fromUtf8("删除所有Y光标"));
+                QAction* removeAllCursorsAction = cursorMenu->addAction(QString::fromUtf8("删除所有光标"));
+
+                int xCursorCount = 0;
+                int yCursorCount = 0;
+                for (const auto& cursor : m_viewer.GetCursorManager().axisCursors())
+                {
+                    if (cursor.pageIndex != pageIndex)
+                        continue;
+                    if (cursor.type == viewer::AxisCursorType::X)
+                        ++xCursorCount;
+                    else
+                        ++yCursorCount;
+                }
+                removeXCursorsAction->setEnabled(xCursorCount > 0);
+                removeYCursorsAction->setEnabled(yCursorCount > 0);
+                removeAllCursorsAction->setEnabled(xCursorCount + yCursorCount > 0);
+
+                const double cursorX = plot->xAxis->pixelToCoord(pos.x());
+                const double cursorY = plot->yAxis->pixelToCoord(pos.y());
+                connect(newXCursorAction, &QAction::triggered, this,
+                        [this, pageIndex, cursorX]()
+                {
+                    createAxisCursor(pageIndex, viewer::AxisCursorType::X, cursorX);
+                });
+                connect(newYCursorAction, &QAction::triggered, this,
+                        [this, pageIndex, cursorY]()
+                {
+                    createAxisCursor(pageIndex, viewer::AxisCursorType::Y, cursorY);
+                });
+                connect(removeXCursorsAction, &QAction::triggered, this, [this, pageIndex]()
+                {
+                    m_viewer.GetCursorManager().removeAxisCursors(
+                        pageIndex, viewer::AxisCursorType::X);
+                });
+                connect(removeYCursorsAction, &QAction::triggered, this, [this, pageIndex]()
+                {
+                    m_viewer.GetCursorManager().removeAxisCursors(
+                        pageIndex, viewer::AxisCursorType::Y);
+                });
+                connect(removeAllCursorsAction, &QAction::triggered, this, [this, pageIndex]()
+                {
+                    m_viewer.GetCursorManager().removeAxisCursors(pageIndex);
                 });
 
                 menu.addSeparator();
@@ -715,6 +779,7 @@ void UI::bindPlotManagerCallbacks()
                 graph->setScatterStyle(ss);
             }
 
+            refreshAxisCursorValueBoxes(pageIndex);
             plot->replot(); // pen 变化需要手动 replot
         };
 
@@ -845,6 +910,7 @@ void UI::bindPlotManagerCallbacks()
                                 ? dm.GetColumn(xIdx) : dm.GetIndexColumn();
                             graph->setDataColumns(xCol, yCol);
                             graph->notifyDataChanged();
+                            refreshAxisCursorValueBoxes(pageIndex);
                             logExpressionTrace(QString("rebind page=%1 item=\"%2\" graph=0x%3 x=0x%4 y=0x%5 rows=%6")
                                                .arg(pageIndex).arg(QString::fromStdString(selName))
                                                .arg(reinterpret_cast<quintptr>(graph), 0, 16)
@@ -1017,6 +1083,7 @@ void UI::bindPlotManagerCallbacks()
                 }
             }
         }
+        refreshAxisCursorValueBoxes(pageIndex);
         plot->rescaleAxes();
         if (m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.ruleCount() > 0)
             renderHighlights(pageIndex);
@@ -1107,6 +1174,7 @@ void UI::bindPlotManagerCallbacks()
             (pe.isEdited && pe.computedData) ? pe.computedData.get() : dm.GetColumn(yColName);
         graph->setDataColumns(xCol, yDataSource);
         graph->notifyDataChanged();
+        refreshAxisCursorValueBoxes(pageIndex);
 
         // 首个数据项全量缩放，后续项仅扩大
         graph->rescaleAxes(plotCount > 1);
@@ -1206,6 +1274,7 @@ void UI::bindPlotManagerCallbacks()
             }
         }
 
+        refreshAxisCursorValueBoxes(pageIndex);
         plot->replot();
 
         // 从工具栏 ComboList 移除对应数据项名称

@@ -1,5 +1,7 @@
 #include "code_viewer/plotmgr/cursor/cursor_manager.h"
 
+#include <algorithm>
+
 namespace viewer
 {
 
@@ -47,6 +49,8 @@ void CursorManager::clearPreSelection()
 
 int CursorManager::addCursor(int pageIndex, const std::string& dataItemName, size_t dataIndex)
 {
+    setActiveAxisCursor(-1);
+
     // 取消旧的激活
     int oldActive = m_activeCursorIdx;
     if (oldActive >= 0 && oldActive < static_cast<int>(m_cursors.size()))
@@ -120,6 +124,9 @@ bool CursorManager::moveCursorToIndex(int cursorIdx, size_t newDataIndex)
 
 void CursorManager::setActiveCursor(int index)
 {
+    if (index >= 0)
+        setActiveAxisCursor(-1);
+
     if (index == m_activeCursorIdx)
         return;
 
@@ -144,6 +151,121 @@ void CursorManager::setActiveCursor(int index)
         onActiveCursorChanged(index);
 }
 
+int CursorManager::addAxisCursor(int pageIndex, AxisCursorType type, double position)
+{
+    setActiveCursor(-1);
+    setActiveAxisCursor(-1);
+
+    AxisCursorInfo info;
+    info.id = m_nextAxisCursorId++;
+    info.pageIndex = pageIndex;
+    info.type = type;
+    info.position = position;
+    info.dataValuesVisible = (type == AxisCursorType::X);
+    info.isActive = true;
+
+    m_axisCursors.push_back(info);
+    m_activeAxisCursorId = info.id;
+    if (onAxisCursorAdded)
+        onAxisCursorAdded(info.id, m_axisCursors.back());
+    if (onActiveAxisCursorChanged)
+        onActiveAxisCursorChanged(info.id);
+    return info.id;
+}
+
+bool CursorManager::removeAxisCursor(int id)
+{
+    auto it = std::find_if(m_axisCursors.begin(), m_axisCursors.end(),
+        [id](const AxisCursorInfo& cursor) { return cursor.id == id; });
+    if (it == m_axisCursors.end())
+        return false;
+
+    const bool wasActive = (m_activeAxisCursorId == id);
+    m_axisCursors.erase(it);
+    if (wasActive)
+        m_activeAxisCursorId = -1;
+    if (onAxisCursorRemoved)
+        onAxisCursorRemoved(id);
+    if (wasActive && onActiveAxisCursorChanged)
+        onActiveAxisCursorChanged(-1);
+    return true;
+}
+
+void CursorManager::removeAxisCursors(int pageIndex)
+{
+    std::vector<int> ids;
+    for (const auto& cursor : m_axisCursors)
+    {
+        if (cursor.pageIndex == pageIndex)
+            ids.push_back(cursor.id);
+    }
+    for (int id : ids)
+        removeAxisCursor(id);
+}
+
+void CursorManager::removeAxisCursors(int pageIndex, AxisCursorType type)
+{
+    std::vector<int> ids;
+    for (const auto& cursor : m_axisCursors)
+    {
+        if (cursor.pageIndex == pageIndex && cursor.type == type)
+            ids.push_back(cursor.id);
+    }
+    for (int id : ids)
+        removeAxisCursor(id);
+}
+
+bool CursorManager::setAxisCursorPosition(int id, double position)
+{
+    auto it = std::find_if(m_axisCursors.begin(), m_axisCursors.end(),
+        [id](const AxisCursorInfo& cursor) { return cursor.id == id; });
+    if (it == m_axisCursors.end())
+        return false;
+
+    it->position = position;
+    if (onAxisCursorChanged)
+        onAxisCursorChanged(id, *it);
+    return true;
+}
+
+bool CursorManager::setAxisCursorDataValuesVisible(int id, bool visible)
+{
+    auto it = std::find_if(m_axisCursors.begin(), m_axisCursors.end(),
+        [id](const AxisCursorInfo& cursor) { return cursor.id == id; });
+    if (it == m_axisCursors.end() || it->type != AxisCursorType::X)
+        return false;
+
+    it->dataValuesVisible = visible;
+    if (onAxisCursorChanged)
+        onAxisCursorChanged(id, *it);
+    return true;
+}
+
+void CursorManager::setActiveAxisCursor(int id)
+{
+    if (id >= 0)
+        setActiveCursor(-1);
+
+    if (id == m_activeAxisCursorId)
+        return;
+
+    if (id >= 0 && !axisCursor(id))
+        return;
+
+    for (auto& cursor : m_axisCursors)
+        cursor.isActive = (cursor.id == id);
+    m_activeAxisCursorId = id;
+    if (onActiveAxisCursorChanged)
+        onActiveAxisCursorChanged(id);
+}
+
+const AxisCursorInfo* CursorManager::axisCursor(int id) const noexcept
+{
+    auto it = std::find_if(m_axisCursors.begin(), m_axisCursors.end(),
+        [id](const AxisCursorInfo& cursor) { return cursor.id == id; });
+    return it == m_axisCursors.end() ? nullptr : &*it;
+}
+
 void CursorManager::shiftPageIndicesAfterRemoval(int removedPageIndex)
 {
     for (auto& cursor : m_cursors)
@@ -156,6 +278,12 @@ void CursorManager::shiftPageIndicesAfterRemoval(int removedPageIndex)
         --m_preSelPage;
     else if (m_preSelPage == removedPageIndex)
         clearPreSelection();
+
+    for (auto& cursor : m_axisCursors)
+    {
+        if (cursor.pageIndex > removedPageIndex)
+            --cursor.pageIndex;
+    }
 }
 void CursorManager::clearAll()
 {
@@ -170,6 +298,17 @@ void CursorManager::clearAll()
 
     m_activeCursorIdx = -1;
     clearPreSelection();
+
+    while (!m_axisCursors.empty())
+    {
+        const int id = m_axisCursors.back().id;
+        m_axisCursors.pop_back();
+        if (onAxisCursorRemoved)
+            onAxisCursorRemoved(id);
+    }
+    if (m_activeAxisCursorId >= 0 && onActiveAxisCursorChanged)
+        onActiveAxisCursorChanged(-1);
+    m_activeAxisCursorId = -1;
 }
 
 } // namespace viewer
