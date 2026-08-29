@@ -159,13 +159,31 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
                                   std::vector<std::vector<double>> values,
                                   const std::string& sourcePath)
 {
-    if (columnNames.empty() || columnNames.size() != values.size())
+    return LoadFromColumns(std::move(columnNames), std::move(values), {}, {}, sourcePath);
+}
+
+bool DataManager::LoadFromColumns(
+    std::vector<std::string> columnNames,
+    std::vector<std::vector<double>> values,
+    std::vector<std::string> stringColumnNames,
+    std::vector<std::vector<std::string>> stringValues,
+    const std::string& sourcePath)
+{
+    if (columnNames.size() != values.size()
+        || stringColumnNames.size() != stringValues.size()
+        || (columnNames.empty() && stringColumnNames.empty()))
         return false;
 
-    const size_t rowCount = values.front().size();
+    const size_t rowCount = !values.empty()
+        ? values.front().size() : stringValues.front().size();
     if (rowCount == 0)
         return false;
     for (const auto& column : values)
+    {
+        if (column.size() != rowCount)
+            return false;
+    }
+    for (const auto& column : stringValues)
     {
         if (column.size() != rowCount)
             return false;
@@ -187,6 +205,18 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
         nameIndex.emplace(displayNames[index], index);
     }
 
+    std::unordered_map<std::string, size_t> stringNameIndex;
+    for (size_t index = 0; index < stringColumnNames.size(); ++index)
+    {
+        const auto& name = stringColumnNames[index];
+        if (name.empty() || stringNameIndex.count(name) != 0
+            || nameIndex.count(name) != 0)
+        {
+            return false;
+        }
+        stringNameIndex.emplace(name, index);
+    }
+
     std::vector<std::shared_ptr<Column>> columns;
     columns.reserve(values.size());
     for (auto& valuesForColumn : values)
@@ -196,12 +226,21 @@ bool DataManager::LoadFromColumns(std::vector<std::string> columnNames,
         columns.push_back(std::move(column));
     }
 
+    std::vector<std::shared_ptr<StringColumn>> stringColumns;
+    stringColumns.reserve(stringValues.size());
+    for (auto& valuesForColumn : stringValues)
+        stringColumns.push_back(std::make_shared<StringColumn>(std::move(valuesForColumn)));
+
     Clear();
     m_columns = std::move(columns);
     m_rawColumnNames = std::move(columnNames);
     m_columnNames = std::move(displayNames);
     m_columnMetadata.assign(m_columns.size(), ColumnMetadata{});
     m_nameIndex = std::move(nameIndex);
+    m_stringColumns = std::move(stringColumns);
+    m_stringColumnNames = std::move(stringColumnNames);
+    m_rawStringColumnNames = m_stringColumnNames;
+    m_stringNameIndex = std::move(stringNameIndex);
     m_filePath = sourcePath;
     m_xAxisColumn = AutoDetectXAxis();
     return true;
@@ -212,7 +251,8 @@ AddDerivedColumnStatus DataManager::AddDerivedColumn(std::string name,
 {
     if (name.empty())
         return AddDerivedColumnStatus::InvalidName;
-    if (m_nameIndex.find(name) != m_nameIndex.end())
+    if (m_nameIndex.find(name) != m_nameIndex.end()
+        || m_stringNameIndex.find(name) != m_stringNameIndex.end())
         return AddDerivedColumnStatus::DuplicateName;
     if (m_columns.empty() || values.size() != GetRowCount())
         return AddDerivedColumnStatus::RowCountMismatch;
@@ -252,6 +292,9 @@ PublishDerivedColumnsStatus DataManager::PublishPluginDerivedColumns(
             return PublishDerivedColumnsStatus::InvalidName;
         if (values[index].size() != rowCount)
             return PublishDerivedColumnsStatus::RowCountMismatch;
+
+        if (m_stringNameIndex.find(name) != m_stringNameIndex.end())
+            return PublishDerivedColumnsStatus::NameCollision;
 
         const auto existing = m_nameIndex.find(name);
         if (existing != m_nameIndex.end())
@@ -333,7 +376,7 @@ PublishDerivedColumnsStatus DataManager::PublishPluginDerivedColumns(
 
 bool DataManager::LoadFromCSV(const LoadConfig& config)
 {
-    const bool isFirstLoad = m_columns.empty();
+    const bool isFirstLoad = m_sourceColumnNames.empty() && GetRowCount() == 0;
 
     const auto parseValue = [](const std::string& text) noexcept
     {
@@ -389,18 +432,44 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     reportProgress(0.0f, "Counting lines...", config.filePath.string());
 
     uint64_t totalDataRows = 0;
+    size_t scannedColumnCount = 0;
+    std::vector<bool> detectedStringColumns;
     {
         std::vector<std::string> tmpFields;
+        uint64_t recordIndex = 0;
         while (counter.readRow(tmpFields))
+        {
+            const bool headerRecord = config.hasHeader
+                && recordIndex <= static_cast<uint64_t>(std::max(0, config.headerRow));
+            if (headerRecord)
+            {
+                if (recordIndex == static_cast<uint64_t>(std::max(0, config.headerRow)))
+                    scannedColumnCount = tmpFields.size();
+                ++recordIndex;
+                continue;
+            }
+
+            if (scannedColumnCount == 0)
+                scannedColumnCount = tmpFields.size();
+            if (tmpFields.size() != scannedColumnCount)
+                return false;
+            if (detectedStringColumns.empty())
+                detectedStringColumns.assign(scannedColumnCount, false);
+            for (size_t column = 0; column < tmpFields.size(); ++column)
+            {
+                const std::string& text = tmpFields[column];
+                if (text.empty())
+                    continue;
+                char* end = nullptr;
+                std::strtod(text.c_str(), &end);
+                if (end == text.c_str() || *end != '\0')
+                    detectedStringColumns[column] = true;
+            }
             ++totalDataRows;
+            ++recordIndex;
+        }
     }
     counter.close();
-
-    if (config.hasHeader && totalDataRows > 0)
-    {
-        const uint64_t headerRows = static_cast<uint64_t>(config.headerRow) + 1;
-        totalDataRows = (headerRows < totalDataRows) ? (totalDataRows - headerRows) : 0;
-    }
 
     if (totalDataRows == 0)
         return false;
@@ -418,15 +487,25 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     size_t colCount = readHeader(scanner, headerFields);
     if (colCount == 0)
         return false;
+    if (scannedColumnCount != 0 && scannedColumnCount != colCount)
+        return false;
 
     // ================================================================
     // 列名校验（后续 CSV 加载时）
     // ================================================================
     std::vector<std::string> newSanitizedNames;
-    std::unordered_map<std::string, size_t> newNameIndex;
 
     // preSanitizedNames 由 Viewer::LoadCSV/OnLoadCSV 始终传入
     newSanitizedNames = config.preSanitizedNames;
+    if (newSanitizedNames.size() != colCount)
+        return false;
+    if (detectedStringColumns.size() != colCount)
+        detectedStringColumns.assign(colCount, false);
+    for (size_t column = 0; column < colCount; ++column)
+    {
+        if (!m_dateAxisName.empty() && newSanitizedNames[column] == m_dateAxisName)
+            detectedStringColumns[column] = true;
+    }
     std::vector<std::string> displayNames = newSanitizedNames;
     if (!m_aliasMap.empty())
     {
@@ -445,24 +524,32 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         }
     }
 
+    std::unordered_set<std::string> numericDisplayNames;
     for (size_t i = 0; i < displayNames.size(); ++i)
     {
-        if (newNameIndex.count(displayNames[i]) > 0)
+        const bool installedString = !isFirstLoad
+            && i < m_sourceColumnIsString.size() && m_sourceColumnIsString[i];
+        if (detectedStringColumns[i] || installedString)
+            continue;
+        if (displayNames[i].empty() || !numericDisplayNames.insert(displayNames[i]).second)
             return false;
-        newNameIndex[displayNames[i]] = i;
     }
 
     if (!isFirstLoad)
     {
         // ---- 后续 CSV: 校验列数 & 列名 ----
-        if (colCount != m_columns.size())
+        if (colCount != m_sourceColumnNames.size())
             return false;
 
-        for (size_t i = 0; i < m_columnNames.size(); ++i)
+        for (size_t i = 0; i < m_sourceColumnNames.size(); ++i)
         {
             if (i >= newSanitizedNames.size())
                 return false;
-            if (displayNames[i] != m_columnNames[i])
+            if (newSanitizedNames[i] != m_sourceColumnNames[i])
+                return false;
+            // Empty-only files may look numeric, so only reject a newly found
+            // string value in a column whose installed schema is numeric.
+            if (detectedStringColumns[i] && !m_sourceColumnIsString[i])
                 return false;
         }
 
@@ -505,6 +592,8 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         const size_t newRowCount = oldRowCount + static_cast<size_t>(validationCount);
         for (auto& column : m_columns)
             column->beginOverwrite(newRowCount);
+        for (auto& column : m_stringColumns)
+            column->resize(newRowCount);
 
         while (scanner.readRow(rowFields))
         {
@@ -514,8 +603,11 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
 
             for (size_t c = 0; c < colCount; ++c)
             {
-                (*m_columns[c])[oldRowCount + static_cast<size_t>(appendedRows)] =
-                    parseValue(rowFields[c]);
+                const size_t row = oldRowCount + static_cast<size_t>(appendedRows);
+                if (m_sourceColumnIsString[c])
+                    (*m_stringColumns[m_sourceToString[c]])[row] = rowFields[c];
+                else
+                    (*m_columns[m_sourceToNumeric[c]])[row] = parseValue(rowFields[c]);
             }
 
             ++appendedRows;
@@ -541,25 +633,57 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     // ================================================================
 
     m_filePath = config.filePath.string();
-    m_columnNames = displayNames;
-    m_nameIndex = newNameIndex;
+    m_sourceColumnNames = newSanitizedNames;
+    m_sourceColumnIsString = detectedStringColumns;
+    m_sourceToNumeric.assign(colCount, npos);
+    m_sourceToString.assign(colCount, npos);
 
-    if (config.hasHeader && !headerFields.empty())
-        m_rawColumnNames = headerFields;
-    else
+    std::vector<std::string> rawNames = headerFields;
+    if (!config.hasHeader || rawNames.empty())
     {
-        m_rawColumnNames.resize(colCount);
+        rawNames.resize(colCount);
         for (size_t c = 0; c < colCount; ++c)
-            m_rawColumnNames[c] = "col_" + std::to_string(c + 1);
+            rawNames[c] = "col_" + std::to_string(c + 1);
     }
 
-    // 所有列统一使用 Column
-    m_columns.resize(colCount);
-    m_columnMetadata.assign(colCount, ColumnMetadata{});
-    for (size_t c = 0; c < colCount; ++c)
+    m_nameIndex.clear();
+    m_stringNameIndex.clear();
+    for (size_t sourceColumn = 0; sourceColumn < colCount; ++sourceColumn)
     {
-        m_columns[c] = std::make_shared<Column>(static_cast<size_t>(totalDataRows));
-        m_columns[c]->beginOverwrite();
+        if (m_sourceColumnIsString[sourceColumn])
+        {
+            const size_t index = m_stringColumns.size();
+            const std::string& name = newSanitizedNames[sourceColumn];
+            if (name.empty() || m_stringNameIndex.count(name) != 0
+                || m_nameIndex.count(name) != 0)
+            {
+                return false;
+            }
+            m_sourceToString[sourceColumn] = index;
+            m_stringColumnNames.push_back(name);
+            m_rawStringColumnNames.push_back(rawNames[sourceColumn]);
+            m_stringNameIndex.emplace(name, index);
+            m_stringColumns.push_back(std::make_shared<StringColumn>(
+                static_cast<size_t>(totalDataRows)));
+        }
+        else
+        {
+            const size_t index = m_columns.size();
+            const std::string& name = displayNames[sourceColumn];
+            if (name.empty() || m_nameIndex.count(name) != 0
+                || m_stringNameIndex.count(name) != 0)
+            {
+                return false;
+            }
+            m_sourceToNumeric[sourceColumn] = index;
+            m_columnNames.push_back(name);
+            m_rawColumnNames.push_back(rawNames[sourceColumn]);
+            m_nameIndex.emplace(name, index);
+            auto column = std::make_shared<Column>(static_cast<size_t>(totalDataRows));
+            column->beginOverwrite();
+            m_columns.push_back(std::move(column));
+            m_columnMetadata.push_back(ColumnMetadata{});
+        }
     }
 
     scanner.reset();
@@ -581,13 +705,21 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
         size_t n = std::min(rowFields.size(), colCount);
         for (size_t c = 0; c < n; ++c)
         {
-            (*m_columns[c])[static_cast<size_t>(loadedRows)] = parseValue(rowFields[c]);
+            if (m_sourceColumnIsString[c])
+                (*m_stringColumns[m_sourceToString[c]])[static_cast<size_t>(loadedRows)] =
+                    rowFields[c];
+            else
+                (*m_columns[m_sourceToNumeric[c]])[static_cast<size_t>(loadedRows)] =
+                    parseValue(rowFields[c]);
         }
 
         for (size_t c = n; c < colCount; ++c)
         {
-            (*m_columns[c])[static_cast<size_t>(loadedRows)] =
-                std::numeric_limits<double>::quiet_NaN();
+            if (m_sourceColumnIsString[c])
+                (*m_stringColumns[m_sourceToString[c]])[static_cast<size_t>(loadedRows)].clear();
+            else
+                (*m_columns[m_sourceToNumeric[c]])[static_cast<size_t>(loadedRows)] =
+                    std::numeric_limits<double>::quiet_NaN();
         }
 
         ++loadedRows;
@@ -602,10 +734,11 @@ bool DataManager::LoadFromCSV(const LoadConfig& config)
     m_xAxisColumn = AutoDetectXAxis();
 
     // 计算每列的全列 min/max 缓存
-    for (size_t c = 0; c < colCount; ++c)
+    for (size_t c = 0; c < m_columns.size(); ++c)
         m_columns[c]->recalcMinMax();
 
-    reportProgress(1.0f, "Done.", "Loaded " + std::to_string(colCount) + " columns, " +
+    reportProgress(1.0f, "Done.", "Loaded " + std::to_string(m_columns.size())
+                  + " numeric and " + std::to_string(m_stringColumns.size()) + " string columns, " +
                   std::to_string(GetRowCount()) + " rows.");
 
     return true;
@@ -622,7 +755,8 @@ bool DataManager::LoadFromExpr(const std::string& exprStr, const std::string& ex
         return false;
 
     // ---- 列名冲突检查 ----
-    if (m_nameIndex.find(exprName) != m_nameIndex.end())
+    if (m_nameIndex.find(exprName) != m_nameIndex.end()
+        || m_stringNameIndex.find(exprName) != m_stringNameIndex.end())
         return false;
 
     // ---- 预设 rowCount（预处理和后续验证都需要） ----
@@ -950,9 +1084,17 @@ void DataManager::Clear()
 {
     m_columns.clear();
     m_columnMetadata.clear();
+    m_stringColumns.clear();
+    m_stringColumnNames.clear();
+    m_rawStringColumnNames.clear();
+    m_stringNameIndex.clear();
     m_columnNames.clear();
     m_rawColumnNames.clear();
     m_nameIndex.clear();
+    m_sourceColumnNames.clear();
+    m_sourceColumnIsString.clear();
+    m_sourceToNumeric.clear();
+    m_sourceToString.clear();
     m_indexColumn.reset();
     m_filePath.clear();
     m_xAxisColumn = npos;
@@ -1004,10 +1146,44 @@ size_t DataManager::GetColumnIndex(const std::string& name) const
     return npos;
 }
 
+const StringColumn* DataManager::GetStringColumn(size_t idx) const
+{
+    if (idx >= m_stringColumns.size())
+        return nullptr;
+    return m_stringColumns[idx].get();
+}
+
+const StringColumn* DataManager::GetStringColumn(const std::string& name) const
+{
+    const size_t idx = GetStringColumnIndex(name);
+    return idx == npos ? nullptr : GetStringColumn(idx);
+}
+
+size_t DataManager::GetStringColumnIndex(const std::string& name) const
+{
+    const auto it = m_stringNameIndex.find(name);
+    return it == m_stringNameIndex.end() ? npos : it->second;
+}
+
+std::string DataManager::GetStringValue(size_t colIdx, size_t rowIdx) const
+{
+    const StringColumn* column = GetStringColumn(colIdx);
+    if (!column || rowIdx >= column->size())
+        return {};
+    return (*column)[rowIdx];
+}
+
+std::string DataManager::GetStringValue(const std::string& colName, size_t rowIdx) const
+{
+    const size_t index = GetStringColumnIndex(colName);
+    return index == npos ? std::string{} : GetStringValue(index, rowIdx);
+}
+
 size_t DataManager::GetRowCount() const noexcept
 {
-    if (m_columns.empty()) return 0;
-    return m_columns[0]->size();
+    if (!m_columns.empty())
+        return m_columns[0]->size();
+    return m_stringColumns.empty() ? 0 : m_stringColumns[0]->size();
 }
 
 // ---- 行访问 ----

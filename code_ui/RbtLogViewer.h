@@ -29,11 +29,13 @@ public:
     QString filePath() const { return m_file.fileName(); }
     quint64 searchStartOffset(bool backward) const;
     void setSearchMatch(quint64 byteOffset, qsizetype byteLength);
+    void jumpToLine(qsizetype zeroBasedLine);
 
 Q_SIGNALS:
     void currentLineChanged(qsizetype oneBasedLine);
     void findRequested();
     void findNextRequested(bool backward);
+    void markRequested(const QString& filePath, qsizetype zeroBasedLine, bool allPlots);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -81,7 +83,11 @@ class RbtLogViewerWindow final : public QMainWindow
 public:
     explicit RbtLogViewerWindow(QWidget* parent = nullptr);
     void openFiles(const QStringList& paths);
+    void openFileAtLine(const QString& path, qsizetype zeroBasedLine);
     void releaseFiles();
+
+Q_SIGNALS:
+    void markRequested(const QString& filePath, qsizetype zeroBasedLine, bool allPlots);
 
 private:
     void beginOpenFile(const QString& path);
@@ -97,4 +103,6 @@ private:
     RbtLogTextView* m_textView = nullptr;
     quint64 m_openGeneration = 0;
     quint64 m_findGeneration = 0;
+    QString m_pendingJumpPath;
+    qsizetype m_pendingJumpLine = -1;
 };

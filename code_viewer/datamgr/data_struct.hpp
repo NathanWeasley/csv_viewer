@@ -312,4 +312,25 @@ private:
     bool    m_minMaxValid = false;
 };
 
+// String data is intentionally kept separate from Column. It participates in
+// row alignment and lookup, but is never exposed to the plotting hot path.
+class StringColumn
+{
+public:
+    StringColumn() noexcept = default;
+    explicit StringColumn(size_t size) : m_data(size) {}
+    explicit StringColumn(std::vector<std::string>&& values) noexcept
+        : m_data(std::move(values)) {}
+
+    size_t size() const noexcept { return m_data.size(); }
+    bool empty() const noexcept { return m_data.empty(); }
+    const std::string& operator[](size_t idx) const noexcept { return m_data[idx]; }
+    std::string& operator[](size_t idx) noexcept { return m_data[idx]; }
+    void resize(size_t size) { m_data.resize(size); }
+    void clear() { std::vector<std::string>().swap(m_data); }
+
+private:
+    std::vector<std::string> m_data;
+};
+
 } // namespace viewer

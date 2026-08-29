@@ -47,12 +47,13 @@ struct FieldDefinition
     ValueType valueType = ValueType::Double;
     char formatCode = 'd';
     // Payload element count and output column count are intentionally separate.
-    // A string consumes its full payload but currently emits one NaN column.
+    // A string consumes its full payload and emits one independent string column.
     size_t payloadElementCount = 1;
     size_t outputColumnCount = 1;
     size_t elementByteWidth = sizeof(double);
     size_t payloadOffset = 0;
     std::vector<size_t> columnIndices;
+    std::vector<size_t> stringColumnIndices;
 };
 
 struct PacketDefinition
@@ -72,6 +73,15 @@ struct ParsedColumn
     ValueType valueType = ValueType::Double;
     size_t elementIndex = 0;
     std::vector<double> values;
+};
+
+struct ParsedStringColumn
+{
+    std::string name;
+    uint32_t packetId = 0;
+    std::string fieldName;
+    ValueType valueType = ValueType::Character;
+    std::vector<std::string> values;
 };
 
 struct ParseDiagnostic
@@ -95,6 +105,7 @@ struct ParseResult
 {
     std::vector<PacketDefinition> packetTypes;
     std::vector<ParsedColumn> columns;
+    std::vector<ParsedStringColumn> stringColumns;
     std::vector<ParseDiagnostic> diagnostics;
     std::vector<ParsedFileRange> fileRanges;
     size_t timestampCount = 0;

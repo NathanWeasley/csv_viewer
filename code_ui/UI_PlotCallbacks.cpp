@@ -408,6 +408,14 @@ void UI::bindPlotManagerCallbacks()
                     m_viewer.GetCursorManager().removeAxisCursors(pageIndex);
                 });
 
+                QAction* jumpToRbtAction = menu.addAction(QString::fromUtf8("跳转到RBT日志"));
+                jumpToRbtAction->setEnabled(!isFFT);
+                connect(jumpToRbtAction, &QAction::triggered, this,
+                        [this, pageIndex, plot, pos]()
+                {
+                    jumpFromPlotToRbt(pageIndex, plot, pos);
+                });
+
                 menu.addSeparator();
 
                 QAction* legendAction = menu.addAction("显示图例");

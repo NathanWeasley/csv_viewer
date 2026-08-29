@@ -177,6 +177,12 @@ public:
                          std::vector<std::vector<double>> values,
                          const std::string& sourcePath);
 
+    bool LoadFromColumns(std::vector<std::string> columnNames,
+                         std::vector<std::vector<double>> values,
+                         std::vector<std::string> stringColumnNames,
+                         std::vector<std::vector<std::string>> stringValues,
+                         const std::string& sourcePath);
+
     // Adds one plugin-produced column without copying its numeric buffer.
     // Existing columns remain valid because column storage is shared.
     AddDerivedColumnStatus AddDerivedColumn(std::string name,
@@ -236,6 +242,23 @@ public:
 
     // 按列名查找索引（未找到返回 npos）
     size_t GetColumnIndex(const std::string& name) const;
+
+    // 字符串列与数值列分别存储；字符串列不参与绘图和表达式计算。
+    const StringColumn* GetStringColumn(size_t idx) const;
+    const StringColumn* GetStringColumn(const std::string& name) const;
+    size_t GetStringColumnCount() const noexcept { return m_stringColumns.size(); }
+    size_t GetStringColumnIndex(const std::string& name) const;
+    const std::vector<std::string>& GetStringColumnNames() const noexcept
+    { return m_stringColumnNames; }
+    std::string GetStringValue(size_t colIdx, size_t rowIdx) const;
+    std::string GetStringValue(const std::string& colName, size_t rowIdx) const;
+
+    // 日期轴名称按清洗后的源列名匹配；Clear 只清数据，不清该配置。
+    void SetDateAxisName(std::string name) { m_dateAxisName = std::move(name); }
+    const std::string& GetDateAxisName() const noexcept { return m_dateAxisName; }
+    size_t GetDateAxisColumn() const { return GetStringColumnIndex(m_dateAxisName); }
+    std::string GetDateValue(size_t rowIdx) const
+    { return GetStringValue(m_dateAxisName, rowIdx); }
 
     // ============================================================
     // 行访问接口
@@ -316,9 +339,20 @@ private:
     std::vector<std::shared_ptr<Column>> m_columns;
     std::vector<ColumnMetadata> m_columnMetadata;
 
+    std::vector<std::shared_ptr<StringColumn>> m_stringColumns;
+    std::vector<std::string> m_stringColumnNames;
+    std::vector<std::string> m_rawStringColumnNames;
+    std::unordered_map<std::string, size_t> m_stringNameIndex;
+
     std::vector<std::string> m_columnNames;       // 清洗后的列名
     std::vector<std::string> m_rawColumnNames;    // 原始列名
     std::unordered_map<std::string, size_t> m_nameIndex;  // 列名->索引
+
+    // 完整源表结构用于在数值列/字符串列分离后继续追加 CSV。
+    std::vector<std::string> m_sourceColumnNames;
+    std::vector<bool> m_sourceColumnIsString;
+    std::vector<size_t> m_sourceToNumeric;
+    std::vector<size_t> m_sourceToString;
 
     std::string m_filePath;     // 已加载的文件路径
     size_t      m_xAxisColumn = npos;  // 当前横轴列
@@ -332,6 +366,7 @@ private:
 
     // 别名映射（原始列名 → 重命名），由 UI 层设置
     std::unordered_map<std::string, std::string> m_aliasMap;
+    std::string m_dateAxisName;
 
     static constexpr size_t npos = static_cast<size_t>(-1);
 

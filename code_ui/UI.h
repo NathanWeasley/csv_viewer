@@ -40,6 +40,7 @@ class HighlightDialog;
 class PluginHost;
 class PluginManager;
 class RbtLogViewerWindow;
+class LogTimeMapper;
 class QMenu;
 class QFrame;
 namespace ads { class CDockWidget; }
@@ -185,6 +186,11 @@ private Q_SLOTS:
     QString rbtLogDirectory() const;
     bool resetRbtLogDirectory(QString* error = nullptr);
     QStringList availableRbtLogFiles() const;
+    void ensureRbtLogViewer();
+    void showLogJumpFailed();
+    void jumpFromPlotToRbt(int pageIndex, QCustomPlot* plot, const QPoint& pos);
+    void markRbtLineOnPlots(const QString& filePath, qsizetype line, bool allPlots);
+    bool isLogSyncXAxisSupported(int pageIndex) const;
 
 private:
     Ui::UIClass ui;
@@ -275,6 +281,7 @@ private:
     quint64 m_activePluginProgressHandle = 0;
     quint64 m_pluginProgressGeneration = 0;
     RbtLogViewerWindow* m_rbtLogViewer = nullptr;
+    std::shared_ptr<LogTimeMapper> m_logTimeMapper;
 
     // Highlight state
     QHash<int, QList<QCPItemRect*>> m_highlightRects;
@@ -298,6 +305,7 @@ private:
     bool m_autoGroupingEnabled = false;
     bool m_forceDataGrouping = false;
     bool m_defaultPlotByIndex = true;
+    QString m_dateAxisName;
 
     viewer::Viewer m_viewer;
 };

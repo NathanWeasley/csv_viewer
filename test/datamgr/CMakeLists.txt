@@ -34,6 +34,7 @@ add_executable(plugin_data_extension_test
     ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/expression_engine.cpp
     test_plugin_derived_columns.cpp
     test_expression_engine.cpp
+    test_string_columns.cpp
 )
 
 target_include_directories(plugin_data_extension_test PRIVATE

@@ -39,6 +39,7 @@
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
 #include "XAxisDialog.h"
+#include "LogTimeMapper.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>
@@ -1055,6 +1056,34 @@ void UI::createMenu()
             // 保存到 user/xaxis.json
             QString jsonPath = QCoreApplication::applicationDirPath() + "/user/xaxis.json";
             dm.SaveXAxisRules(jsonPath.toStdString());
+        }
+    });
+
+    auto* dateAxisSettingAction = settingsMenu->addAction(QString::fromUtf8("日期轴指定"));
+    connect(dateAxisSettingAction, &QAction::triggered, this, [this]()
+    {
+        bool accepted = false;
+        const QString value = QInputDialog::getText(
+            this, QString::fromUtf8("日期轴指定"),
+            QString::fromUtf8("请输入清洗后的日期数据项名称："),
+            QLineEdit::Normal, m_dateAxisName, &accepted).trimmed();
+        if (!accepted)
+            return;
+        m_dateAxisName = value;
+        auto& data = m_viewer.GetDataManager();
+        data.SetDateAxisName(value.toUtf8().toStdString());
+        if (m_logTimeMapper)
+            m_logTimeMapper->align(data);
+
+        QString configPath = QCoreApplication::applicationDirPath() + "/user/config.ini";
+        QDir().mkpath(QCoreApplication::applicationDirPath() + "/user");
+        QSettings(configPath, QSettings::IniFormat).setValue("dateAxisName", value);
+        if (!value.isEmpty() && data.GetRowCount() > 0
+            && data.GetDateAxisColumn() == static_cast<size_t>(-1))
+        {
+            QMessageBox::information(
+                this, QString::fromUtf8("日期轴指定"),
+                QString::fromUtf8("当前数据中未找到该字符串列；设置将在后续载入数据时继续生效。"));
         }
     });
 

@@ -165,6 +165,17 @@ const viewer::logparse::ParsedColumn* findColumn(
     return nullptr;
 }
 
+const viewer::logparse::ParsedStringColumn* findStringColumn(
+    const viewer::logparse::ParseResult& result, const std::string& name)
+{
+    for (const auto& column : result.stringColumns)
+    {
+        if (column.name == name)
+            return &column;
+    }
+    return nullptr;
+}
+
 const viewer::logparse::ParsedColumn* findPacketColumn(
     const viewer::logparse::ParseResult& result, uint32_t packetId)
 {
@@ -304,7 +315,7 @@ std::filesystem::path writeZipFixture(
 TEST_GROUP(BinaryLogParser)
 {
 
-TEST(BinaryLogParser, ExpandsNumericArrayButKeepsOneStringColumn)
+TEST(BinaryLogParser, ExpandsNumericArrayAndSeparatesStringColumns)
 {
     const auto file = writeFixture("primary.hiklog", makePrimaryFile());
     viewer::logparse::BinaryLogParser parser;
@@ -312,14 +323,15 @@ TEST(BinaryLogParser, ExpandsNumericArrayButKeepsOneStringColumn)
 
     TEST_ASSERT_TRUE(result.success());
     TEST_ASSERT_EQ(result.timestampCount, 2u);
-    TEST_ASSERT_EQ(result.columns.size(), 6u);
+    TEST_ASSERT_EQ(result.columns.size(), 4u);
+    TEST_ASSERT_EQ(result.stringColumns.size(), 2u);
 
     const auto* timestamp = findColumn(result, "timestamp");
     const auto* x = findColumn(result, "packet_position_0");
     const auto* y = findColumn(result, "packet_position_1");
-    const auto* label = findColumn(result, "packet_label");
+    const auto* label = findStringColumn(result, "packet_label");
     const auto* count = findColumn(result, "packet_count");
-    const auto* date = findColumn(result, "meta_date");
+    const auto* date = findStringColumn(result, "meta_date");
     TEST_ASSERT_TRUE(timestamp && x && y && label && count && date);
 
     TEST_ASSERT_EQ(timestamp->values.size(), 2u);
@@ -331,10 +343,10 @@ TEST(BinaryLogParser, ExpandsNumericArrayButKeepsOneStringColumn)
     TEST_ASSERT_EQ(y->values[1], 4.0);
     TEST_ASSERT_EQ(count->values[0], 7.0);
     TEST_ASSERT_EQ(count->values[1], 9.0);
-    TEST_ASSERT_TRUE(std::isnan(label->values[0]));
-    TEST_ASSERT_TRUE(std::isnan(label->values[1]));
-    TEST_ASSERT_EQ(date->values[0], 0.0);
-    TEST_ASSERT_TRUE(std::isnan(date->values[1]));
+    TEST_ASSERT_EQ(label->values[0], std::string("abcd"));
+    TEST_ASSERT_EQ(label->values[1], std::string("abcd"));
+    TEST_ASSERT_TRUE(date->values[0].empty());
+    TEST_ASSERT_EQ(date->values[1], std::string(64, '2'));
 }
 
 TEST(BinaryLogParser, KeepsMasterSchemaAcrossFilesAndIgnoresAdditionalType)
@@ -364,7 +376,8 @@ TEST(BinaryLogParser, KeepsMasterSchemaAcrossFilesAndIgnoresAdditionalType)
     TEST_ASSERT_EQ(result.fileRanges[1].filePath, second);
     TEST_ASSERT_EQ(result.fileRanges[1].firstRow, 2u);
     TEST_ASSERT_EQ(result.fileRanges[1].rowCount, 1u);
-    TEST_ASSERT_EQ(result.columns.size(), 6u);
+    TEST_ASSERT_EQ(result.columns.size(), 4u);
+    TEST_ASSERT_EQ(result.stringColumns.size(), 2u);
     TEST_ASSERT_TRUE(findColumn(result, "extra_value") == nullptr);
     const auto* x = findColumn(result, "packet_position_0");
     const auto* timestamp = findColumn(result, "timestamp");
@@ -681,7 +694,7 @@ TEST(BinaryLogParser, ParsesRepositoryServoLogsDirectlyFromZip)
     viewer::logparse::BinaryLogParser parser;
     const auto result = parser.parseInputs(std::move(inputs));
     TEST_ASSERT_TRUE(result.success());
-    TEST_ASSERT_EQ(result.columns.size(), 268u);
+    TEST_ASSERT_EQ(result.columns.size() + result.stringColumns.size(), 268u);
     TEST_ASSERT_EQ(result.timestampCount, 115941u);
     TEST_ASSERT_EQ(result.fileRanges.size(), 2u);
     TEST_ASSERT_TRUE(result.fileRanges[0].rowCount > 0);
@@ -690,6 +703,20 @@ TEST(BinaryLogParser, ParsesRepositoryServoLogsDirectlyFromZip)
                    result.fileRanges[0].rowCount + result.fileRanges[1].rowCount);
     for (const auto& column : result.columns)
         TEST_ASSERT_EQ(column.values.size(), result.timestampCount);
+    for (const auto& column : result.stringColumns)
+        TEST_ASSERT_EQ(column.values.size(), result.timestampCount);
+    bool hasDateString = false;
+    for (const auto& column : result.stringColumns)
+    {
+        if (column.name.find("date") == std::string::npos)
+            continue;
+        hasDateString = std::any_of(
+            column.values.begin(), column.values.end(),
+            [](const std::string& value) { return !value.empty(); });
+        if (hasDateString)
+            break;
+    }
+    TEST_ASSERT_TRUE(hasDateString);
 }
 
 TEST(BinaryLogParser, ReportsCancellationSeparatelyFromParseFailure)

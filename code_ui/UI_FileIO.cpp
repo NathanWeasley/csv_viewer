@@ -1,5 +1,6 @@
 #include "UI.h"
 #include "RbtLogViewer.h"
+#include "LogTimeMapper.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -76,6 +77,7 @@ struct ZipLogLoadResult
     viewer::logparse::RbtLogBatchResult rbt;
     bool hasHiklog = false;
     bool cancelled = false;
+    std::shared_ptr<LogTimeMapper> timeMapper;
 };
 
 QString formatByteCount(uint64_t bytes)
@@ -430,6 +432,7 @@ bool UI::resetRbtLogDirectory(QString* error)
 {
     if (m_rbtLogViewer)
         m_rbtLogViewer->releaseFiles();
+    m_logTimeMapper.reset();
 
     const QString applicationDirectory = QDir(
         QCoreApplication::applicationDirPath()).absolutePath();
@@ -463,6 +466,17 @@ bool UI::resetRbtLogDirectory(QString* error)
 
 QStringList UI::availableRbtLogFiles() const
 {
+    if (m_logTimeMapper && !m_logTimeMapper->rbtFiles().isEmpty())
+    {
+        QStringList indexedFiles;
+        for (const QString& file : m_logTimeMapper->rbtFiles())
+        {
+            if (QFileInfo::exists(file))
+                indexedFiles.push_back(file);
+        }
+        if (!indexedFiles.isEmpty())
+            return indexedFiles;
+    }
     const QString path = rbtLogDirectory();
     if (!QDir().mkpath(path))
         return {};
@@ -487,9 +501,17 @@ void UI::onShowRbtLogsClicked()
             QString::fromUtf8(u8"当前临时目录中没有已解析的 RBT 日志。"));
         return;
     }
-    if (!m_rbtLogViewer)
-        m_rbtLogViewer = new RbtLogViewerWindow(this);
+    ensureRbtLogViewer();
     m_rbtLogViewer->openFiles(files);
+}
+
+void UI::ensureRbtLogViewer()
+{
+    if (m_rbtLogViewer)
+        return;
+    m_rbtLogViewer = new RbtLogViewerWindow(this);
+    connect(m_rbtLogViewer, &RbtLogViewerWindow::markRequested,
+            this, &UI::markRbtLineOnPlots);
 }
 
 #ifdef Q_OS_WIN
@@ -876,10 +898,17 @@ void UI::onLoadHiklogClicked()
             }
             if (!loadResult.rbt.archiveError.empty())
                 rbtErrors.push_back(QString::fromUtf8(loadResult.rbt.archiveError.c_str()));
+            if (loadResult.timeMapper)
+            {
+                m_logTimeMapper = std::move(loadResult.timeMapper);
+                if (!m_logTimeMapper->rbtFiles().isEmpty())
+                    rbtFiles = m_logTimeMapper->rbtFiles();
+                if (m_viewer.GetDataManager().GetRowCount() > 0)
+                    m_logTimeMapper->align(m_viewer.GetDataManager());
+            }
             if (!rbtFiles.isEmpty())
             {
-                if (!m_rbtLogViewer)
-                    m_rbtLogViewer = new RbtLogViewerWindow(this);
+                ensureRbtLogViewer();
                 m_rbtLogViewer->openFiles(rbtFiles);
             }
 
@@ -1025,6 +1054,17 @@ void UI::onLoadHiklogClicked()
             {
                 result.rbt = viewer::Viewer::ParseRbtZipEntries(
                     archivePath, rbtIndices, rbtOutputDirectory, rbtOptions);
+                QStringList parsedFiles;
+                for (const auto& file : result.rbt.files)
+                {
+                    if (file.success())
+                        parsedFiles.push_back(QString::fromStdWString(file.outputPath.wstring()));
+                }
+                if (!parsedFiles.isEmpty() && !result.rbt.cancelled)
+                {
+                    result.timeMapper = std::make_shared<LogTimeMapper>();
+                    result.timeMapper->buildRbtIndex(parsedFiles);
+                }
             }
             if (!cancelled->load(std::memory_order_relaxed)
                 && !hiklogIndices.empty())

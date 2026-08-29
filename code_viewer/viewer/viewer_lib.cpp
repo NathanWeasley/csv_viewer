@@ -242,12 +242,21 @@ bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
 
     std::vector<std::string> names;
     std::vector<std::vector<double>> values;
+    std::vector<std::string> stringNames;
+    std::vector<std::vector<std::string>> stringValues;
     names.reserve(result.columns.size());
     values.reserve(result.columns.size());
     for (auto& parsedColumn : result.columns)
     {
         names.push_back(std::move(parsedColumn.name));
         values.push_back(std::move(parsedColumn.values));
+    }
+    stringNames.reserve(result.stringColumns.size());
+    stringValues.reserve(result.stringColumns.size());
+    for (auto& parsedColumn : result.stringColumns)
+    {
+        stringNames.push_back(std::move(parsedColumn.name));
+        stringValues.push_back(std::move(parsedColumn.values));
     }
 
     // All large column buffers have moved out. Release schema/diagnostic/range
@@ -256,7 +265,9 @@ bool Viewer::AdoptBinaryLog(logparse::ParseResult&& result,
 
     if (GetDataManager().GetColumnCount() > 0)
         Clear();
-    if (!m_data.LoadFromColumns(std::move(names), std::move(values), sourcePath))
+    if (!m_data.LoadFromColumns(
+            std::move(names), std::move(values),
+            std::move(stringNames), std::move(stringValues), sourcePath))
     {
         m_lastError = "Failed to import parsed binary-log columns.";
         return false;

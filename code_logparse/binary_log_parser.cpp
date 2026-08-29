@@ -438,6 +438,8 @@ std::string makeUniqueName(std::string base,
     }
 }
 
+bool isStringType(ValueType type) noexcept;
+
 void establishMasterSchema(ParseSession& session,
                            const FileSchema& fileSchema,
                            const std::filesystem::path& filePath,
@@ -456,6 +458,23 @@ void establishMasterSchema(ParseSession& session,
         for (auto& field : definition.fields)
         {
             field.columnIndices.clear();
+            field.stringColumnIndices.clear();
+
+            if (isStringType(field.valueType))
+            {
+                std::string rawName = definition.packetName.empty()
+                    ? field.name : definition.packetName + "_" + field.name;
+                ParsedStringColumn column;
+                column.name = makeUniqueName(sanitizeName(rawName), session.usedColumnNames);
+                column.packetId = definition.id;
+                column.fieldName = field.name;
+                column.valueType = field.valueType;
+                column.values.emplace_back(); // Keep one trailing seed row.
+                field.stringColumnIndices.push_back(session.result.stringColumns.size());
+                session.result.stringColumns.push_back(std::move(column));
+                continue;
+            }
+
             field.columnIndices.reserve(field.outputColumnCount);
 
             for (size_t element = 0; element < field.outputColumnCount; ++element)
@@ -626,6 +645,30 @@ void decodePacket(ParseSession& session,
     const double nan = std::numeric_limits<double>::quiet_NaN();
     for (const auto& field : definition.fields)
     {
+        if (isStringType(field.valueType))
+        {
+            if (field.stringColumnIndices.empty())
+                continue;
+            const size_t columnIndex = field.stringColumnIndices.front();
+            size_t byteCount = 0;
+            if (columnIndex >= session.result.stringColumns.size()
+                || session.result.stringColumns[columnIndex].values.empty()
+                || !checkedMultiply(field.payloadElementCount,
+                                    field.elementByteWidth, byteCount)
+                || field.payloadOffset > payload.size()
+                || byteCount > payload.size() - field.payloadOffset)
+            {
+                continue;
+            }
+            const char* begin = reinterpret_cast<const char*>(
+                payload.data() + field.payloadOffset);
+            size_t length = 0;
+            while (length < byteCount && begin[length] != '\0')
+                ++length;
+            session.result.stringColumns[columnIndex].values.back().assign(begin, length);
+            continue;
+        }
+
         for (size_t element = 0; element < field.outputColumnCount; ++element)
         {
             if (element >= field.columnIndices.size())
@@ -639,8 +682,7 @@ void decodePacket(ParseSession& session,
 
             const size_t valueOffset = field.payloadOffset + element * field.elementByteWidth;
             double value = nan;
-            if (!isStringType(field.valueType)
-                && valueOffset + field.elementByteWidth <= payload.size())
+            if (valueOffset + field.elementByteWidth <= payload.size())
             {
                 value = decodeNumber(payload.data() + valueOffset, field.valueType);
             }
@@ -654,6 +696,12 @@ void appendSeedRow(ParseSession& session)
     for (auto& column : session.result.columns)
     {
         const double latest = column.values.empty() ? 0.0 : column.values.back();
+        column.values.push_back(latest);
+    }
+    for (auto& column : session.result.stringColumns)
+    {
+        const std::string latest = column.values.empty()
+            ? std::string{} : column.values.back();
         column.values.push_back(latest);
     }
     ++session.result.timestampCount;
@@ -954,6 +1002,11 @@ ParseResult BinaryLogParser::parseInputs(
 
     // Every column keeps one trailing seed row; remove it after all files.
     for (auto& column : session.result.columns)
+    {
+        if (!column.values.empty())
+            column.values.pop_back();
+    }
+    for (auto& column : session.result.stringColumns)
     {
         if (!column.values.empty())
             column.values.pop_back();

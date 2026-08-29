@@ -29,6 +29,7 @@
 #include "AliasDialog.h"
 #include "code_plugin/PluginHost.h"
 #include "code_plugin/PluginManager.h"
+#include "LogTimeMapper.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>
@@ -88,7 +89,10 @@ UI::UI(QWidget *parent)
 
         // 新图窗是否默认按数据索引绘图（仅影响随后创建的图窗）。
         m_defaultPlotByIndex = settings.value("plotByIndexByDefault", true).toBool();
+        m_dateAxisName = settings.value("dateAxisName").toString();
     }
+
+    m_viewer.GetDataManager().SetDateAxisName(m_dateAxisName.toUtf8().toStdString());
 
     m_viewer.GetPlotManager().setNewPageXAxisDefaults(
         m_defaultPlotByIndex, static_cast<size_t>(-1));
@@ -177,6 +181,16 @@ void UI::init()
     createStatusbar();
 
     bindCursorManagerCallbacks();
+    connect(&m_viewer, &viewer::Viewer::DataLoaded, this, [this](quint64)
+    {
+        if (m_logTimeMapper)
+            m_logTimeMapper->align(m_viewer.GetDataManager());
+    });
+    connect(&m_viewer, &viewer::Viewer::DataAboutToUnload, this, [this](quint64)
+    {
+        if (m_logTimeMapper)
+            m_logTimeMapper->clearAlignment();
+    });
     initializePluginSystem();
     logOperationTrace("UI init leave callbacks bound");
 }
@@ -274,6 +288,7 @@ void UI::beginShutdownCleanup(bool persistUiState)
         settings.setValue("antiAliasing", m_antiAliasingEnabled);
         settings.setValue("autoGrouping", m_autoGroupingEnabled);
         settings.setValue("plotByIndexByDefault", m_defaultPlotByIndex);
+        settings.setValue("dateAxisName", m_dateAxisName);
 
         saveState();
         logShutdownTrace("beginShutdownCleanup saved UI state");

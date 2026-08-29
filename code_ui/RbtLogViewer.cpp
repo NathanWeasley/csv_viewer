@@ -626,7 +626,21 @@ void RbtLogTextView::keyPressEvent(QKeyEvent* event)
 
 void RbtLogTextView::contextMenuEvent(QContextMenuEvent* event)
 {
+    const TextPosition contextPosition = positionAt(event->pos());
+    emit currentLineChanged(contextPosition.line + 1);
+
     QMenu menu(this);
+    QAction* markCurrent = menu.addAction(QString::fromUtf8(u8"标记到当前图窗"));
+    QAction* markAll = menu.addAction(QString::fromUtf8(u8"标记到所有图窗"));
+    connect(markCurrent, &QAction::triggered, this, [this, contextPosition]()
+    {
+        emit markRequested(filePath(), contextPosition.line, false);
+    });
+    connect(markAll, &QAction::triggered, this, [this, contextPosition]()
+    {
+        emit markRequested(filePath(), contextPosition.line, true);
+    });
+    menu.addSeparator();
     QAction* copy = menu.addAction(QString::fromUtf8(u8"复制"));
     copy->setShortcut(QKeySequence::Copy);
     copy->setEnabled(hasSelection());
@@ -643,6 +657,22 @@ void RbtLogTextView::contextMenuEvent(QContextMenuEvent* event)
     connect(next, &QAction::triggered, this,
         [this]() { emit findNextRequested(false); });
     menu.exec(event->globalPos());
+}
+
+void RbtLogTextView::jumpToLine(qsizetype zeroBasedLine)
+{
+    if (m_lineOffsets.isEmpty())
+        return;
+    const qsizetype line = std::clamp<qsizetype>(
+        zeroBasedLine, 0, m_lineOffsets.size() - 1);
+    m_anchor = {line, 0};
+    m_cursor = {line, lineText(line).size()};
+    m_searchByteOffset = -1;
+    m_searchByteLength = 0;
+    verticalScrollBar()->setValue(static_cast<int>(std::max<qsizetype>(
+        0, line - verticalScrollBar()->pageStep() / 3)));
+    emit currentLineChanged(line + 1);
+    viewport()->update();
 }
 
 quint64 RbtLogTextView::searchStartOffset(bool backward) const
@@ -742,18 +772,36 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
             this, &RbtLogViewerWindow::beginFind);
     connect(m_textView, &RbtLogTextView::currentLineChanged,
             this, &RbtLogViewerWindow::updateStatus);
+    connect(m_textView, &RbtLogTextView::markRequested,
+            this, &RbtLogViewerWindow::markRequested);
 }
 
 void RbtLogViewerWindow::openFiles(const QStringList& paths)
 {
+    QStringList validPaths;
+    for (const QString& path : paths)
+    {
+        if (QFileInfo::exists(path))
+            validPaths.push_back(QFileInfo(path).absoluteFilePath());
+    }
+    QStringList installedPaths;
+    for (int index = 0; index < m_files->count(); ++index)
+        installedPaths.push_back(QFileInfo(
+            m_files->itemData(index).toString()).absoluteFilePath());
+    if (!validPaths.isEmpty() && installedPaths == validPaths)
+    {
+        show();
+        raise();
+        activateWindow();
+        return;
+    }
+
     const QString current = m_textView->filePath();
     m_files->blockSignals(true);
     m_files->clear();
     int selected = 0;
-    for (const QString& path : paths)
+    for (const QString& path : validPaths)
     {
-        if (!QFileInfo::exists(path))
-            continue;
         m_files->addItem(QFileInfo(path).fileName(), path);
         if (QFileInfo(path) == QFileInfo(current))
             selected = m_files->count() - 1;
@@ -781,7 +829,44 @@ void RbtLogViewerWindow::releaseFiles()
     m_files->blockSignals(false);
     m_textView->clearFile();
     m_status->clear();
+    m_pendingJumpPath.clear();
+    m_pendingJumpLine = -1;
     hide();
+}
+
+void RbtLogViewerWindow::openFileAtLine(const QString& path, qsizetype zeroBasedLine)
+{
+    if (zeroBasedLine >= 0 && m_textView->lineCount() > 0
+        && QFileInfo(m_textView->filePath()) == QFileInfo(path))
+    {
+        m_textView->jumpToLine(zeroBasedLine);
+        show();
+        raise();
+        activateWindow();
+        return;
+    }
+
+    int index = -1;
+    for (int item = 0; item < m_files->count(); ++item)
+    {
+        if (QFileInfo(m_files->itemData(item).toString()) == QFileInfo(path))
+        {
+            index = item;
+            break;
+        }
+    }
+    if (index < 0 || zeroBasedLine < 0)
+        return;
+
+    m_pendingJumpPath = QFileInfo(path).absoluteFilePath();
+    m_pendingJumpLine = zeroBasedLine;
+    m_files->blockSignals(true);
+    m_files->setCurrentIndex(index);
+    m_files->blockSignals(false);
+    beginOpenFile(m_files->itemData(index).toString());
+    show();
+    raise();
+    activateWindow();
 }
 
 void RbtLogViewerWindow::beginOpenFile(const QString& path)
@@ -814,6 +899,14 @@ void RbtLogViewerWindow::beginOpenFile(const QString& path)
             }
             m_findPrevious->setEnabled(true);
             m_findNext->setEnabled(true);
+            if (!m_pendingJumpPath.isEmpty()
+                && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
+                && m_pendingJumpLine >= 0)
+            {
+                m_textView->jumpToLine(m_pendingJumpLine);
+                m_pendingJumpPath.clear();
+                m_pendingJumpLine = -1;
+            }
             updateStatus();
             m_textView->setFocus();
         });
