@@ -27,6 +27,7 @@ private:
     void showView();
     void reloadConfiguration();
     void refreshData();
+    void scheduleRefreshData();
 
     viewer::plugin::IViewerHost* m_host = nullptr;
     viewer::plugin::PluginMenuHandle m_menu = 0;
@@ -37,4 +38,5 @@ private:
     QString m_configPath;
     QString m_statePath;
     bool m_shuttingDown = false;
+    bool m_refreshDataPending = false;
 };

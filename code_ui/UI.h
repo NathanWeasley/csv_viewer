@@ -187,10 +187,9 @@ private Q_SLOTS:
     bool resetRbtLogDirectory(QString* error = nullptr);
     QStringList availableRbtLogFiles() const;
     void ensureRbtLogViewer();
-    void showLogJumpFailed();
+    void showLogJumpFailed(const QString& direction, const QString& reason);
     void jumpFromPlotToRbt(int pageIndex, QCustomPlot* plot, const QPoint& pos);
     void markRbtLineOnPlots(const QString& filePath, qsizetype line, bool allPlots);
-    bool isLogSyncXAxisSupported(int pageIndex) const;
 
 private:
     Ui::UIClass ui;

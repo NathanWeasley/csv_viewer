@@ -32,11 +32,13 @@ public:
 
     bool rbtLocationForDataIndex(const viewer::DataManager& data,
                                  size_t dataIndex,
-                                 RbtLocation& location) const;
+                                 RbtLocation& location,
+                                 QString* error = nullptr) const;
     bool dataIndexForRbtLocation(const viewer::DataManager& data,
                                  const QString& filePath,
                                  qsizetype line,
-                                 size_t& dataIndex) const;
+                                 size_t& dataIndex,
+                                 QString* error = nullptr) const;
     bool dataIndexForAxisValue(const viewer::DataManager& data,
                                double value,
                                size_t& dataIndex) const;

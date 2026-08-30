@@ -834,16 +834,42 @@ void RbtLogViewerWindow::releaseFiles()
     hide();
 }
 
-void RbtLogViewerWindow::openFileAtLine(const QString& path, qsizetype zeroBasedLine)
+bool RbtLogViewerWindow::openFileAtLine(
+    const QString& path, qsizetype zeroBasedLine, QString* error)
 {
-    if (zeroBasedLine >= 0 && m_textView->lineCount() > 0
+    if (zeroBasedLine < 0)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"RBT 日志行号无效。");
+        return false;
+    }
+    if (!QFileInfo(path).isFile())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"目标 RBT 日志文件不存在：%1").arg(path);
+        return false;
+    }
+    if (m_textView->lineCount() > 0
         && QFileInfo(m_textView->filePath()) == QFileInfo(path))
     {
+        if (zeroBasedLine >= m_textView->lineCount())
+        {
+            if (error)
+            {
+                *error = QString::fromUtf8(u8"目标行 %1 超出 RBT 日志总行数 %2。")
+                             .arg(zeroBasedLine + 1)
+                             .arg(m_textView->lineCount());
+            }
+            return false;
+        }
         m_textView->jumpToLine(zeroBasedLine);
         show();
         raise();
         activateWindow();
-        return;
+        if (error)
+            error->clear();
+        emit jumpResult(QFileInfo(path).absoluteFilePath(), zeroBasedLine, true, {});
+        return true;
     }
 
     int index = -1;
@@ -855,8 +881,12 @@ void RbtLogViewerWindow::openFileAtLine(const QString& path, qsizetype zeroBased
             break;
         }
     }
-    if (index < 0 || zeroBasedLine < 0)
-        return;
+    if (index < 0)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"目标 RBT 日志不在当前已打开的文件列表中：%1").arg(path);
+        return false;
+    }
 
     m_pendingJumpPath = QFileInfo(path).absoluteFilePath();
     m_pendingJumpLine = zeroBasedLine;
@@ -867,6 +897,9 @@ void RbtLogViewerWindow::openFileAtLine(const QString& path, qsizetype zeroBased
     show();
     raise();
     activateWindow();
+    if (error)
+        error->clear();
+    return true;
 }
 
 void RbtLogViewerWindow::beginOpenFile(const QString& path)
@@ -888,13 +921,33 @@ void RbtLogViewerWindow::beginOpenFile(const QString& path)
                 return;
             if (!result.error.isEmpty())
             {
-                m_status->setText(QString::fromUtf8(u8"无法打开日志：%1").arg(result.error));
+                const QString reason = QString::fromUtf8(u8"无法打开日志：%1").arg(result.error);
+                m_status->setText(reason);
+                if (!m_pendingJumpPath.isEmpty()
+                    && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
+                    && m_pendingJumpLine >= 0)
+                {
+                    const qsizetype line = m_pendingJumpLine;
+                    m_pendingJumpPath.clear();
+                    m_pendingJumpLine = -1;
+                    emit jumpResult(path, line, false, reason);
+                }
                 return;
             }
             QString mapError;
             if (!m_textView->setIndexedFile(path, std::move(result.offsets), &mapError))
             {
-                m_status->setText(QString::fromUtf8(u8"无法映射日志：%1").arg(mapError));
+                const QString reason = QString::fromUtf8(u8"无法映射日志：%1").arg(mapError);
+                m_status->setText(reason);
+                if (!m_pendingJumpPath.isEmpty()
+                    && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
+                    && m_pendingJumpLine >= 0)
+                {
+                    const qsizetype line = m_pendingJumpLine;
+                    m_pendingJumpPath.clear();
+                    m_pendingJumpLine = -1;
+                    emit jumpResult(path, line, false, reason);
+                }
                 return;
             }
             m_findPrevious->setEnabled(true);
@@ -903,9 +956,23 @@ void RbtLogViewerWindow::beginOpenFile(const QString& path)
                 && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
                 && m_pendingJumpLine >= 0)
             {
-                m_textView->jumpToLine(m_pendingJumpLine);
+                const qsizetype line = m_pendingJumpLine;
+                if (line >= m_textView->lineCount())
+                {
+                    const QString reason = QString::fromUtf8(
+                        u8"目标行 %1 超出 RBT 日志总行数 %2。")
+                                               .arg(line + 1)
+                                               .arg(m_textView->lineCount());
+                    m_status->setText(reason);
+                    m_pendingJumpPath.clear();
+                    m_pendingJumpLine = -1;
+                    emit jumpResult(path, line, false, reason);
+                    return;
+                }
+                m_textView->jumpToLine(line);
                 m_pendingJumpPath.clear();
                 m_pendingJumpLine = -1;
+                emit jumpResult(path, line, true, {});
             }
             updateStatus();
             m_textView->setFocus();

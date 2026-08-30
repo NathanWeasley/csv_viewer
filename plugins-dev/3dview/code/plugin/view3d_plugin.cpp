@@ -4,6 +4,7 @@
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QMetaObject>
 
 using namespace viewer::plugin;
 
@@ -30,6 +31,7 @@ bool View3DPlugin::initialize(IViewerHost* host)
 
     m_host = host;
     m_shuttingDown = false;
+    m_refreshDataPending = false;
     QString rootDirectory = property(kPluginRootDirectoryProperty).toString();
     if (rootDirectory.isEmpty())
         rootDirectory = QCoreApplication::applicationDirPath();
@@ -71,7 +73,7 @@ bool View3DPlugin::initialize(IViewerHost* host)
                 m_view->clearData();
         });
     m_columnAddedSubscription = m_host->events()->subscribeColumnAdded(
-        id(), [this](quint64, const QString&) { refreshData(); });
+        id(), [this](quint64, const QString&) { scheduleRefreshData(); });
     return m_menu != 0
         && m_dataLoadedSubscription != 0
         && m_dataUnloadingSubscription != 0
@@ -95,6 +97,7 @@ void View3DPlugin::shutdown()
     m_dataLoadedSubscription = 0;
     m_dataUnloadingSubscription = 0;
     m_columnAddedSubscription = 0;
+    m_refreshDataPending = false;
     if (m_view)
     {
         View3DWidget* view = m_view.data();
@@ -140,6 +143,21 @@ void View3DPlugin::refreshData()
     if (!m_host || !m_view || !m_host->data())
         return;
     m_view->setDataSnapshot(m_host->data()->acquireSnapshot());
+}
+
+void View3DPlugin::scheduleRefreshData()
+{
+    if (m_refreshDataPending || m_shuttingDown || !m_view)
+        return;
+
+    // 批量发布仍会逐列发送兼容事件；合并为一次快照刷新，避免重复构建 3D 数据视图。
+    m_refreshDataPending = true;
+    QMetaObject::invokeMethod(this, [this]()
+    {
+        m_refreshDataPending = false;
+        if (!m_shuttingDown)
+            refreshData();
+    }, Qt::QueuedConnection);
 }
 
 #include "moc_view3d_plugin.cpp"

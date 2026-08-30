@@ -83,11 +83,14 @@ class RbtLogViewerWindow final : public QMainWindow
 public:
     explicit RbtLogViewerWindow(QWidget* parent = nullptr);
     void openFiles(const QStringList& paths);
-    void openFileAtLine(const QString& path, qsizetype zeroBasedLine);
+    bool openFileAtLine(const QString& path, qsizetype zeroBasedLine,
+                        QString* error = nullptr);
     void releaseFiles();
 
 Q_SIGNALS:
     void markRequested(const QString& filePath, qsizetype zeroBasedLine, bool allPlots);
+    void jumpResult(const QString& filePath, qsizetype zeroBasedLine,
+                    bool success, const QString& reason);
 
 private:
     void beginOpenFile(const QString& path);

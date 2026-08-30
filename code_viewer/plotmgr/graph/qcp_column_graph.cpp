@@ -35,7 +35,9 @@ void QCPColumnGraph::setDataColumns(const Column* keyCol, const Column* valueCol
 {
     m_keyCol = keyCol;
     m_valueCol = valueCol;
-    recalculateRanges();
+    // 数据绑定只交换非拥有型指针。全列范围仅在 rescaleAxes 等调用真正需要时计算，
+    // 普通重绘沿用当前坐标范围，避免提交派生列时同步扫描整列。
+    invalidateRangeCache();
 }
 
 void QCPColumnGraph::setLineStyle(LineStyle style)
@@ -435,7 +437,11 @@ void QCPColumnGraph::draw(QCPPainter* painter)
 
     ///< Maximum available X-axis range
     double xdatarange;
-    if (m_keyCol->hasCachedMinMax())
+    if (mRangeCacheValid)
+    {
+        xdatarange = mCachedKeyMax - mCachedKeyMin;
+    }
+    else if (m_keyCol->hasCachedMinMax())
     {
         xdatarange = m_keyCol->cachedMax() - m_keyCol->cachedMin();
     }

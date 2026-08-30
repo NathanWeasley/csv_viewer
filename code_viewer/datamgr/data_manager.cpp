@@ -314,9 +314,10 @@ PublishDerivedColumnsStatus DataManager::PublishPluginDerivedColumns(
     incomingColumns.reserve(values.size());
     for (auto& columnValues : values)
     {
-        auto column = std::make_shared<Column>(std::move(columnValues));
-        column->recalcMinMax();
-        incomingColumns.push_back(std::move(column));
+        // 扩充表达式已在工作线程中完成计算。批量发布阶段只接管数据缓冲区，
+        // 不在 UI 线程再次逐元素扫描；范围缓存由真正需要它的图形按需建立。
+        incomingColumns.push_back(
+            std::make_shared<Column>(std::move(columnValues)));
     }
 
     std::vector<std::shared_ptr<Column>> nextColumns;

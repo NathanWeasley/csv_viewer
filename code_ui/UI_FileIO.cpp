@@ -512,6 +512,21 @@ void UI::ensureRbtLogViewer()
     m_rbtLogViewer = new RbtLogViewerWindow(this);
     connect(m_rbtLogViewer, &RbtLogViewerWindow::markRequested,
             this, &UI::markRbtLineOnPlots);
+    connect(m_rbtLogViewer, &RbtLogViewerWindow::jumpResult, this,
+        [this](const QString& filePath, qsizetype line,
+               bool success, const QString& reason)
+        {
+            if (success)
+            {
+                logOperationTrace(
+                    QStringLiteral("log jump succeeded direction=plot-to-rbt file=\"%1\" line=%2")
+                        .arg(filePath).arg(line + 1));
+            }
+            else
+            {
+                showLogJumpFailed(QStringLiteral("plot-to-rbt"), reason);
+            }
+        });
 }
 
 #ifdef Q_OS_WIN

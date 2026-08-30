@@ -42,6 +42,12 @@ qint64 toTimestampUs(int year, int month, int day,
     return QDateTime(date, time, Qt::UTC).toMSecsSinceEpoch() * 1000
         + microsecond;
 }
+
+QString formatTimestamp(qint64 timestampUs)
+{
+    return QDateTime::fromMSecsSinceEpoch(timestampUs / 1000, Qt::UTC)
+        .toString(QStringLiteral("yyyy-MM-dd HH:mm:ss"));
+}
 }
 
 QString LogTimeMapper::pathKey(const QString& path)
@@ -216,15 +222,49 @@ bool LogTimeMapper::buildRbtIndex(const QStringList& files, QString* error)
 bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
 {
     clearAlignment();
-    const auto* dateColumn = data.GetStringColumn(data.GetDateAxisName());
-    const auto* axisColumn = data.GetColumn(data.GetXAxisColumn());
     const size_t rowCount = data.GetRowCount();
-    if (!dateColumn || !axisColumn || rowCount == 0
-        || dateColumn->size() != rowCount || axisColumn->size() != rowCount
-        || m_entries.isEmpty())
+    if (rowCount == 0)
     {
         if (error)
-            *error = QString::fromUtf8(u8"日期轴、默认时间轴或 RBT 时间索引不可用。");
+            *error = QString::fromUtf8(u8"Viewer 当前没有可用于跳转的数据行。");
+        return false;
+    }
+    if (data.GetDateAxisName().empty())
+    {
+        if (error)
+        {
+            *error = QString::fromUtf8(
+                u8"未指定日期轴。请在“设置 → 日期轴指定”中填写日期字符串列名（例如 date_time），设置完成后重试跳转。");
+        }
+        return false;
+    }
+    const auto* dateColumn = data.GetStringColumn(data.GetDateAxisName());
+    if (!dateColumn)
+    {
+        if (error)
+        {
+            *error = QString::fromUtf8(u8"指定的日期轴“%1”不是当前数据中的字符串列。")
+                         .arg(QString::fromStdString(data.GetDateAxisName()));
+        }
+        return false;
+    }
+    const auto* axisColumn = data.GetColumn(data.GetXAxisColumn());
+    if (!axisColumn)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"当前数据没有可用的默认时间轴。");
+        return false;
+    }
+    if (dateColumn->size() != rowCount || axisColumn->size() != rowCount)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"日期轴或默认时间轴的行数与当前数据不一致。");
+        return false;
+    }
+    if (m_entries.isEmpty())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"RBT 日志中没有可用的时间索引。");
         return false;
     }
 
@@ -234,11 +274,15 @@ bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
     bool hasFallback = false;
     bool hasPrevious = false;
     qint64 previous = 0;
+    qint64 firstDataTimestampUs = std::numeric_limits<qint64>::max();
+    qint64 lastDataTimestampUs = std::numeric_limits<qint64>::min();
     for (size_t row = 0; row < rowCount; ++row)
     {
         qint64 secondUs = 0;
         if (!parseDataDate((*dateColumn)[row], secondUs))
             continue;
+        firstDataTimestampUs = std::min(firstDataTimestampUs, secondUs);
+        lastDataTimestampUs = std::max(lastDataTimestampUs, secondUs);
         if (!hasFallback)
         {
             fallback = {row, secondUs};
@@ -251,6 +295,15 @@ bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
     }
     if (hasFallback)
         transitions.push_back(fallback);
+    else
+    {
+        if (error)
+        {
+            *error = QString::fromUtf8(u8"日期轴“%1”中没有可识别的日期时间，期望格式包含 yyyy_MM_dd_HH_mm_ss。")
+                         .arg(QString::fromStdString(data.GetDateAxisName()));
+        }
+        return false;
+    }
 
     for (const Candidate& candidate : transitions)
     {
@@ -279,7 +332,14 @@ bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
     }
 
     if (error)
-        *error = QString::fromUtf8(u8"无法在数据日期轴与 RBT 日志中找到相同的秒变化时刻。");
+    {
+        *error = QString::fromUtf8(
+            u8"未找到可用于对齐的相同秒（时间范围可能不重叠）：数据为 %1 ～ %2，RBT 为 %3 ～ %4。")
+                     .arg(formatTimestamp(firstDataTimestampUs),
+                          formatTimestamp(lastDataTimestampUs),
+                          formatTimestamp(m_entries.front().timestampUs),
+                          formatTimestamp(m_entries.back().timestampUs));
+    }
     return false;
 }
 
@@ -361,43 +421,109 @@ bool LogTimeMapper::dataIndexForAxisValue(
 }
 
 bool LogTimeMapper::rbtLocationForDataIndex(
-    const viewer::DataManager& data, size_t dataIndex, RbtLocation& location) const
+    const viewer::DataManager& data, size_t dataIndex, RbtLocation& location,
+    QString* error) const
 {
-    if (!m_aligned || data.GetRowCount() != m_alignedRowCount
-        || dataIndex >= data.GetRowCount() || data.GetDateValue(dataIndex).empty())
+    if (!m_aligned)
     {
+        if (error)
+            *error = QString::fromUtf8(u8"Viewer 数据与 RBT 日志尚未完成时间对齐。");
+        return false;
+    }
+    if (data.GetRowCount() != m_alignedRowCount)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"Viewer 数据行数已变化，需要重新建立时间对齐。");
+        return false;
+    }
+    if (dataIndex >= data.GetRowCount())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"目标数据行 %1 超出当前数据范围。").arg(dataIndex + 1);
         return false;
     }
     const viewer::Column* axis = data.GetColumn(data.GetXAxisColumn());
-    if (!axis || dataIndex >= axis->size() || !std::isfinite((*axis)[dataIndex]))
+    if (!axis || dataIndex >= axis->size())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"目标数据行没有对应的默认时间轴值。");
         return false;
+    }
+    if (!std::isfinite((*axis)[dataIndex]))
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"目标数据行的默认时间轴值不是有限数值。");
+        return false;
+    }
     const long double deltaUs = static_cast<long double>((*axis)[dataIndex] - m_baseAxisValue)
         * static_cast<long double>(m_axisSecondsPerUnit) * 1000000.0L;
-    const Entry* entry = nearestEntry(
-        m_baseRbtTimestampUs + static_cast<qint64>(std::llround(deltaUs)));
-    if (!entry || entry->fileIndex < 0 || entry->fileIndex >= m_sortedFiles.size())
+    const qint64 targetTimestampUs =
+        m_baseRbtTimestampUs + static_cast<qint64>(std::llround(deltaUs));
+    const Entry* entry = nearestEntry(targetTimestampUs);
+    if (!entry)
+    {
+        if (error)
+        {
+            *error = QString::fromUtf8(u8"目标时刻 %1 超出 RBT 日志范围 %2 ～ %3。")
+                         .arg(formatTimestamp(targetTimestampUs),
+                              formatTimestamp(m_entries.front().timestampUs),
+                              formatTimestamp(m_entries.back().timestampUs));
+        }
         return false;
+    }
+    if (entry->fileIndex < 0 || entry->fileIndex >= m_sortedFiles.size())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"RBT 时间索引对应的文件编号无效。");
+        return false;
+    }
     location.filePath = m_sortedFiles[entry->fileIndex];
     location.line = entry->line;
+    if (error)
+        error->clear();
     return true;
 }
 
 bool LogTimeMapper::dataIndexForRbtLocation(
     const viewer::DataManager& data, const QString& filePath,
-    qsizetype line, size_t& dataIndex) const
+    qsizetype line, size_t& dataIndex, QString* error) const
 {
-    if (!m_aligned || data.GetRowCount() != m_alignedRowCount)
+    if (!m_aligned)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"Viewer 数据与 RBT 日志尚未完成时间对齐。");
         return false;
+    }
+    if (data.GetRowCount() != m_alignedRowCount)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"Viewer 数据行数已变化，需要重新建立时间对齐。");
+        return false;
+    }
+    if (line < 0)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"RBT 日志行号无效。");
+        return false;
+    }
     const Entry* entry = entryForLine(filePath, line);
     if (!entry)
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"指定的 RBT 文件或日志行不在当前时间索引中。");
         return false;
+    }
     const long double deltaAxis = static_cast<long double>(
         entry->timestampUs - m_baseRbtTimestampUs)
         / (static_cast<long double>(m_axisSecondsPerUnit) * 1000000.0L);
     const double target = m_baseAxisValue + static_cast<double>(deltaAxis);
     const viewer::Column* axis = data.GetColumn(data.GetXAxisColumn());
     if (!axis || axis->empty())
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"当前数据没有可用的默认时间轴。");
         return false;
+    }
     double minimum = std::numeric_limits<double>::infinity();
     double maximum = -std::numeric_limits<double>::infinity();
     for (size_t index = 0; index < axis->size(); ++index)
@@ -408,6 +534,30 @@ bool LogTimeMapper::dataIndexForRbtLocation(
             maximum = std::max(maximum, (*axis)[index]);
         }
     }
-    return target >= minimum && target <= maximum
-        && dataIndexForAxisValue(data, target, dataIndex);
+    if (!std::isfinite(minimum) || !std::isfinite(maximum))
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"默认时间轴中没有有限数值。");
+        return false;
+    }
+    if (target < minimum || target > maximum)
+    {
+        if (error)
+        {
+            *error = QString::fromUtf8(u8"RBT 目标时刻换算后的轴值 %1 超出 Viewer 范围 %2 ～ %3。")
+                         .arg(target, 0, 'g', 12)
+                         .arg(minimum, 0, 'g', 12)
+                         .arg(maximum, 0, 'g', 12);
+        }
+        return false;
+    }
+    if (!dataIndexForAxisValue(data, target, dataIndex))
+    {
+        if (error)
+            *error = QString::fromUtf8(u8"无法在默认时间轴中找到与 RBT 时刻对应的数据行。");
+        return false;
+    }
+    if (error)
+        error->clear();
+    return true;
 }

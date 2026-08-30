@@ -304,7 +304,8 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
     connect(&m_viewer, &viewer::Viewer::DataColumnAdded, this,
         [this](quint64 sessionId, const QString& name)
         {
-            if (m_rebuildDataTree)
+            const bool refreshedByBatch = m_columnsRefreshedByBatch.remove(name);
+            if (!refreshedByBatch && m_rebuildDataTree)
                 m_rebuildDataTree();
             const auto subscriptions = m_columnAddedSubscriptions;
             for (const auto& record : subscriptions)
@@ -320,6 +321,12 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                const QStringList& newNames,
                const QStringList& affectedNames)
         {
+            m_columnsRefreshedByBatch.clear();
+            for (const QString& name : affectedNames)
+            {
+                if (newNames.contains(name))
+                    m_columnsRefreshedByBatch.insert(name);
+            }
             if (m_refreshDataColumns)
                 m_refreshDataColumns(oldNames, newNames, affectedNames);
             else if (m_rebuildDataTree)

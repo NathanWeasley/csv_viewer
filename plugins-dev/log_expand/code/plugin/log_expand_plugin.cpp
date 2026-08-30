@@ -8,6 +8,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QElapsedTimer>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -524,8 +525,9 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
             ++processedCount;
             if (progress && progressUi)
             {
-                const float value = candidates.isEmpty() ? 1.0f
-                    : static_cast<float>(processedCount)
+                // 计算只占前 90%，批量发布和界面刷新完成后才能显示 100%。
+                const float value = candidates.isEmpty() ? 0.9f
+                    : 0.9f * static_cast<float>(processedCount)
                         / static_cast<float>(candidates.size());
                 progressUi->reportLoadProgress(
                     progress, value,
@@ -575,7 +577,8 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
             reportProgress();
         }
         if (candidates.isEmpty() && progress && progressUi)
-            progressUi->reportLoadProgress(progress, 1.0f, {});
+            progressUi->reportLoadProgress(
+                progress, 0.9f, QString::fromUtf8(u8"表达式计算完成"));
         if (m_generation.load() != generation)
             return;
         QMetaObject::invokeMethod(this,
@@ -599,7 +602,16 @@ void LogExpandPlugin::finishRecompute(
     {
         return;
     }
+    if (progress && m_progress == progress)
+    {
+        m_host->ui()->reportLoadProgress(
+            progress, 0.95f,
+            QString::fromUtf8(u8"正在发布扩充数据并刷新界面…"));
+    }
+    QElapsedTimer commitTimer;
+    commitTimer.start();
     const DerivedColumnBatchCommitResult committed = writer->commit();
+    const qint64 commitElapsedMs = commitTimer.elapsed();
     if (!committed.success())
     {
         for (ExpansionResult& result : results)
@@ -619,8 +631,9 @@ void LogExpandPlugin::finishRecompute(
     else
     {
         m_publishedNames = committed.columnNames;
-        log(LogLevel::Info, QStringLiteral("Published %1 expansion item(s).")
-                                .arg(committed.columnNames.size()));
+        log(LogLevel::Info,
+            QStringLiteral("Published %1 expansion item(s); commit and UI refresh took %2 ms.")
+                .arg(committed.columnNames.size()).arg(commitElapsedMs));
     }
     m_expansionResults = std::move(results);
     for (const ExpansionResult& result : m_expansionResults)

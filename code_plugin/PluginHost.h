@@ -5,6 +5,7 @@
 
 #include <QHash>
 #include <QPointer>
+#include <QSet>
 
 #include <functional>
 #include <memory>
@@ -253,6 +254,8 @@ private:
     std::function<void(const QStringList&,
                        const QStringList&,
                        const QStringList&)> m_refreshDataColumns;
+    // 批量发布已经通过 DataColumnsChanged 刷新过界面，随后逐列信号只用于插件订阅。
+    QSet<QString> m_columnsRefreshedByBatch;
     PluginProgressCallback m_pluginProgress;
     bool m_shuttingDown = false;
     quint64 m_nextHandle = 1;

@@ -26,9 +26,11 @@
 #include <qtimer.h>
 #include <qapplication.h>
 #include <qstyle.h>
+#include <QSignalBlocker>
 #include <utility>
 #include <cmath>
 #include <algorithm>
+#include <cctype>
 
 #include "icons_base64.h"
 #include "DockAreaWidget.h"
@@ -91,6 +93,37 @@ static bool isWidgetDescendantOf(const QWidget* child, const QWidget* ancestor)
     {
         if (current == ancestor)
             return true;
+    }
+    return false;
+}
+
+static bool expressionReferencesAnyColumn(
+    const std::string& expression,
+    const QSet<QString>& columnNames)
+{
+    const char* current = expression.data();
+    const char* const end = current + expression.size();
+    while (current < end)
+    {
+        while (current < end
+               && !std::isalpha(static_cast<unsigned char>(*current))
+               && *current != '_')
+        {
+            ++current;
+        }
+        const char* const begin = current;
+        while (current < end
+               && (std::isalnum(static_cast<unsigned char>(*current))
+                   || *current == '_'))
+        {
+            ++current;
+        }
+        if (begin != current
+            && columnNames.contains(QString::fromUtf8(
+                begin, static_cast<qsizetype>(current - begin))))
+        {
+            return true;
+        }
     }
     return false;
 }
@@ -363,11 +396,17 @@ void UI::rebuildDataTree()
     if (!m_dataTree)
         return;
 
+    const bool updatesEnabled = m_dataTree->updatesEnabled();
+    m_dataTree->setUpdatesEnabled(false);
+    const QSignalBlocker signalBlocker(m_dataTree);
     m_dataTree->clear();
 
     const auto& colNames = m_viewer.GetDataManager().GetColumnNames();
     if (colNames.empty())
+    {
+        m_dataTree->setUpdatesEnabled(updatesEnabled);
         return;
+    }
 
     const QIcon folderIcon = QApplication::style()->standardIcon(QStyle::SP_DirIcon);
     const QIcon fileIcon = QApplication::style()->standardIcon(QStyle::SP_FileIcon);
@@ -406,6 +445,9 @@ void UI::rebuildDataTree()
             item->setData(0, kDataTreeNameRole, qName);
             applyColumnAppearance(item, index);
         }
+        m_dataTree->setUpdatesEnabled(updatesEnabled);
+        if (updatesEnabled)
+            m_dataTree->viewport()->update();
         return;
     }
 
@@ -471,6 +513,9 @@ void UI::rebuildDataTree()
 
     // 自动分组仅组织数据项，不替用户展开文件夹。
     m_dataTree->collapseAll();
+    m_dataTree->setUpdatesEnabled(updatesEnabled);
+    if (updatesEnabled)
+        m_dataTree->viewport()->update();
 }
 
 void UI::handlePluginLoadProgress(
@@ -539,20 +584,35 @@ void UI::refreshDataColumns(const QStringList& oldNames,
 
     for (int pageIndex = 0; pageIndex < plotManager.pageCount(); ++pageIndex)
     {
-        if (!plotManager.usesIndexXAxis(pageIndex))
+        auto& pageInfo = plotManager.pageInfo(pageIndex);
+        if (pageInfo.isFFT)
+            continue;
+
+        bool keyColumnChanged = false;
+        bool xAxisModeChanged = false;
+        if (!pageInfo.useIndexXAxis)
         {
-            const size_t oldIndex = plotManager.xAxisColumn(pageIndex);
+            const size_t oldIndex = pageInfo.xAxisColumn;
             const QString oldXAxis = oldIndex < static_cast<size_t>(oldNames.size())
                 ? oldNames[static_cast<qsizetype>(oldIndex)] : QString{};
             const qsizetype newIndex = newNames.indexOf(oldXAxis);
             if (newIndex >= 0)
-                plotManager.setXAxisColumn(pageIndex, static_cast<size_t>(newIndex));
+            {
+                // 仍是同一列时只修正索引，避免触发“用户切换 X 轴”的全图重绑和缩放。
+                pageInfo.xAxisColumn = static_cast<size_t>(newIndex);
+                keyColumnChanged = affected.contains(oldXAxis);
+            }
             else if (!oldXAxis.isEmpty())
-                plotManager.setUseIndexXAxis(pageIndex, true);
+            {
+                pageInfo.useIndexXAxis = true;
+                pageInfo.xAxisColumn = static_cast<size_t>(-1);
+                keyColumnChanged = true;
+                xAxisModeChanged = true;
+            }
         }
 
         std::vector<std::string> missingItems;
-        for (const std::string& itemName : plotManager.pageInfo(pageIndex).dataItems)
+        for (const std::string& itemName : pageInfo.dataItems)
         {
             const QString qName = QString::fromStdString(itemName);
             if (affected.contains(qName)
@@ -564,21 +624,40 @@ void UI::refreshDataColumns(const QStringList& oldNames,
         for (const std::string& itemName : missingItems)
             plotManager.removeDataItem(pageIndex, itemName);
 
+        if (xAxisModeChanged)
+        {
+            updatePageXAxisToolbarState(pageIndex);
+            if (plotManager.activePageIndex() == pageIndex)
+                updateXAxisStatus(pageIndex);
+        }
+
         QWidget* container = getPlotContainer(pageIndex);
         auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
         if (!plot)
             continue;
 
         bool changed = false;
-        auto& expressionManager = plotManager.pageInfo(pageIndex).exprMgr;
-        for (const std::string& itemName : plotManager.pageInfo(pageIndex).dataItems)
+        auto& expressionManager = pageInfo.exprMgr;
+        for (const std::string& itemName : pageInfo.dataItems)
         {
             viewer::PlotExpression* plotExpression = expressionManager.get(itemName);
-            if (plotExpression && plotExpression->isEdited)
+            const bool expressionChanged = plotExpression
+                && plotExpression->isEdited
+                && expressionReferencesAnyColumn(
+                    plotExpression->expressionText, affected);
+            if (expressionChanged)
                 expressionManager.recompute(itemName, dataManager);
 
+            const bool usesComputedData = plotExpression
+                && plotExpression->isEdited
+                && plotExpression->computedData;
+            const bool valueColumnChanged = !usesComputedData
+                && affected.contains(QString::fromStdString(itemName));
+            if (!keyColumnChanged && !valueColumnChanged && !expressionChanged)
+                continue;
+
             const viewer::Column* valueColumn =
-                plotExpression && plotExpression->isEdited && plotExpression->computedData
+                usesComputedData
                 ? plotExpression->computedData.get()
                 : dataManager.GetColumn(itemName);
             if (!valueColumn)
@@ -599,22 +678,20 @@ void UI::refreshDataColumns(const QStringList& oldNames,
                 continue;
 
             const viewer::Column* keyColumn = nullptr;
-            if (plotManager.usesIndexXAxis(pageIndex))
+            if (pageInfo.useIndexXAxis)
             {
                 dataManager.ensureIndexColumnBuilt();
                 keyColumn = dataManager.GetIndexColumn();
             }
             else
             {
-                keyColumn = dataManager.GetColumn(
-                    plotManager.xAxisColumn(pageIndex));
+                keyColumn = dataManager.GetColumn(pageInfo.xAxisColumn);
             }
             graph->setDataColumns(keyColumn, valueColumn);
-            graph->notifyDataChanged();
             changed = true;
         }
         if (changed)
-            plot->replot();
+            plot->replot(QCustomPlot::rpQueuedRefresh);
     }
 }
 
