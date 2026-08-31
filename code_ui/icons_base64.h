@@ -29,7 +29,8 @@ enum class IconIdx : uint8_t
 	NEWPLOT,
 	GRIDVIEW,
 	ROWVIEW,
-	LINKX
+	LINKX,
+	GLOBALHIGHLIGHT
 };
 
 // ============================================================
@@ -127,6 +128,13 @@ static const IconEntry g_iconTable[] =
 		"Add Global Expression",
 		IconSource::SvgFile,
 		":/icons/SVG/addexpr.svg"
+	},
+	{
+		IconIdx::GLOBALHIGHLIGHT,
+		2,
+		u8"全局高亮规则",
+		IconSource::SvgFile,
+		"" // 图标占位；后续替换为正式 SVG 资源路径
 	},
 
 	// Group 3:

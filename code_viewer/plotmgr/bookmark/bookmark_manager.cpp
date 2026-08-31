@@ -1,5 +1,6 @@
 #include "bookmark_manager.h"
 #include "code_viewer/base/trace_logger.h"
+#include "code_viewer/jsonmgr/highlight_rule_json.h"
 
 #include <QDir>
 #include <QFile>
@@ -441,28 +442,6 @@ void BookmarkMgr::jsonToGraph(const QJsonObject& obj, GraphStyleSnapshot& out)
     out.isEdited      = obj.value("isEdited").toBool(false);
 }
 
-void BookmarkMgr::highlightToJson(const HighlightRule& rule, QJsonObject& out) const
-{
-    out["dataColumn"] = QString::fromStdString(rule.dataColumn);
-    out["condition"]  = static_cast<int>(rule.condition);
-    out["value1"]     = rule.value1;
-    out["value2"]     = rule.value2;
-    out["color"]      = rule.color.name();
-    out["alpha"]      = rule.alpha;
-    out["label"]      = QString::fromStdString(rule.label);
-}
-
-void BookmarkMgr::jsonToHighlight(const QJsonObject& obj, HighlightRule& out)
-{
-    out.dataColumn = obj.value("dataColumn").toString().toStdString();
-    out.condition  = static_cast<HighlightCondition>(obj.value("condition").toInt(0));
-    out.value1     = obj.value("value1").toDouble(0.0);
-    out.value2     = obj.value("value2").toDouble(0.0);
-    out.color      = QColor(obj.value("color").toString("#ffff00"));
-    out.alpha      = obj.value("alpha").toInt(100);
-    out.label      = obj.value("label").toString().toStdString();
-}
-
 void BookmarkMgr::entryToJson(const BookmarkEntry& entry, QJsonObject& out) const
 {
     out["name"]          = QString::fromStdString(entry.name);
@@ -488,11 +467,7 @@ void BookmarkMgr::entryToJson(const BookmarkEntry& entry, QJsonObject& out) cons
 
     QJsonArray hlArr;
     for (const auto& rule : entry.highlights)
-    {
-        QJsonObject hlObj;
-        highlightToJson(rule, hlObj);
-        hlArr.append(hlObj);
-    }
+        hlArr.append(HighlightRuleJson::toJson(rule));
     out["highlights"] = hlArr;
 }
 
@@ -525,9 +500,11 @@ void BookmarkMgr::jsonToEntry(const QJsonObject& obj, BookmarkEntry& out)
     QJsonArray hlArr = obj.value("highlights").toArray();
     for (const auto& hval : hlArr)
     {
+        if (!hval.isObject())
+            continue;
         HighlightRule rule;
-        jsonToHighlight(hval.toObject(), rule);
-        out.highlights.push_back(std::move(rule));
+        if (HighlightRuleJson::fromJson(hval.toObject(), &rule))
+            out.highlights.push_back(std::move(rule));
     }
 }
 

@@ -174,6 +174,9 @@ void UI::init()
     // ---- 加载变量自动重命名规则 ----
     loadAliasFile();
 
+    // ---- 加载全局高亮规则 ----
+    loadGlobalHighlightFile();
+
     // ---- 加载书签 ----
     loadBookmarkFile();
 
@@ -185,6 +188,7 @@ void UI::init()
     {
         if (m_logTimeMapper)
             m_logTimeMapper->align(m_viewer.GetDataManager());
+        renderAllHighlights();
     });
     connect(&m_viewer, &viewer::Viewer::DataAboutToUnload, this, [this](quint64)
     {

@@ -212,4 +212,19 @@ void HighlightManager::insertAllRules(std::vector<HighlightRule>&& rules)
         onRulesChanged();
 }
 
+std::vector<HighlightRule> HighlightManager::mergeRules(
+    const std::vector<HighlightRule>& base,
+    const std::vector<HighlightRule>& overrides)
+{
+    std::vector<HighlightRule> result;
+    result.reserve(base.size() + overrides.size());
+    for (const auto& rule : base)
+    {
+        if (std::find(overrides.begin(), overrides.end(), rule) == overrides.end())
+            result.push_back(rule);
+    }
+    result.insert(result.end(), overrides.begin(), overrides.end());
+    return result;
+}
+
 } // namespace viewer

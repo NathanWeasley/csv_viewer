@@ -143,6 +143,13 @@ public:
     // 写入全部规则（用移动语义注入，用于复制图窗）
     void insertAllRules(std::vector<HighlightRule>&& rules);
 
+    // Merge a base rule set with a more specific rule set. Rules with the
+    // same condition identity are taken from overrides; all other rules are
+    // retained in base-then-override order.
+    static std::vector<HighlightRule> mergeRules(
+        const std::vector<HighlightRule>& base,
+        const std::vector<HighlightRule>& overrides);
+
     // ============================================================
     // 回调（UI 层绑定）
     // ============================================================

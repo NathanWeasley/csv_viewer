@@ -962,6 +962,8 @@ void UI::bindPlotManagerCallbacks()
             updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
             updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
         }
+        if (hasEffectiveHighlightRules(index))
+            renderHighlights(index);
         logOperationTrace(QString("page added callback leave page=%1 container=0x%2 plot=0x%3 dock=0x%4")
                           .arg(index).arg(reinterpret_cast<quintptr>(container), 0, 16)
                           .arg(reinterpret_cast<quintptr>(plot), 0, 16)
@@ -1093,7 +1095,7 @@ void UI::bindPlotManagerCallbacks()
         }
         refreshAxisCursorValueBoxes(pageIndex);
         plot->rescaleAxes();
-        if (m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.ruleCount() > 0)
+        if (hasEffectiveHighlightRules(pageIndex))
             renderHighlights(pageIndex);
         else
             plot->replot();

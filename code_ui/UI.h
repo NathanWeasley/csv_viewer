@@ -163,6 +163,12 @@ private Q_SLOTS:
     bool showAxisCursorContextMenu(int pageIndex, QCustomPlot* plot, const QPoint& pos);
 
     void showHighlightDialog(int pageIndex);
+    void showGlobalHighlightDialog();
+    void loadGlobalHighlightFile();
+    bool saveGlobalHighlightFile();
+    std::vector<viewer::HighlightRule> effectiveHighlightRules(int pageIndex) const;
+    bool hasEffectiveHighlightRules(int pageIndex) const;
+    void renderAllHighlights();
     void renderHighlights(int pageIndex);
     void exportPlotImage(int pageIndex);
 
@@ -229,6 +235,7 @@ private:
     QAction* m_actionGridView = nullptr;
     QAction* m_actionRowView = nullptr;
     QAction* m_actionLinkX = nullptr;
+    QAction* m_actionGlobalHighlight = nullptr;
     QAction* m_actionAutoGrouping = nullptr;
     QAction* m_actionOpenGl = nullptr;
     QAction* m_actionPlotByIndex = nullptr;
@@ -285,6 +292,7 @@ private:
     std::shared_ptr<LogTimeMapper> m_logTimeMapper;
 
     // Highlight state
+    viewer::HighlightManager m_globalHighlightMgr;
     QHash<int, QList<QCPItemRect*>> m_highlightRects;
     QHash<int, QList<QCPItemLine*>> m_highlightLines;
     QHash<int, QList<QCPItemText*>> m_highlightLabels;

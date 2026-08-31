@@ -21,6 +21,7 @@
 #include <qinputdialog.h>
 
 #include "icons_base64.h"
+#include "code_viewer/jsonmgr/highlight_rule_json.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
@@ -105,6 +106,86 @@ void arrangeHighlightLabels(QCustomPlot* plot, const QList<QCPItemText*>& labels
 }
 }
 
+std::vector<viewer::HighlightRule> UI::effectiveHighlightRules(int pageIndex) const
+{
+    std::vector<viewer::HighlightRule> result;
+    if (pageIndex < 0 || pageIndex >= m_viewer.GetPlotManager().pageCount())
+        return result;
+
+    const auto& plotRules = m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.rules();
+    return viewer::HighlightManager::mergeRules(m_globalHighlightMgr.rules(), plotRules);
+}
+
+bool UI::hasEffectiveHighlightRules(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= m_viewer.GetPlotManager().pageCount())
+        return false;
+    return m_globalHighlightMgr.ruleCount() > 0
+        || m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.ruleCount() > 0;
+}
+
+void UI::renderAllHighlights()
+{
+    for (int pageIndex = 0; pageIndex < plotPageCount(); ++pageIndex)
+        renderHighlights(pageIndex);
+}
+
+void UI::loadGlobalHighlightFile()
+{
+    const QString path = QCoreApplication::applicationDirPath() + "/user/highlight.json";
+    std::vector<viewer::HighlightRule> rules;
+    QString error;
+    if (!viewer::HighlightRuleJson::loadFile(path.toStdString(), &rules, &error))
+    {
+        logOperationTrace(QString("global highlight load failed path=\"%1\" error=\"%2\"")
+                          .arg(path, error));
+        statusBar()->showMessage(
+            QString::fromUtf8("全局高亮规则加载失败：%1").arg(error), 6000);
+        return;
+    }
+
+    m_globalHighlightMgr.insertAllRules(std::move(rules));
+    logOperationTrace(QString("global highlight loaded path=\"%1\" rules=%2")
+                      .arg(path).arg(m_globalHighlightMgr.ruleCount()));
+    renderAllHighlights();
+}
+
+bool UI::saveGlobalHighlightFile()
+{
+    const QString path = QCoreApplication::applicationDirPath() + "/user/highlight.json";
+    QString error;
+    if (!viewer::HighlightRuleJson::saveFile(
+            path.toStdString(), m_globalHighlightMgr.rules(), &error))
+    {
+        logOperationTrace(QString("global highlight save failed path=\"%1\" error=\"%2\"")
+                          .arg(path, error));
+        QMessageBox::warning(
+            this, QString::fromUtf8("全局高亮规则"),
+            QString::fromUtf8("无法保存全局高亮规则：%1").arg(error));
+        return false;
+    }
+
+    logOperationTrace(QString("global highlight saved path=\"%1\" rules=%2")
+                      .arg(path).arg(m_globalHighlightMgr.ruleCount()));
+    return true;
+}
+
+void UI::showGlobalHighlightDialog()
+{
+    const auto& columnNames = m_viewer.GetDataManager().GetColumnNames();
+    std::vector<std::string> columns(columnNames.begin(), columnNames.end());
+
+    HighlightDialog dialog(columns, this);
+    dialog.setWindowTitle(QString::fromUtf8("全局高亮规则"));
+    dialog.setRules(m_globalHighlightMgr.rules());
+    if (dialog.exec() != QDialog::Accepted)
+        return;
+
+    m_globalHighlightMgr.insertAllRules(dialog.getRules());
+    saveGlobalHighlightFile();
+    renderAllHighlights();
+}
+
 // ============================================================
 // showHighlightDialog: 显示高亮规则配置对话框
 // ============================================================
@@ -128,6 +209,7 @@ void UI::showHighlightDialog(int pageIndex)
 
     // 创建对话框
     HighlightDialog dlg(columns, this);
+    dlg.setWindowTitle(QString::fromUtf8("图窗高亮规则"));
 
     // 设置已有规则
     auto& hlMgr = pm.pageInfo(pageIndex).highlightMgr;
@@ -209,12 +291,16 @@ void UI::renderHighlights(int pageIndex)
 
     // ---- 计算新区间 ----
     auto& pm = m_viewer.GetPlotManager();
-    auto& hlMgr = pm.pageInfo(pageIndex).highlightMgr;
     auto& dm = m_viewer.GetDataManager();
     const size_t xAxisColumn = pm.xAxisColumn(pageIndex);
-    auto intervals = hlMgr.computeIntervals(dm, xAxisColumn);
-    logOperationTrace(QString("highlight intervals computed page=%1 rules=%2 intervals=%3 useIndex=%4 xColumn=%5")
-                      .arg(pageIndex).arg(hlMgr.rules().size()).arg(intervals.size())
+    const auto& plotRules = pm.pageInfo(pageIndex).highlightMgr.rules();
+    auto effectiveRules = effectiveHighlightRules(pageIndex);
+    viewer::HighlightManager effectiveManager;
+    effectiveManager.insertAllRules(std::move(effectiveRules));
+    auto intervals = effectiveManager.computeIntervals(dm, xAxisColumn);
+    logOperationTrace(QString("highlight intervals computed page=%1 globalRules=%2 plotRules=%3 effectiveRules=%4 intervals=%5 useIndex=%6 xColumn=%7")
+                      .arg(pageIndex).arg(m_globalHighlightMgr.ruleCount()).arg(plotRules.size())
+                      .arg(effectiveManager.ruleCount()).arg(intervals.size())
                       .arg(xAxisColumn == static_cast<size_t>(-1)).arg(xAxisColumn));
 
     // ---- 为每个命中结果创建区间色块或时刻竖线 ----

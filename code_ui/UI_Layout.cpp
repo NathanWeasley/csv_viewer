@@ -1376,6 +1376,16 @@ static QIcon renderSvgToIcon(const QString& svgText, int logicalSize = 24)
 static QIcon createIcon(IconIdx id, int logicalSize = 36)
 {
 	QString svgText = loadIconRaw(id);
+	if (svgText.isEmpty() && id == IconIdx::GLOBALHIGHLIGHT)
+	{
+		// Visible placeholder only. Replacing the empty table entry with the
+		// final SVG path automatically removes this fallback.
+		svgText = QStringLiteral(
+			R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+			<rect x="4" y="4" width="28" height="28" rx="4" fill="none" stroke="#000000" stroke-width="2" stroke-dasharray="3 2"/>
+			<text x="18" y="23" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#000000">HL</text>
+			</svg>)");
+	}
 	if (svgText.isEmpty())
 		return QIcon();
 
@@ -1401,6 +1411,7 @@ void UI::createToolbar()
     QAction* action_gridview = nullptr;
     QAction* action_rowview = nullptr;
     QAction* action_linkx = nullptr;
+    QAction* action_globalhighlight = nullptr;
 
 	uint8_t lastGroup = 0xFF;  // 跟踪上一个图标的 group，换组时自动插入分隔符
 	bool   firstItem  = true;
@@ -1430,6 +1441,7 @@ void UI::createToolbar()
         case IconIdx::GRIDVIEW: action_gridview = action; break;
         case IconIdx::ROWVIEW: action_rowview = action; break;
         case IconIdx::LINKX: action_linkx = action; break;
+        case IconIdx::GLOBALHIGHLIGHT: action_globalhighlight = action; break;
 		default: break;
 		}
 
@@ -1460,6 +1472,7 @@ void UI::createToolbar()
     m_actionGridView = action_gridview;
     m_actionRowView = action_rowview;
     m_actionLinkX = action_linkx;
+    m_actionGlobalHighlight = action_globalhighlight;
 
     if (m_actionNewPlot)
         connect(m_actionNewPlot, &QAction::triggered, this, [this]()
@@ -1489,6 +1502,10 @@ void UI::createToolbar()
 
     if (m_actionLinkX)
         connect(m_actionLinkX, &QAction::triggered, this, &UI::showLinkXAxisDialog);
+
+    if (m_actionGlobalHighlight)
+        connect(m_actionGlobalHighlight, &QAction::triggered,
+                this, &UI::showGlobalHighlightDialog);
 
     updatePlotLayoutActions(m_viewer.GetPlotManager().layoutMode());
 }

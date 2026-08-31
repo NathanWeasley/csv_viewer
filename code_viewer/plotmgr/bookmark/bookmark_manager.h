@@ -158,9 +158,6 @@ private:
     void jsonToEntry(const QJsonObject& obj, BookmarkEntry& out);
     void graphToJson(const GraphStyleSnapshot& gs, QJsonObject& out) const;
     void jsonToGraph(const QJsonObject& obj, GraphStyleSnapshot& out);
-    void highlightToJson(const HighlightRule& rule, QJsonObject& out) const;
-    void jsonToHighlight(const QJsonObject& obj, HighlightRule& out);
-
     BookmarkFolder m_root;    // 虚拟 root，其 subFolders 和 entries 为顶层内容
 };
 
