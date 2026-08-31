@@ -556,6 +556,14 @@ void UI::bindCursorManagerCallbacks()
 
         if (cursor.type == viewer::AxisCursorType::X)
         {
+            visual.valueBoxConnector = new QCPItemLine(plot);
+            visual.valueBoxConnector->start->setType(QCPItemPosition::ptAbsolute);
+            visual.valueBoxConnector->end->setType(QCPItemPosition::ptAbsolute);
+            visual.valueBoxConnector->setLayer("overlay");
+            visual.valueBoxConnector->setSelectable(false);
+            visual.valueBoxConnector->setClipToAxisRect(true);
+            visual.valueBoxConnector->setClipAxisRect(plot->axisRect());
+
             visual.valueBox = new QFrame(plot);
             visual.valueBox->setObjectName(QStringLiteral("axisCursorValueBox"));
             visual.valueBox->setAttribute(Qt::WA_StyledBackground, true);
@@ -588,6 +596,8 @@ void UI::bindCursorManagerCallbacks()
             it->valueBox->hide();
             it->valueBox->deleteLater();
         }
+        if (plot && it->valueBoxConnector)
+            plot->removeItem(it->valueBoxConnector);
         if (plot && it->line)
             plot->removeItem(it->line);
         m_axisCursorVisuals.erase(it);
@@ -808,6 +818,8 @@ void UI::refreshAxisCursorValueBox(int id, bool resetToBottom)
     if (!cursor->dataValuesVisible)
     {
         box->hide();
+        if (visualIt->valueBoxConnector)
+            visualIt->valueBoxConnector->setVisible(false);
         return;
     }
 
@@ -893,6 +905,13 @@ void UI::refreshAxisCursorTheme()
     {
         if (it->line)
             it->line->setPen(QPen(color, it.key() == activeId ? 2.0 : 1.2));
+        if (it->valueBoxConnector)
+        {
+            QColor connectorColor = color;
+            connectorColor.setAlpha(180);
+            it->valueBoxConnector->setPen(
+                QPen(connectorColor, 1.0, Qt::DashLine));
+        }
         if (it->valueBox)
         {
             it->valueBox->setStyleSheet(dark
@@ -930,6 +949,53 @@ void UI::positionAxisCursorValueBox(int id)
     target.setX(std::clamp(target.x(), rect.left(), maxX));
     target.setY(std::clamp(target.y(), rect.top(), maxY));
     box->move(target);
+    updateAxisCursorValueBoxConnector(id);
+}
+
+void UI::updateAxisCursorValueBoxConnector(int id)
+{
+    const viewer::AxisCursorInfo* cursor = m_viewer.GetCursorManager().axisCursor(id);
+    auto visualIt = m_axisCursorVisuals.find(id);
+    if (!cursor || cursor->type != viewer::AxisCursorType::X
+        || visualIt == m_axisCursorVisuals.end()
+        || !visualIt->line || !visualIt->line->parentPlot()
+        || !visualIt->valueBox || !visualIt->valueBoxConnector)
+    {
+        return;
+    }
+
+    QCustomPlot* plot = visualIt->line->parentPlot();
+    QFrame* box = visualIt->valueBox;
+    QCPItemLine* connector = visualIt->valueBoxConnector;
+    const bool visible = cursor->dataValuesVisible && !box->isHidden();
+    connector->setVisible(visible);
+    if (!visible || !plot->axisRect())
+        return;
+
+    const QRect axisRect = plot->axisRect()->rect();
+    const QPointF cursorBottom(plot->xAxis->coordToPixel(cursor->position),
+                               axisRect.bottom());
+    const QRect boxRect(box->pos(), box->size());
+    const QPointF corners[] = {
+        boxRect.topLeft(), boxRect.topRight(),
+        boxRect.bottomLeft(), boxRect.bottomRight()
+    };
+
+    QPointF nearest = corners[0];
+    qreal nearestDistance = std::numeric_limits<qreal>::max();
+    for (const QPointF& corner : corners)
+    {
+        const QPointF delta = corner - cursorBottom;
+        const qreal distance = delta.x() * delta.x() + delta.y() * delta.y();
+        if (distance < nearestDistance)
+        {
+            nearestDistance = distance;
+            nearest = corner;
+        }
+    }
+
+    connector->start->setCoords(cursorBottom.x(), cursorBottom.y());
+    connector->end->setCoords(nearest.x(), nearest.y());
 }
 
 int UI::hitAxisCursor(int pageIndex, const QPoint& pos, double tolerance) const

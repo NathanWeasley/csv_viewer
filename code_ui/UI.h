@@ -157,6 +157,7 @@ private Q_SLOTS:
     void refreshAxisCursorValueBoxes(int pageIndex);
     void refreshAxisCursorTheme();
     void positionAxisCursorValueBox(int id);
+    void updateAxisCursorValueBoxConnector(int id);
     int hitAxisCursor(int pageIndex, const QPoint& pos, double tolerance = 7.0) const;
     void showAxisCursorObjectMenu(int id, const QPoint& globalPos);
     bool showAxisCursorContextMenu(int pageIndex, QCustomPlot* plot, const QPoint& pos);
@@ -248,6 +249,7 @@ private:
     struct AxisCursorVisual
     {
         QCPItemStraightLine* line = nullptr;
+        QCPItemLine* valueBoxConnector = nullptr;
         QFrame* valueBox = nullptr;
         QList<QLabel*> valueLabels;
         QPoint valueBoxOffset;

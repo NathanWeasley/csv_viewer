@@ -29,6 +29,81 @@
 #include <qjsondocument.h>
 #include <qjsonarray.h>
 #include <qjsonobject.h>
+#include <algorithm>
+#include <cmath>
+#include <vector>
+
+namespace
+{
+QRectF highlightLabelRect(const QCPItemText* label)
+{
+    if (!label || !label->topLeft || !label->bottomRight)
+        return {};
+    return QRectF(label->topLeft->pixelPosition(),
+                  label->bottomRight->pixelPosition()).normalized();
+}
+
+void arrangeHighlightLabels(QCustomPlot* plot, const QList<QCPItemText*>& labels)
+{
+    if (!plot || !plot->axisRect() || labels.isEmpty())
+        return;
+
+    struct Entry
+    {
+        QCPItemText* label = nullptr;
+        qreal centerX = 0.0;
+    };
+
+    const qreal top = plot->axisRect()->rect().top();
+    std::vector<Entry> ordered;
+    ordered.reserve(static_cast<size_t>(labels.size()));
+
+    // Every draw starts again at the top. This deliberately discards the
+    // collision offset calculated by the previous draw.
+    for (auto* label : labels)
+    {
+        if (!label || !label->visible())
+            continue;
+        QPointF pixel = label->position->pixelPosition();
+        label->position->setPixelPosition(QPointF(pixel.x(), top));
+        const QRectF rect = highlightLabelRect(label);
+        ordered.push_back({label, rect.center().x()});
+    }
+
+    std::stable_sort(ordered.begin(), ordered.end(),
+        [](const Entry& left, const Entry& right)
+        {
+            return left.centerX < right.centerX;
+        });
+
+    constexpr qreal kVerticalGap = 2.0;
+    std::vector<QRectF> placed;
+    placed.reserve(ordered.size());
+    for (const Entry& entry : ordered)
+    {
+        QRectF candidate = highlightLabelRect(entry.label);
+        for (;;)
+        {
+            qreal nextTop = candidate.top();
+            for (const QRectF& previous : placed)
+            {
+                if (candidate.intersects(previous))
+                    nextTop = std::max(nextTop, previous.bottom() + kVerticalGap);
+            }
+
+            const qreal delta = nextTop - candidate.top();
+            if (delta <= 0.0)
+                break;
+
+            QPointF pixel = entry.label->position->pixelPosition();
+            entry.label->position->setPixelPosition(
+                QPointF(pixel.x(), pixel.y() + delta));
+            candidate.translate(0.0, delta);
+        }
+        placed.push_back(candidate);
+    }
+}
+}
 
 // ============================================================
 // showHighlightDialog: 显示高亮规则配置对话框
@@ -122,7 +197,7 @@ void UI::renderHighlights(int pageIndex)
     }
     labels.clear();
 
-    // ---- 断开旧的 afterReplot 连接 ----
+    // ---- 断开旧的 afterLayout 连接 ----
     {
         auto it = m_highlightReplotConns.find(pageIndex);
         if (it != m_highlightReplotConns.end())
@@ -189,6 +264,8 @@ void UI::renderHighlights(int pageIndex)
         if (!interval.label.empty())
         {
             auto* textItem = new QCPItemText(plot);
+            textItem->position->setType(QCPItemPosition::ptPlotCoords);
+            textItem->position->setAxes(plot->xAxis, plot->yAxis);
             textItem->position->setCoords(
                 (interval.xStart + interval.xEnd) / 2.0,
                 yUpper
@@ -206,15 +283,22 @@ void UI::renderHighlights(int pageIndex)
         }
     }
 
-    // ---- 连接 rangeChanged：Y 轴范围变化后立即同步色块/标注（在 replot 之前触发，无延迟）----
-    auto conn = connect(plot->yAxis, QOverload<const QCPRange&>::of(&QCPAxis::rangeChanged),
-        this, [this, pageIndex](const QCPRange& newRange)
+    // afterLayout runs for every on-screen/off-screen redraw and provides the
+    // final axis rectangle for this frame. Rebuild vertical extents and label
+    // collision offsets here so zooming, resizing and exporting share exactly
+    // the same layout behavior.
+    auto conn = connect(plot, &QCustomPlot::afterLayout,
+        this, [this, pageIndex]()
         {
             if (pageIndex < 0 || pageIndex >= plotPageCount())
                 return;
 
-            double yUpper = newRange.upper;
-            double yLower = newRange.lower;
+            QCustomPlot* currentPlot = getPlot(pageIndex);
+            if (!currentPlot)
+                return;
+
+            const double yUpper = currentPlot->yAxis->range().upper;
+            const double yLower = currentPlot->yAxis->range().lower;
 
             auto& r = m_highlightRects[pageIndex];
             for (auto* rect : r)
@@ -242,6 +326,8 @@ void UI::renderHighlights(int pageIndex)
                     yUpper
                 );
             }
+
+            arrangeHighlightLabels(currentPlot, l);
         });
 
     m_highlightReplotConns[pageIndex] = conn;

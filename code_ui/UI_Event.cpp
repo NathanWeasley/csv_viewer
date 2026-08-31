@@ -113,6 +113,8 @@ bool UI::eventFilter(QObject* obj, QEvent* event)
                                         rect.bottom());
                     visualIt->valueBoxOffset = target - anchor;
                     visualIt->valueBoxAtDefaultBottom = false;
+                    updateAxisCursorValueBoxConnector(id);
+                    parentPlot->replot(QCustomPlot::rpQueuedRefresh);
                 }
                 return true;
             }
