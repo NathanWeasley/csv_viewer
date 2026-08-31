@@ -135,6 +135,7 @@ bool DatDecryptPlugin::initialize(IViewerHost* host)
     createMenu();
     if (!m_menu)
         return false;
+    createToolbarButtons();
 
     m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
         id(), [this](const LoadSessionInfo& session) { handleDataLoaded(session); });
@@ -177,6 +178,17 @@ void DatDecryptPlugin::shutdown()
     m_workers.waitForDone();
     QCoreApplication::removePostedEvents(this);
 
+    if (m_toolbarService)
+    {
+        if (m_viewToolbarButton)
+            m_toolbarService->removeButton(m_viewToolbarButton);
+        if (m_exportToolbarButton)
+            m_toolbarService->removeButton(m_exportToolbarButton);
+    }
+    m_viewToolbarButton = 0;
+    m_exportToolbarButton = 0;
+    m_toolbarService = nullptr;
+
     if (m_host)
     {
         if (m_dataLoadedSubscription)
@@ -193,6 +205,33 @@ void DatDecryptPlugin::shutdown()
     m_menu = 0;
     m_jsonDock = 0;
     m_jsonViewer = nullptr;
+}
+
+void DatDecryptPlugin::createToolbarButtons()
+{
+    if (!m_host || !m_host->plugins() || !m_menu)
+        return;
+    QObject* toolbarObject = m_host->plugins()->queryService(
+        QString::fromLatin1(kPluginToolbarProviderId),
+        QString::fromLatin1(kPluginToolbarServiceId),
+        kPluginToolbarServiceVersion);
+    m_toolbarService = qobject_cast<IPluginToolbarService*>(toolbarObject);
+    if (!m_toolbarService)
+        return;
+
+    PluginToolbarButtonSpec viewButton;
+    viewButton.placeholderText = QStringLiteral("JSON");
+    viewButton.toolTip = QString::fromUtf8(u8"查看JSON");
+    viewButton.order = 200;
+    m_viewToolbarButton = m_toolbarService->addMenuItemButton(
+        id(), m_menu, QStringLiteral("view"), viewButton);
+
+    PluginToolbarButtonSpec exportButton;
+    exportButton.placeholderText = QStringLiteral("OUT");
+    exportButton.toolTip = QString::fromUtf8(u8"导出JSON");
+    exportButton.order = 210;
+    m_exportToolbarButton = m_toolbarService->addMenuItemButton(
+        id(), m_menu, QStringLiteral("export"), exportButton);
 }
 
 void DatDecryptPlugin::createMenu()

@@ -14,9 +14,11 @@
     <ClCompile Include="..\..\..\code_plugin\CoreExpressionDataService.cpp" />
     <ClCompile Include="..\..\..\code_plugin\PluginHost.cpp" />
     <ClCompile Include="..\..\..\code_plugin\PluginManager.cpp" />
+    <ClCompile Include="..\..\..\code_plugin\PluginToolbarService.cpp" />
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_plugin\CoreExpressionDataService.h" />
+    <QtMoc Include="..\..\..\code_plugin\PluginToolbarService.h" />
     <ClInclude Include="..\..\..\code_plugin\export.h" />
     <ClInclude Include="..\..\..\code_plugin\PluginHost.h" />
     <ClInclude Include="..\..\..\code_plugin\PluginManager.h" />

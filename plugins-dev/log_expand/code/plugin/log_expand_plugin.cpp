@@ -104,6 +104,7 @@ bool LogExpandPlugin::initialize(IViewerHost* host)
 
     loadExpansionDefinitions();
     createMenu();
+    createToolbarButtons();
     m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
         id(), [this](const LoadSessionInfo& session) { handleDataLoaded(session); });
     m_dataUnloadSubscription = m_host->events()->subscribeDataAboutToUnload(
@@ -138,6 +139,16 @@ void LogExpandPlugin::shutdown()
     ++m_generation;
     m_workerPool.clear();
     m_workerPool.waitForDone();
+    if (m_toolbarService)
+    {
+        if (m_mappedVariablesToolbarButton)
+            m_toolbarService->removeButton(m_mappedVariablesToolbarButton);
+        if (m_editExpansionsToolbarButton)
+            m_toolbarService->removeButton(m_editExpansionsToolbarButton);
+    }
+    m_mappedVariablesToolbarButton = 0;
+    m_editExpansionsToolbarButton = 0;
+    m_toolbarService = nullptr;
     if (m_host)
     {
         if (m_progress)
@@ -161,6 +172,33 @@ void LogExpandPlugin::shutdown()
     m_menu = 0;
     m_expressionData = nullptr;
     m_host = nullptr;
+}
+
+void LogExpandPlugin::createToolbarButtons()
+{
+    if (!m_host || !m_host->plugins() || !m_menu)
+        return;
+    QObject* toolbarObject = m_host->plugins()->queryService(
+        QString::fromLatin1(kPluginToolbarProviderId),
+        QString::fromLatin1(kPluginToolbarServiceId),
+        kPluginToolbarServiceVersion);
+    m_toolbarService = qobject_cast<IPluginToolbarService*>(toolbarObject);
+    if (!m_toolbarService)
+        return;
+
+    PluginToolbarButtonSpec mappedButton;
+    mappedButton.placeholderText = QStringLiteral("MAP");
+    mappedButton.toolTip = QString::fromUtf8(u8"查看映射变量");
+    mappedButton.order = 300;
+    m_mappedVariablesToolbarButton = m_toolbarService->addMenuItemButton(
+        id(), m_menu, QStringLiteral("mapped_variables"), mappedButton);
+
+    PluginToolbarButtonSpec editButton;
+    editButton.placeholderText = QStringLiteral("EXP");
+    editButton.toolTip = QString::fromUtf8(u8"编辑扩充数据项");
+    editButton.order = 310;
+    m_editExpansionsToolbarButton = m_toolbarService->addMenuItemButton(
+        id(), m_menu, QStringLiteral("edit_expansions"), editButton);
 }
 
 void LogExpandPlugin::createMenu()

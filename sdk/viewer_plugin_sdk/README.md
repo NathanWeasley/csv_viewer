@@ -37,6 +37,12 @@ plugins/<plugin-id>/
 用 Viewer 数据快照和插件标量计算表达式，并通过 provider-owned batch 原子替换
 自己发布的扩充数据列。该扩展不改变 `IViewerPlugin` 的 SDK v2 ABI。
 
+`viewer_toolbar_sdk.h` 定义可选的 `IPluginToolbarService`。插件从
+`viewer.core/plugin-toolbar` 查询 v1 服务，再用 `addMenuItemButton()` 将已经注册的
+菜单命令投影到 Viewer 主工具栏。菜单和工具栏复用同一个 `QAction`，因此回调以及
+启用、可见、勾选状态保持一致。插件负责按钮图标、提示、显示样式和排序提示；宿主
+负责布局、主题占位图渲染和卸载清理。该扩展同样不改变 SDK v2 ABI。
+
 依赖项支持 `mode` 为 `required` 或 `runtime`。`runtime` 依赖缺失时插件仍会
 加载，插件可以在用户触发功能时通过 `IPluginRegistry` 显示具体错误。
 

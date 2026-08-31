@@ -23,6 +23,7 @@ enum class IconIdx : uint8_t
 	LOADFOLDER,
 	LOADDJIBIN,
 	LOADHIKLOG,
+	VIEWRBTLOG,
 	CLEAR,
 	ADDEXPR,
 	VARRENAME,
@@ -82,6 +83,13 @@ static const IconEntry g_iconTable[] =
 		"Load ZIP Logs (HikLog / RBT)",
 		IconSource::SvgFile,
 		":/icons/SVG/loadhiklog.svg"
+	},
+	{
+		IconIdx::VIEWRBTLOG,
+		0,
+		u8"查看RBT日志",
+		IconSource::SvgFile,
+		"" // Placeholder; replace with the final plugin-independent SVG asset.
 	},
 	{
 		IconIdx::CLEAR,

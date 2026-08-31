@@ -3,6 +3,7 @@
 #include "log_expand_types.h"
 #include "viewer_plugin/viewer_expression_data_sdk.h"
 #include "viewer_plugin/viewer_plugin_sdk.h"
+#include "viewer_plugin/viewer_toolbar_sdk.h"
 
 #include <QHash>
 #include <QList>
@@ -28,6 +29,7 @@ public:
 
 private:
     void createMenu();
+    void createToolbarButtons();
     void handleMenuCommand(const QString& itemId);
     void handleDataLoaded(const viewer::plugin::LoadSessionInfo& session);
     void handleDataAboutToUnload(quint64 sessionId);
@@ -56,7 +58,10 @@ private:
 
     viewer::plugin::IViewerHost* m_host = nullptr;
     viewer::plugin::IExpressionDataService* m_expressionData = nullptr;
+    viewer::plugin::IPluginToolbarService* m_toolbarService = nullptr;
     viewer::plugin::PluginMenuHandle m_menu = 0;
+    viewer::plugin::PluginToolbarButtonHandle m_mappedVariablesToolbarButton = 0;
+    viewer::plugin::PluginToolbarButtonHandle m_editExpansionsToolbarButton = 0;
     viewer::plugin::SubscriptionId m_dataLoadedSubscription = 0;
     viewer::plugin::SubscriptionId m_dataUnloadSubscription = 0;
     viewer::plugin::JsonSubscriptionId m_jsonChangedSubscription = 0;

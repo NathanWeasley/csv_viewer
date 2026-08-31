@@ -1,6 +1,7 @@
 #pragma once
 
 #include "viewer_plugin/viewer_plugin_sdk.h"
+#include "viewer_plugin/viewer_toolbar_sdk.h"
 
 #include <QByteArray>
 #include <QObject>
@@ -50,6 +51,7 @@ private:
     };
 
     void createMenu();
+    void createToolbarButtons();
     void handleMenuCommand(const QString& itemId, bool checked);
     void handleDataLoaded(const viewer::plugin::LoadSessionInfo& session);
     void handleDataAboutToUnload(quint64 sessionId);
@@ -76,7 +78,10 @@ private:
     void log(viewer::plugin::LogLevel level, const QString& message) const;
 
     viewer::plugin::IViewerHost* m_host = nullptr;
+    viewer::plugin::IPluginToolbarService* m_toolbarService = nullptr;
     viewer::plugin::PluginMenuHandle m_menu = 0;
+    viewer::plugin::PluginToolbarButtonHandle m_viewToolbarButton = 0;
+    viewer::plugin::PluginToolbarButtonHandle m_exportToolbarButton = 0;
     viewer::plugin::PluginDockHandle m_jsonDock = 0;
     viewer::plugin::SubscriptionId m_dataLoadedSubscription = 0;
     viewer::plugin::SubscriptionId m_dataUnloadSubscription = 0;

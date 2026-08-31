@@ -1376,15 +1376,19 @@ static QIcon renderSvgToIcon(const QString& svgText, int logicalSize = 24)
 static QIcon createIcon(IconIdx id, int logicalSize = 36)
 {
 	QString svgText = loadIconRaw(id);
-	if (svgText.isEmpty() && id == IconIdx::GLOBALHIGHLIGHT)
+	if (svgText.isEmpty()
+		&& (id == IconIdx::GLOBALHIGHLIGHT || id == IconIdx::VIEWRBTLOG))
 	{
 		// Visible placeholder only. Replacing the empty table entry with the
 		// final SVG path automatically removes this fallback.
+		const QString label = id == IconIdx::GLOBALHIGHLIGHT
+			? QStringLiteral("HL") : QStringLiteral("RBT");
+		const int fontSize = id == IconIdx::GLOBALHIGHLIGHT ? 13 : 10;
 		svgText = QStringLiteral(
 			R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
 			<rect x="4" y="4" width="28" height="28" rx="4" fill="none" stroke="#000000" stroke-width="2" stroke-dasharray="3 2"/>
-			<text x="18" y="23" text-anchor="middle" font-family="sans-serif" font-size="13" font-weight="bold" fill="#000000">HL</text>
-			</svg>)");
+			<text x="18" y="23" text-anchor="middle" font-family="sans-serif" font-size="%2" font-weight="bold" fill="#000000">%1</text>
+			</svg>)").arg(label).arg(fontSize);
 	}
 	if (svgText.isEmpty())
 		return QIcon();
@@ -1405,6 +1409,7 @@ void UI::createToolbar()
 	QAction* action_loadcsv  = nullptr;
     QAction* action_loadfolder = nullptr;
     QAction* action_loadhiklog = nullptr;
+    QAction* action_viewrbtlog = nullptr;
 	QAction* action_clearall = nullptr;
 	QAction* action_varrename = nullptr;
     QAction* action_newplot = nullptr;
@@ -1435,6 +1440,7 @@ void UI::createToolbar()
 		case IconIdx::LOADCSV:  action_loadcsv  = action; break;
         case IconIdx::LOADFOLDER: action_loadfolder = action; break;
         case IconIdx::LOADHIKLOG: action_loadhiklog = action; break;
+		case IconIdx::VIEWRBTLOG: action_viewrbtlog = action; break;
 		case IconIdx::CLEAR:    action_clearall = action; break;
 		case IconIdx::VARRENAME: action_varrename = action; break;
         case IconIdx::NEWPLOT: action_newplot = action; break;
@@ -1458,6 +1464,8 @@ void UI::createToolbar()
         connect(action_loadfolder, &QAction::triggered, this, &UI::onLoadFolderClicked);
     if (action_loadhiklog)
         connect(action_loadhiklog, &QAction::triggered, this, &UI::onLoadHiklogClicked);
+    if (action_viewrbtlog)
+        connect(action_viewrbtlog, &QAction::triggered, this, &UI::onShowRbtLogsClicked);
 	if (action_clearall)
 		connect(action_clearall, &QAction::triggered, this, [this]()
 		{

@@ -209,6 +209,7 @@ void UI::initializePluginSystem()
         this,
         m_dockManager,
         m_pluginMenu,
+        ui.mainToolBar,
         [this]() { rebuildDataTree(); },
         [this](const QStringList& oldNames,
                const QStringList& newNames,

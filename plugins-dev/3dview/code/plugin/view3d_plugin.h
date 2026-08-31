@@ -1,6 +1,7 @@
 #pragma once
 
 #include "viewer_plugin/viewer_plugin_sdk.h"
+#include "viewer_plugin/viewer_toolbar_sdk.h"
 
 #include <QObject>
 #include <QPointer>
@@ -30,7 +31,9 @@ private:
     void scheduleRefreshData();
 
     viewer::plugin::IViewerHost* m_host = nullptr;
+    viewer::plugin::IPluginToolbarService* m_toolbarService = nullptr;
     viewer::plugin::PluginMenuHandle m_menu = 0;
+    viewer::plugin::PluginToolbarButtonHandle m_openToolbarButton = 0;
     viewer::plugin::SubscriptionId m_dataLoadedSubscription = 0;
     viewer::plugin::SubscriptionId m_dataUnloadingSubscription = 0;
     viewer::plugin::SubscriptionId m_columnAddedSubscription = 0;

@@ -16,6 +16,9 @@
     <ClCompile Include="..\..\..\code_plugin\PluginManager.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\..\code_plugin\PluginToolbarService.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\..\code_plugin\PluginHost.h">
@@ -30,6 +33,9 @@
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_plugin\CoreExpressionDataService.h">
+      <Filter>Source Files</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_plugin\PluginToolbarService.h">
       <Filter>Source Files</Filter>
     </QtMoc>
   </ItemGroup>

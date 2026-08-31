@@ -528,6 +528,32 @@ QObject* object = host->plugins()->queryService(
 `setPluginMenuItemEnabled()`、`setPluginMenuItemChecked()` 和
 `setPluginMenuItemVisible()` 更新。
 
+可频繁使用的菜单命令可以通过 `viewer_toolbar_sdk.h` 中的可选
+`IPluginToolbarService` 投影到主工具栏：
+
+```cpp
+QObject* object = host->plugins()->queryService(
+    QString::fromLatin1(kPluginToolbarProviderId),
+    QString::fromLatin1(kPluginToolbarServiceId),
+    kPluginToolbarServiceVersion);
+auto* toolbar = qobject_cast<IPluginToolbarService*>(object);
+
+PluginToolbarButtonSpec button;
+button.icon = QIcon(QStringLiteral(":/my_plugin/open.svg"));
+button.toolTip = QStringLiteral("打开视图");
+button.order = 100;
+const PluginToolbarButtonHandle handle = toolbar
+    ? toolbar->addMenuItemButton(id(), menuHandle,
+                                 QStringLiteral("open"), button)
+    : 0;
+```
+
+工具栏服务不接受独立回调，只引用 `addPluginMenu()` 已创建的 Action 或
+CheckableAction。这样菜单与按钮始终调用同一功能，并共享 enabled、visible 和
+checked 状态。插件在 `shutdown()` 中可主动 `removeButton()`；即使遗漏，宿主也会在
+删除插件菜单和卸载 DLL 以前按 `ownerPluginId` 清理。服务不可用时，插件应保留菜单
+入口以兼容旧版 Viewer。
+
 `createDock()` 创建 ADS dock：
 
 - `ownerPluginId` 和 `dockId` 必须非空，content 不能为 null。

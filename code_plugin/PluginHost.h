@@ -2,6 +2,7 @@
 
 #include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_plugin_sdk.h"
 #include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_expression_data_sdk.h"
+#include "sdk/viewer_plugin_sdk/include/viewer_plugin/viewer_toolbar_sdk.h"
 
 #include <QHash>
 #include <QPointer>
@@ -17,6 +18,8 @@ class QMainWindow;
 class QMenu;
 class CoreExpressionDataService;
 class DerivedColumnBatchWriterImpl;
+class PluginToolbarService;
+class QToolBar;
 
 namespace ads
 {
@@ -53,6 +56,7 @@ public:
                QMainWindow* mainWindow,
                ads::CDockManager* dockManager,
                QMenu* pluginMenu,
+               QToolBar* pluginToolBar,
                std::function<void()> rebuildDataTree,
                std::function<void(const QStringList&,
                                   const QStringList&,
@@ -189,6 +193,7 @@ private:
     friend class DerivedColumnWriterImpl;
     friend class DerivedColumnBatchWriterImpl;
     friend class CoreExpressionDataService;
+    friend class PluginToolbarService;
 
     viewer::plugin::DerivedColumnBatchCreateResult createDerivedColumnBatch(
         const QString& providerPluginId,
@@ -206,6 +211,10 @@ private:
         QString name,
         std::vector<double>&& values);
     QString serviceKey(const QString& providerPluginId, const QString& serviceId) const;
+    QAction* pluginMenuCommandAction(
+        const QString& ownerPluginId,
+        viewer::plugin::PluginMenuHandle menu,
+        const QString& itemId) const;
     quint64 nextHandle();
 
     struct ServiceRecord
@@ -225,6 +234,7 @@ private:
         QString ownerPluginId;
         QPointer<QMenu> root;
         QHash<QString, QPointer<QAction>> actions;
+        QSet<QString> commandIds;
     };
     struct DockRecord
     {
@@ -263,6 +273,7 @@ private:
     QHash<QString, viewer::plugin::PluginState> m_pluginStates;
     QHash<QString, ServiceRecord> m_services;
     QPointer<CoreExpressionDataService> m_coreExpressionDataService;
+    QPointer<PluginToolbarService> m_pluginToolbarService;
     QHash<quint64, ActionRecord> m_actions;
     QHash<quint64, MenuRecord> m_menus;
     QHash<quint64, DockRecord> m_docks;

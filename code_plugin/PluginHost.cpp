@@ -1,5 +1,6 @@
 #include "code_plugin/PluginHost.h"
 #include "code_plugin/CoreExpressionDataService.h"
+#include "code_plugin/PluginToolbarService.h"
 
 #include "DockManager.h"
 #include "code_viewer/base/trace_logger.h"
@@ -15,6 +16,7 @@
 #include <QMetaObject>
 #include <QSet>
 #include <QThread>
+#include <QToolBar>
 
 #include <algorithm>
 #include <mutex>
@@ -245,6 +247,7 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
                        QMainWindow* mainWindow,
                        ads::CDockManager* dockManager,
                        QMenu* pluginMenu,
+                       QToolBar* pluginToolBar,
                        std::function<void()> rebuildDataTree,
                        std::function<void(const QStringList&,
                                           const QStringList&,
@@ -268,6 +271,15 @@ PluginHost::PluginHost(viewer::Viewer& viewer,
          QString::fromLatin1(kExpressionDataServiceId),
          kExpressionDataServiceVersion,
          m_coreExpressionDataService});
+
+    m_pluginToolbarService = new PluginToolbarService(this, pluginToolBar, this);
+    m_services.insert(
+        serviceKey(QString::fromLatin1(kPluginToolbarProviderId),
+                   QString::fromLatin1(kPluginToolbarServiceId)),
+        {QString::fromLatin1(kPluginToolbarProviderId),
+         QString::fromLatin1(kPluginToolbarServiceId),
+         kPluginToolbarServiceVersion,
+         m_pluginToolbarService});
 
     connect(&m_viewer, &viewer::Viewer::DataLoaded, this,
         [this](quint64)
@@ -936,6 +948,7 @@ PluginMenuHandle PluginHost::addPluginMenu(
                               QStringLiteral("Unhandled exception in plugin menu action."));
                     }
                 });
+            record.commandIds.insert(itemId);
             break;
         }
 
@@ -1166,6 +1179,9 @@ void PluginHost::setPluginState(const QString& pluginId, PluginState state)
 
 void PluginHost::removeOwnedResources(const QString& pluginId)
 {
+    if (m_pluginToolbarService)
+        m_pluginToolbarService->removeOwnedButtons(pluginId);
+
     QList<PluginProgressHandle> progressHandles;
     for (auto it = m_progressRecords.constBegin();
          it != m_progressRecords.constEnd(); ++it)
@@ -1242,6 +1258,20 @@ QString PluginHost::serviceKey(const QString& providerPluginId,
                                const QString& serviceId) const
 {
     return providerPluginId + QChar(0x1f) + serviceId;
+}
+
+QAction* PluginHost::pluginMenuCommandAction(
+    const QString& ownerPluginId,
+    PluginMenuHandle menu,
+    const QString& itemId) const
+{
+    const auto menuIt = m_menus.constFind(menu);
+    if (menuIt == m_menus.constEnd() || menuIt->ownerPluginId != ownerPluginId
+        || !menuIt->commandIds.contains(itemId))
+    {
+        return nullptr;
+    }
+    return menuIt->actions.value(itemId, nullptr);
 }
 
 quint64 PluginHost::nextHandle()

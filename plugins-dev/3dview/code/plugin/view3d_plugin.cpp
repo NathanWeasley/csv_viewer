@@ -64,6 +64,24 @@ bool View3DPlugin::initialize(IViewerHost* host)
                 reloadConfiguration();
         });
 
+    if (m_menu && m_host->plugins())
+    {
+        QObject* toolbarObject = m_host->plugins()->queryService(
+            QString::fromLatin1(kPluginToolbarProviderId),
+            QString::fromLatin1(kPluginToolbarServiceId),
+            kPluginToolbarServiceVersion);
+        m_toolbarService = qobject_cast<IPluginToolbarService*>(toolbarObject);
+        if (m_toolbarService)
+        {
+            PluginToolbarButtonSpec button;
+            button.placeholderText = QStringLiteral("3D");
+            button.toolTip = QString::fromUtf8(u8"打开3D视图");
+            button.order = 100;
+            m_openToolbarButton = m_toolbarService->addMenuItemButton(
+                id(), m_menu, QStringLiteral("show"), button);
+        }
+    }
+
     m_dataLoadedSubscription = m_host->events()->subscribeDataLoaded(
         id(), [this](const LoadSessionInfo&) { refreshData(); });
     m_dataUnloadingSubscription = m_host->events()->subscribeDataAboutToUnload(
@@ -98,6 +116,10 @@ void View3DPlugin::shutdown()
     m_dataUnloadingSubscription = 0;
     m_columnAddedSubscription = 0;
     m_refreshDataPending = false;
+    if (m_toolbarService && m_openToolbarButton)
+        m_toolbarService->removeButton(m_openToolbarButton);
+    m_openToolbarButton = 0;
+    m_toolbarService = nullptr;
     if (m_view)
     {
         View3DWidget* view = m_view.data();
