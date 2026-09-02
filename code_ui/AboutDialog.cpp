@@ -29,7 +29,7 @@ AboutDialog::AboutDialog(QWidget* parent)
     infoLayout->setSpacing(8);
 
     // 软件名称（大号粗体）
-    auto* titleLabel = new QLabel(QStringLiteral("Viewer V1.0"));
+    auto* titleLabel = new QLabel(QStringLiteral("Viewer"));
     QFont titleFont = titleLabel->font();
     titleFont.setPointSize(16);
     titleFont.setBold(true);
@@ -43,7 +43,7 @@ AboutDialog::AboutDialog(QWidget* parent)
     infoLayout->addWidget(sep);
 
     // 开发者
-    auto* devLabel = new QLabel(QStringLiteral("By Nathan.Guan & DeepSeek V4P"));
+    auto* devLabel = new QLabel(QStringLiteral("By Nathan.Guan & GPT 5.5 Sol"));
     infoLayout->addWidget(devLabel);
 
     // (暂不实现) Git Commit — 待 MSBuild Target 注入宏后启用

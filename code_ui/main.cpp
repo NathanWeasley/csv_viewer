@@ -29,12 +29,12 @@ int main(int argc, char *argv[])
     viewer::trace::initializeSessionFiles();
     viewer::trace::write(viewer::trace::Category::Operation, "application startup");
 
-    a.setApplicationDisplayName("Viewer V1.0");
+    a.setApplicationDisplayName("Viewer");
 
     int exitCode = 0;
     {
         UI w;
-        w.setWindowTitle("Viewer V1.0");
+        w.setWindowTitle("Viewer");
         w.show();
         exitCode = a.exec();
     }
