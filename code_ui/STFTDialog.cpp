@@ -69,6 +69,34 @@ STFTDialog::STFTDialog(const std::vector<std::string>& dataItems,
     m_cmbWindowType->addItem(QString::fromUtf8("Rectangular"));
     form->addRow(QString::fromUtf8("窗函数:"), m_cmbWindowType);
 
+    m_chkRemoveBaseline = new QCheckBox(QString::fromUtf8("零相位高通滤波（Zero-phase high-pass）"));
+    m_chkRemoveBaseline->setChecked(false);
+    form->addRow(QString::fromUtf8("去基线:"), m_chkRemoveBaseline);
+
+    m_spnHighPassCutoff = new QDoubleSpinBox();
+    m_spnHighPassCutoff->setDecimals(9);
+    m_spnHighPassCutoff->setMinimum(1e-12);
+    m_spnHighPassCutoff->setSuffix(" Hz");
+    m_spnHighPassCutoff->setEnabled(false);
+    form->addRow(QString::fromUtf8("高通截止频率:"), m_spnHighPassCutoff);
+
+    const auto updateHighPassCutoffRange = [this](double sampleFrequency)
+    {
+        // 截止频率必须严格小于奈奎斯特频率；低采样率时自动收窄范围。
+        const double maximumCutoff = std::max(1e-12, sampleFrequency * 0.499999);
+        m_spnHighPassCutoff->setMaximum(maximumCutoff);
+        if (m_spnHighPassCutoff->value() <= m_spnHighPassCutoff->minimum())
+            m_spnHighPassCutoff->setValue(maximumCutoff > 0.1 ? 0.1 : maximumCutoff * 0.5);
+    };
+    updateHighPassCutoffRange(m_spnSampleFrequency->value());
+    m_spnHighPassCutoff->setValue(
+        m_spnHighPassCutoff->maximum() > 0.1 ? 0.1 : m_spnHighPassCutoff->maximum() * 0.5);
+
+    connect(m_chkRemoveBaseline, &QCheckBox::toggled,
+            m_spnHighPassCutoff, &QDoubleSpinBox::setEnabled);
+    connect(m_spnSampleFrequency, qOverload<double>(&QDoubleSpinBox::valueChanged),
+            this, updateHighPassCutoffRange);
+
     connect(m_spnWindowSize, qOverload<int>(&QSpinBox::valueChanged), this, [this](int value)
     {
         m_spnOverlap->setMaximum(std::max(0, value - 1));
@@ -119,6 +147,15 @@ STFTDialog::STFTDialog(const std::vector<std::string>& dataItems,
             return;
         }
 
+        if (m_chkRemoveBaseline->isChecked()
+            && (m_spnHighPassCutoff->value() <= 0.0
+                || m_spnHighPassCutoff->value() >= m_spnSampleFrequency->value() * 0.5))
+        {
+            QMessageBox::warning(this, QString::fromUtf8("参数错误"),
+                                 QString::fromUtf8("高通截止频率必须大于 0 且小于奈奎斯特频率。"));
+            return;
+        }
+
         accept();
     });
     btnLayout->addWidget(btnOK);
@@ -156,11 +193,23 @@ viewer::STFTWindowType STFTDialog::windowType() const
     return static_cast<viewer::STFTWindowType>(m_cmbWindowType->currentIndex());
 }
 
+bool STFTDialog::removeBaseline() const
+{
+    return m_chkRemoveBaseline && m_chkRemoveBaseline->isChecked();
+}
+
+double STFTDialog::highPassCutoffFrequency() const
+{
+    return m_spnHighPassCutoff ? m_spnHighPassCutoff->value() : 0.1;
+}
+
 void STFTDialog::setRememberedParameters(size_t windowSizeValue,
                                          size_t overlapValue,
                                          size_t fftSizeValue,
                                          double sampleFrequencyValue,
-                                         viewer::STFTWindowType windowTypeValue)
+                                         viewer::STFTWindowType windowTypeValue,
+                                         bool removeBaselineValue,
+                                         double highPassCutoffFrequencyValue)
 {
     // 先恢复窗长以同步重叠点数的有效上限，再恢复其余参数。
     m_spnWindowSize->setValue(static_cast<int>(windowSizeValue));
@@ -168,4 +217,6 @@ void STFTDialog::setRememberedParameters(size_t windowSizeValue,
     m_spnFFTSize->setValue(static_cast<int>(fftSizeValue));
     m_spnSampleFrequency->setValue(sampleFrequencyValue);
     m_cmbWindowType->setCurrentIndex(static_cast<int>(windowTypeValue));
+    m_chkRemoveBaseline->setChecked(removeBaselineValue);
+    m_spnHighPassCutoff->setValue(highPassCutoffFrequencyValue);
 }

@@ -1,115 +1,393 @@
-2026-09-08 23:43:14.066 | pid=2288 tid=0xc890 [operation] | application startup
-2026-09-08 23:43:14.066 | pid=2288 tid=0xc890 [operation] | UI constructor enter
-2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=18446744073709551615
-2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | UI init enter
-2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | UI init menu created
-2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | create main UI enter
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | bind plot manager callbacks enter
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | bind plot manager callbacks leave
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | create main UI leave dockManager=0x2879088a5a0 plotDockManager=0x28794258fd0 dataTree=0x2879416b030 bookmarkTree=0x2879432e820
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | UI init main docks created
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [xAxis] | default X-axis rules loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/xaxis.json"
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [fileIO] | alias load enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/alias.json" exists=0
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [fileIO] | alias load skipped: file unavailable
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | global highlight loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/highlight.json" rules=0
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json" exists=0 size=0
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | manager load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json"
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file parsed; rebuilding tree
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | rebuild tree enter
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | rebuild tree leave rootFolders=0 rootEntries=0 topLevelItems=0
-2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file leave
-2026-09-08 23:43:14.199 | pid=2288 tid=0xc890 [operation] | bind cursor manager callbacks enter
-2026-09-08 23:43:14.199 | pid=2288 tid=0xc890 [operation] | bind cursor manager callbacks leave
-2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[3dview] info: Plugin started: 3dview 1.0.0
-2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: dat_decrypt initialized.
-2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: Plugin started: dat_decrypt 1.0.0
-2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: log_expand initialized.
-2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Plugin started: log_expand 1.1.0
-2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[host] info: Plugin scan completed: discovered=3 started=3
-2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | UI init leave callbacks bound
-2026-09-08 23:43:14.233 | pid=2288 tid=0xc890 [operation] | UI constructor leave pages=0
-2026-09-08 23:43:23.237 | pid=2288 tid=0xc890 [operation] | alias dialog enter aliases=0 columns=0
-2026-09-08 23:43:24.432 | pid=2288 tid=0xc890 [operation] | alias dialog cancelled
-2026-09-08 23:43:37.734 | pid=2288 tid=0xc890 [fileIO] | ZIP catalog read started archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" progressVisible=1
-2026-09-08 23:43:37.734 | pid=2288 tid=0xc890 [fileIO] | ZIP catalog read finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" success=1 entries=253
-2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log parse dispatch archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" hiklogEntries=1 rbtEntries=1 bytes=42853945
-2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log status progress shown visible=1 value=0 range=0..1000
-2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog parse input order=0 entryIndex=5 bytes=42016332
-2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP RBT parse input order=0 entryIndex=1 bytes=837613
-2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=RBT value=0 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888"
-2026-09-08 23:43:41.236 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=117 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.258 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=215 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.274 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=313 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.293 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=411 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.316 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=508 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.334 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=606 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.356 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=704 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.384 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=802 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.403 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=900 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.419 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=1000 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-08 23:43:41.419 | pid=2288 tid=0xc890 [fileIO] | ZIP RBT parse complete source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888" output="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/rbt_log\RBT_2026_05_01_18_46_46_sdk_8888.log" blocks=568 bytes=4281836
-2026-09-08 23:43:41.427 | pid=2288 tid=0xc890 [fileIO] | ZIP log worker finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" cancelRequested=0 parserCancelled=0 shuttingDown=0 hiklog=1 hikSuccess=1 rbtSuccess=1 rbtErrors=0
-2026-09-08 23:43:41.443 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: DAT conversion started for session 1.
-2026-09-08 23:43:41.444 | pid=2288 tid=0xc890 [fileIO] | load finished signal columns=267 rows=53495 skipped=0
-2026-09-08 23:43:41.444 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog progress completion elapsedMs=257 remainingVisibleMs=943 generation=1
-2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [xAxis] | load finished detected X-axis column=0 valid=1 name="time_ts" useIndexDefault=1
-2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=0
-2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog parse complete archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" columns=267 rows=53495 warnings=0
-2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail=""
-2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail="正在准备表达式输入…"
-2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Recomputing 32 expansion item(s): dat_decrypt documents changed
-2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: DAT conversion finished: ready=3 failed=0 session=1.
-2026-09-08 23:43:41.515 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=28 detail="已计算 1/32 项"
-2026-09-08 23:43:41.515 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=56 detail="已计算 2/32 项"
-2026-09-08 23:43:41.519 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=84 detail="已计算 3/32 项"
-2026-09-08 23:43:41.523 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=112 detail="已计算 4/32 项"
-2026-09-08 23:43:41.524 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=140 detail="已计算 5/32 项"
-2026-09-08 23:43:41.527 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=168 detail="已计算 6/32 项"
-2026-09-08 23:43:41.532 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=196 detail="已计算 7/32 项"
-2026-09-08 23:43:41.536 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=225 detail="已计算 8/32 项"
-2026-09-08 23:43:41.538 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=253 detail="已计算 9/32 项"
-2026-09-08 23:43:41.541 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=281 detail="已计算 10/32 项"
-2026-09-08 23:43:41.546 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=309 detail="已计算 11/32 项"
-2026-09-08 23:43:41.548 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=337 detail="已计算 12/32 项"
-2026-09-08 23:43:41.551 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=365 detail="已计算 13/32 项"
-2026-09-08 23:43:41.553 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=393 detail="已计算 14/32 项"
-2026-09-08 23:43:41.559 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=421 detail="已计算 15/32 项"
-2026-09-08 23:43:41.562 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=450 detail="已计算 16/32 项"
-2026-09-08 23:43:41.565 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=478 detail="已计算 17/32 项"
-2026-09-08 23:43:41.567 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=506 detail="已计算 18/32 项"
-2026-09-08 23:43:41.570 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=534 detail="已计算 19/32 项"
-2026-09-08 23:43:41.572 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=562 detail="已计算 20/32 项"
-2026-09-08 23:43:41.574 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=590 detail="已计算 21/32 项"
-2026-09-08 23:43:41.576 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=618 detail="已计算 22/32 项"
-2026-09-08 23:43:41.580 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=646 detail="已计算 23/32 项"
-2026-09-08 23:43:41.582 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=674 detail="已计算 24/32 项"
-2026-09-08 23:43:41.585 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=703 detail="已计算 25/32 项"
-2026-09-08 23:43:41.587 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=731 detail="已计算 26/32 项"
-2026-09-08 23:43:41.590 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=759 detail="已计算 27/32 项"
-2026-09-08 23:43:41.592 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=787 detail="已计算 28/32 项"
-2026-09-08 23:43:41.595 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=815 detail="已计算 29/32 项"
-2026-09-08 23:43:41.600 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=843 detail="已计算 30/32 项"
-2026-09-08 23:43:41.602 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=871 detail="已计算 31/32 项"
-2026-09-08 23:43:41.603 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=900 detail="已计算 32/32 项"
-2026-09-08 23:43:41.603 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=950 detail="正在发布扩充数据并刷新界面…"
-2026-09-08 23:43:41.659 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Published 32 expansion item(s); commit and UI refresh took 55 ms.
-2026-09-08 23:44:14.894 | pid=2288 tid=0xc890 [shutdown] | closeEvent enter
-2026-09-08 23:44:14.894 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup enter persist=1 pageDocks=0 plotDockMgr=28794258fd0 dockMgr=2879088a5a0
-2026-09-08 23:44:14.903 | pid=2288 tid=0xc890 [operation] | style state saved path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/style.json"
-2026-09-08 23:44:14.903 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup saved UI state
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup stopped plugins
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | disconnectViewerCallbacks enter
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | disconnectViewerCallbacks leave
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected viewer callbacks
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | cleanupPlotOverlaysBeforeShutdown enter labels=0 tracers=0 preSel=0 lines=0 axisCursors=0 highlightRects=0 highlightLines=0 highlightLabels=0
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | cleanupPlotOverlaysBeforeShutdown leave
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup finished overlay cleanup
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | removeAllPlotDocksForShutdown enter pageDocks=0 plotDockMgr=28794258fd0
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | removeAllPlotDocksForShutdown leave remaining=0
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup finished plot dock removal
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected m_plotDockManager signals
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected m_dockManager signals
-2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | closeEvent leave
-2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | ~UI enter
-2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup skipped persist=1
-2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | ~UI leave
+2026-09-09 00:19:59.483 | pid=6436 tid=0x53a8 [operation] | application startup
+2026-09-09 00:19:59.483 | pid=6436 tid=0x53a8 [operation] | UI constructor enter
+2026-09-09 00:19:59.911 | pid=6436 tid=0x53a8 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=18446744073709551615
+2026-09-09 00:19:59.911 | pid=6436 tid=0x53a8 [operation] | UI init enter
+2026-09-09 00:19:59.913 | pid=6436 tid=0x53a8 [operation] | UI init menu created
+2026-09-09 00:19:59.913 | pid=6436 tid=0x53a8 [operation] | create main UI enter
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [operation] | bind plot manager callbacks enter
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [operation] | bind plot manager callbacks leave
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [operation] | create main UI leave dockManager=0x2025919b500 plotDockManager=0x2025c944410 dataTree=0x2025c986c90 bookmarkTree=0x2025c4210e0
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [operation] | UI init main docks created
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [xAxis] | default X-axis rules loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/xaxis.json"
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [fileIO] | alias load enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/alias.json" exists=0
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [fileIO] | alias load skipped: file unavailable
+2026-09-09 00:20:00.033 | pid=6436 tid=0x53a8 [operation] | global highlight loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/highlight.json" rules=0
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json" exists=0 size=0
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | manager load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json"
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | load file parsed; rebuilding tree
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | rebuild tree enter
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | rebuild tree leave rootFolders=0 rootEntries=0 topLevelItems=0
+2026-09-09 00:20:00.043 | pid=6436 tid=0x53a8 [bookmark] | load file leave
+2026-09-09 00:20:00.047 | pid=6436 tid=0x53a8 [operation] | bind cursor manager callbacks enter
+2026-09-09 00:20:00.047 | pid=6436 tid=0x53a8 [operation] | bind cursor manager callbacks leave
+2026-09-09 00:20:00.063 | pid=6436 tid=0x53a8 [operation] | plugin[3dview] info: Plugin started: 3dview 1.0.0
+2026-09-09 00:20:00.068 | pid=6436 tid=0x53a8 [operation] | plugin[dat_decrypt] info: dat_decrypt initialized.
+2026-09-09 00:20:00.068 | pid=6436 tid=0x53a8 [operation] | plugin[dat_decrypt] info: Plugin started: dat_decrypt 1.0.0
+2026-09-09 00:20:00.079 | pid=6436 tid=0x53a8 [operation] | plugin[log_expand] info: log_expand initialized.
+2026-09-09 00:20:00.079 | pid=6436 tid=0x53a8 [operation] | plugin[log_expand] info: Plugin started: log_expand 1.1.0
+2026-09-09 00:20:00.079 | pid=6436 tid=0x53a8 [operation] | plugin[host] info: Plugin scan completed: discovered=3 started=3
+2026-09-09 00:20:00.079 | pid=6436 tid=0x53a8 [operation] | UI init leave callbacks bound
+2026-09-09 00:20:00.095 | pid=6436 tid=0x53a8 [operation] | UI constructor leave pages=0
+2026-09-09 00:20:05.403 | pid=6436 tid=0x53a8 [fileIO] | ZIP catalog read started archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" progressVisible=1
+2026-09-09 00:20:05.403 | pid=6436 tid=0x53a8 [fileIO] | ZIP catalog read finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" success=1 entries=253
+2026-09-09 00:20:09.324 | pid=6436 tid=0x53a8 [fileIO] | ZIP log parse dispatch archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" hiklogEntries=1 rbtEntries=0 bytes=42016332
+2026-09-09 00:20:09.324 | pid=6436 tid=0x53a8 [fileIO] | ZIP log status progress shown visible=1 value=0 range=0..1000
+2026-09-09 00:20:09.324 | pid=6436 tid=0x53a8 [fileIO] | ZIP hiklog parse input order=0 entryIndex=5 bytes=42016332
+2026-09-09 00:20:09.324 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=0 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.363 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=124 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.383 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=224 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.395 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=324 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.418 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=424 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.444 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=524 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.463 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=623 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.475 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=723 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.507 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=823 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.527 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=923 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.539 | pid=6436 tid=0x53a8 [fileIO] | ZIP log progress stage=HikLog value=1000 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-09 00:20:09.540 | pid=6436 tid=0x53a8 [fileIO] | ZIP log worker finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" cancelRequested=0 parserCancelled=0 shuttingDown=0 hiklog=1 hikSuccess=1 rbtSuccess=0 rbtErrors=0
+2026-09-09 00:20:09.552 | pid=6436 tid=0x53a8 [operation] | plugin[dat_decrypt] info: DAT conversion started for session 1.
+2026-09-09 00:20:09.552 | pid=6436 tid=0x53a8 [fileIO] | load finished signal columns=267 rows=53495 skipped=0
+2026-09-09 00:20:09.552 | pid=6436 tid=0x53a8 [fileIO] | ZIP hiklog progress completion elapsedMs=226 remainingVisibleMs=974 generation=1
+2026-09-09 00:20:09.610 | pid=6436 tid=0x53a8 [xAxis] | load finished detected X-axis column=0 valid=1 name="time_ts" useIndexDefault=1
+2026-09-09 00:20:09.610 | pid=6436 tid=0x53a8 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=0
+2026-09-09 00:20:09.610 | pid=6436 tid=0x53a8 [fileIO] | ZIP hiklog parse complete archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" columns=267 rows=53495 warnings=0
+2026-09-09 00:20:09.615 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail=""
+2026-09-09 00:20:09.615 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail="正在准备表达式输入…"
+2026-09-09 00:20:09.615 | pid=6436 tid=0x53a8 [operation] | plugin[log_expand] info: Recomputing 32 expansion item(s): dat_decrypt documents changed
+2026-09-09 00:20:09.615 | pid=6436 tid=0x53a8 [operation] | plugin[dat_decrypt] info: DAT conversion finished: ready=3 failed=0 session=1.
+2026-09-09 00:20:09.619 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=28 detail="已计算 1/32 项"
+2026-09-09 00:20:09.622 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=56 detail="已计算 2/32 项"
+2026-09-09 00:20:09.627 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=84 detail="已计算 3/32 项"
+2026-09-09 00:20:09.629 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=112 detail="已计算 4/32 项"
+2026-09-09 00:20:09.632 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=140 detail="已计算 5/32 项"
+2026-09-09 00:20:09.635 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=168 detail="已计算 6/32 项"
+2026-09-09 00:20:09.641 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=196 detail="已计算 7/32 项"
+2026-09-09 00:20:09.644 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=225 detail="已计算 8/32 项"
+2026-09-09 00:20:09.647 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=253 detail="已计算 9/32 项"
+2026-09-09 00:20:09.650 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=281 detail="已计算 10/32 项"
+2026-09-09 00:20:09.656 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=309 detail="已计算 11/32 项"
+2026-09-09 00:20:09.658 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=337 detail="已计算 12/32 项"
+2026-09-09 00:20:09.661 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=365 detail="已计算 13/32 项"
+2026-09-09 00:20:09.664 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=393 detail="已计算 14/32 项"
+2026-09-09 00:20:09.669 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=421 detail="已计算 15/32 项"
+2026-09-09 00:20:09.672 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=450 detail="已计算 16/32 项"
+2026-09-09 00:20:09.674 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=478 detail="已计算 17/32 项"
+2026-09-09 00:20:09.676 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=506 detail="已计算 18/32 项"
+2026-09-09 00:20:09.680 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=534 detail="已计算 19/32 项"
+2026-09-09 00:20:09.682 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=562 detail="已计算 20/32 项"
+2026-09-09 00:20:09.684 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=590 detail="已计算 21/32 项"
+2026-09-09 00:20:09.688 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=618 detail="已计算 22/32 项"
+2026-09-09 00:20:09.691 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=646 detail="已计算 23/32 项"
+2026-09-09 00:20:09.693 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=674 detail="已计算 24/32 项"
+2026-09-09 00:20:09.694 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=703 detail="已计算 25/32 项"
+2026-09-09 00:20:09.696 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=731 detail="已计算 26/32 项"
+2026-09-09 00:20:09.700 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=759 detail="已计算 27/32 项"
+2026-09-09 00:20:09.702 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=787 detail="已计算 28/32 项"
+2026-09-09 00:20:09.705 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=815 detail="已计算 29/32 项"
+2026-09-09 00:20:09.707 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=843 detail="已计算 30/32 项"
+2026-09-09 00:20:09.710 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=871 detail="已计算 31/32 项"
+2026-09-09 00:20:09.712 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=900 detail="已计算 32/32 项"
+2026-09-09 00:20:09.712 | pid=6436 tid=0x53a8 [fileIO] | plugin progress owner=log_expand handle=13 value=950 detail="正在发布扩充数据并刷新界面…"
+2026-09-09 00:20:09.772 | pid=6436 tid=0x53a8 [operation] | plugin[log_expand] info: Published 32 expansion item(s); commit and UI refresh took 59 ms.
+2026-09-09 00:20:18.343 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_0_cur_vel"
+2026-09-09 00:20:18.343 | pid=6436 tid=0x53a8 [operation] | plot data request creating first page
+2026-09-09 00:20:18.343 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=0 requestedTitle="" pagesBefore=0
+2026-09-09 00:20:18.343 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=0
+2026-09-09 00:20:18.343 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=0 pageCount=0 layout=0
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=0 container=0x20260ccda10 plot=0x202602f3600 dock=0x20263814120
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=0 plot=0x202602f3600 preselectionTracer=0x2026c916590
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=0 title="Plot 1" pagesAfter=1
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_0_cur_vel" itemsAfterInsert=1
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_0_cur_vel" pages=1
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_0_cur_vel" total=1
+2026-09-09 00:20:18.597 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_0_cur_vel" edited=0 computed=0x0
+2026-09-09 00:20:18.610 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=0 name="axis_0_cur_vel"
+2026-09-09 00:20:18.610 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_0_cur_vel" graph=0x20260cc3ea0 x=0x2026a98b370 y=0x20260a94c10 comboItems=1
+2026-09-09 00:20:18.610 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_0_cur_vel"
+2026-09-09 00:20:18.610 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_0_cur_vel" added=1
+2026-09-09 00:20:21.763 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_0_cur_pos"
+2026-09-09 00:20:21.763 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_0_cur_pos" itemsAfterInsert=2
+2026-09-09 00:20:21.763 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_0_cur_pos" pages=1
+2026-09-09 00:20:21.763 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_0_cur_pos" total=2
+2026-09-09 00:20:21.763 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_0_cur_pos" edited=0 computed=0x0
+2026-09-09 00:20:21.779 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_0_cur_pos" graph=0x20260cc2280 x=0x2026a98b370 y=0x20260a94a30 comboItems=2
+2026-09-09 00:20:21.779 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_0_cur_pos"
+2026-09-09 00:20:21.779 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_0_cur_pos" added=1
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20263814120 shuttingDown=0 syncing=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=0 dock=20263814120 shuttingDown=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=0 container=20260ccda10 plot=202602f3600
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(0)
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=0 pagesBefore=1 activePage=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=0 cursorCount=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=0 pageCount=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=-1 removedPage=0 pages=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=-1 lastRemoved=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=0 groups=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=0 groups=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=-1 pages=0 docks=0
+2026-09-09 00:20:29.994 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=0 pagesAfter=0 activePage=-1
+2026-09-09 00:20:32.097 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_1_cur_pos"
+2026-09-09 00:20:32.097 | pid=6436 tid=0x53a8 [operation] | plot data request creating first page
+2026-09-09 00:20:32.097 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=0 requestedTitle="" pagesBefore=0
+2026-09-09 00:20:32.097 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=0
+2026-09-09 00:20:32.097 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=0 pageCount=0 layout=0
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=0 container=0x20260932a80 plot=0x202602f3600 dock=0x202605a9fe0
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=0 plot=0x202602f3600 preselectionTracer=0x2026c918c00
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=0 title="Plot 1" pagesAfter=1
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_1_cur_pos" itemsAfterInsert=1
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_1_cur_pos" pages=1
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_1_cur_pos" total=1
+2026-09-09 00:20:32.191 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_1_cur_pos" edited=0 computed=0x0
+2026-09-09 00:20:32.199 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=0 name="axis_1_cur_pos"
+2026-09-09 00:20:32.199 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_1_cur_pos" graph=0x20260cc3180 x=0x2026a98b370 y=0x20260906a90 comboItems=1
+2026-09-09 00:20:32.199 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_1_cur_pos"
+2026-09-09 00:20:32.199 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_1_cur_pos" added=1
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=202605a9fe0 shuttingDown=0 syncing=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=0 dock=202605a9fe0 shuttingDown=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=0 container=20260932a80 plot=202602f3600
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(0)
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=0 pagesBefore=1 activePage=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=0 cursorCount=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=0 pageCount=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=-1 removedPage=0 pages=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=-1 lastRemoved=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=0 groups=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=0 groups=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=-1 pages=0 docks=0
+2026-09-09 00:20:33.904 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=0 pagesAfter=0 activePage=-1
+2026-09-09 00:20:35.335 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_1_cur_torque"
+2026-09-09 00:20:35.335 | pid=6436 tid=0x53a8 [operation] | plot data request creating first page
+2026-09-09 00:20:35.335 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=0 requestedTitle="" pagesBefore=0
+2026-09-09 00:20:35.335 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=0
+2026-09-09 00:20:35.335 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=0 pageCount=0 layout=0
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=0 container=0x202605ed600 plot=0x202602f3cc0 dock=0x202605ab3a0
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=0 plot=0x202602f3cc0 preselectionTracer=0x2026c919740
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=0 title="Plot 1" pagesAfter=1
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_1_cur_torque" itemsAfterInsert=1
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_1_cur_torque" pages=1
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_1_cur_torque" total=1
+2026-09-09 00:20:35.440 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_1_cur_torque" edited=0 computed=0x0
+2026-09-09 00:20:35.448 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=0 name="axis_1_cur_torque"
+2026-09-09 00:20:35.448 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_1_cur_torque" graph=0x20260cc2280 x=0x2026a98b370 y=0x202609069a0 comboItems=1
+2026-09-09 00:20:35.448 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_1_cur_torque"
+2026-09-09 00:20:35.448 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_1_cur_torque" added=1
+2026-09-09 00:20:40.323 | pid=6436 tid=0x53a8 [operation] | FFT selection request enter page=0 pages=1
+2026-09-09 00:20:40.334 | pid=6436 tid=0x53a8 [operation] | FFT selection active page=0 rect=0x2026049af50
+2026-09-09 00:20:42.080 | pid=6436 tid=0x53a8 [operation] | FFT dialog enter page=0 xMin=24029.54615866589 xMax=24494.18708749971 pages=1
+2026-09-09 00:20:46.213 | pid=6436 tid=0x53a8 [operation] | FFT parameters page=0 item="axis_1_cur_torque" samplesInRange=465 fftSize=512 sampleInterval=0.002 linearDetrend=true
+2026-09-09 00:20:46.213 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=1 requestedTitle="FFT: axis_1_cur_torque" pagesBefore=1
+2026-09-09 00:20:46.213 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=1
+2026-09-09 00:20:46.213 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=1 pageCount=1 layout=0
+2026-09-09 00:20:46.254 | pid=6436 tid=0x53a8 [operation] | plot manager active page changed page=1 pages=2
+2026-09-09 00:20:46.254 | pid=6436 tid=0x53a8 [operation] | active page changed page=1 pages=2 dock=0x20270106110
+2026-09-09 00:20:46.255 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=1 container=0x2027012ebc0 plot=0x202701ade50 dock=0x20270106110
+2026-09-09 00:20:46.255 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=1 plot=0x202701ade50 preselectionTracer=0x202609de940
+2026-09-09 00:20:46.255 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=1 title="FFT: axis_1_cur_torque" pagesAfter=2
+2026-09-09 00:20:46.255 | pid=6436 tid=0x53a8 [operation] | FFT output page created sourcePage=0 outputPage=1 container=0x2027012ebc0
+2026-09-09 00:20:46.255 | pid=6436 tid=0x53a8 [operation] | FFT worker start page=0 outputPage=1 fftSize=512 manager=0x202605ed540
+2026-09-09 00:20:46.263 | pid=6436 tid=0x53a8 [operation] | FFT finished signal manager=0x202605ed540 containerValid=1
+2026-09-09 00:20:46.269 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=1 name="FFT Spectrum"
+2026-09-09 00:20:46.285 | pid=6436 tid=0x53a8 [operation] | FFT result installed page=1 points=257 graph=0x20260cc3360
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20270106110 shuttingDown=0 syncing=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=1 dock=20270106110 shuttingDown=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=1 container=2027012ebc0 plot=202701ade50
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(1)
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=1 pagesBefore=2 activePage=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=1 cursorCount=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=1 pageCount=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=0 removedPage=1 pages=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=0 lastRemoved=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=1 groups=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=1 groups=0
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=0 pages=1 docks=1
+2026-09-09 00:20:51.733 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=1 pagesAfter=1 activePage=0
+2026-09-09 00:20:56.688 | pid=6436 tid=0x53a8 [operation] | FFT selection request enter page=0 pages=1
+2026-09-09 00:20:56.696 | pid=6436 tid=0x53a8 [operation] | FFT selection active page=0 rect=0x2026049b150
+2026-09-09 00:20:57.893 | pid=6436 tid=0x53a8 [operation] | FFT dialog enter page=0 xMin=28700.82329578979 xMax=37864.01809655175 pages=1
+2026-09-09 00:21:04.231 | pid=6436 tid=0x53a8 [operation] | FFT parameters page=0 item="axis_1_cur_torque" samplesInRange=9164 fftSize=16384 sampleInterval=0.002 linearDetrend=true
+2026-09-09 00:21:04.231 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=1 requestedTitle="FFT: axis_1_cur_torque" pagesBefore=1
+2026-09-09 00:21:04.231 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=1
+2026-09-09 00:21:04.231 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=1 pageCount=1 layout=0
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | plot manager active page changed page=1 pages=2
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | active page changed page=1 pages=2 dock=0x20270104b90
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=1 container=0x20260a11fd0 plot=0x20260ae03f0 dock=0x20270104b90
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=1 plot=0x20260ae03f0 preselectionTracer=0x2026043bf00
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=1 title="FFT: axis_1_cur_torque" pagesAfter=2
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | FFT output page created sourcePage=0 outputPage=1 container=0x20260a11fd0
+2026-09-09 00:21:04.264 | pid=6436 tid=0x53a8 [operation] | FFT worker start page=0 outputPage=1 fftSize=16384 manager=0x202605d1520
+2026-09-09 00:21:04.285 | pid=6436 tid=0x53a8 [operation] | FFT finished signal manager=0x202605d1520 containerValid=1
+2026-09-09 00:21:04.286 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=1 name="FFT Spectrum"
+2026-09-09 00:21:04.304 | pid=6436 tid=0x53a8 [operation] | FFT result installed page=1 points=8193 graph=0x20260cc3ea0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20270104b90 shuttingDown=0 syncing=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=1 dock=20270104b90 shuttingDown=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=1 container=20260a11fd0 plot=20260ae03f0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(1)
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=1 pagesBefore=2 activePage=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=1 cursorCount=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=1 pageCount=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=0 removedPage=1 pages=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=0 lastRemoved=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=1 groups=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=1 groups=0
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=0 pages=1 docks=1
+2026-09-09 00:21:12.283 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=1 pagesAfter=1 activePage=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=202605ab3a0 shuttingDown=0 syncing=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=0 dock=202605ab3a0 shuttingDown=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=0 container=202605ed600 plot=202602f3cc0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(0)
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=0 pagesBefore=1 activePage=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=0 cursorCount=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=0 pageCount=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=-1 removedPage=0 pages=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=-1 lastRemoved=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=0 groups=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=0 groups=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=-1 pages=0 docks=0
+2026-09-09 00:21:13.474 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=0 pagesAfter=0 activePage=-1
+2026-09-09 00:21:16.283 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_0_cur_torque"
+2026-09-09 00:21:16.283 | pid=6436 tid=0x53a8 [operation] | plot data request creating first page
+2026-09-09 00:21:16.283 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=0 requestedTitle="" pagesBefore=0
+2026-09-09 00:21:16.283 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=0
+2026-09-09 00:21:16.283 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=0 pageCount=0 layout=0
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=0 container=0x20264f05e00 plot=0x202602f3600 dock=0x20270106110
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=0 plot=0x202602f3600 preselectionTracer=0x2026c917b20
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=0 title="Plot 1" pagesAfter=1
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_0_cur_torque" itemsAfterInsert=1
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_0_cur_torque" pages=1
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_0_cur_torque" total=1
+2026-09-09 00:21:16.327 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_0_cur_torque" edited=0 computed=0x0
+2026-09-09 00:21:16.334 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=0 name="axis_0_cur_torque"
+2026-09-09 00:21:16.334 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_0_cur_torque" graph=0x20260cc2460 x=0x2026a98b370 y=0x20260a94e40 comboItems=1
+2026-09-09 00:21:16.334 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_0_cur_torque"
+2026-09-09 00:21:16.334 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_0_cur_torque" added=1
+2026-09-09 00:21:20.313 | pid=6436 tid=0x53a8 [operation] | plot data request enter name="axis_2_cur_torque"
+2026-09-09 00:21:20.313 | pid=6436 tid=0x53a8 [operation] | plot manager add data enter page=0 name="axis_2_cur_torque" itemsAfterInsert=2
+2026-09-09 00:21:20.313 | pid=6436 tid=0x53a8 [operation] | data item added callback enter page=0 name="axis_2_cur_torque" pages=1
+2026-09-09 00:21:20.313 | pid=6436 tid=0x53a8 [expression] | manager create item="axis_2_cur_torque" total=2
+2026-09-09 00:21:20.313 | pid=6436 tid=0x53a8 [expression] | expression created/resolved page=0 item="axis_2_cur_torque" edited=0 computed=0x0
+2026-09-09 00:21:20.329 | pid=6436 tid=0x53a8 [operation] | data item added callback leave page=0 name="axis_2_cur_torque" graph=0x20260cc3180 x=0x2026a98b370 y=0x2025c9ad190 comboItems=2
+2026-09-09 00:21:20.329 | pid=6436 tid=0x53a8 [operation] | plot manager add data leave page=0 name="axis_2_cur_torque"
+2026-09-09 00:21:20.329 | pid=6436 tid=0x53a8 [operation] | plot data request leave page=0 name="axis_2_cur_torque" added=1
+2026-09-09 00:21:28.535 | pid=6436 tid=0x53a8 [operation] | FFT selection request enter page=0 pages=1
+2026-09-09 00:21:28.543 | pid=6436 tid=0x53a8 [operation] | FFT selection active page=0 rect=0x20260499a50
+2026-09-09 00:21:30.929 | pid=6436 tid=0x53a8 [operation] | FFT dialog enter page=0 xMin=26536.27348392748 xMax=26759.16933866938 pages=1
+2026-09-09 00:21:36.147 | pid=6436 tid=0x53a8 [operation] | FFT parameters page=0 item="axis_0_cur_torque" samplesInRange=223 fftSize=512 sampleInterval=0.002 linearDetrend=true
+2026-09-09 00:21:36.147 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=1 requestedTitle="FFT: axis_0_cur_torque" pagesBefore=1
+2026-09-09 00:21:36.147 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=1
+2026-09-09 00:21:36.147 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=1 pageCount=1 layout=0
+2026-09-09 00:21:36.185 | pid=6436 tid=0x53a8 [operation] | plot manager active page changed page=1 pages=2
+2026-09-09 00:21:36.185 | pid=6436 tid=0x53a8 [operation] | active page changed page=1 pages=2 dock=0x20260935a60
+2026-09-09 00:21:36.186 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=1 container=0x20260933620 plot=0x202701b32a0 dock=0x20260935a60
+2026-09-09 00:21:36.186 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=1 plot=0x202701b32a0 preselectionTracer=0x2025ca31080
+2026-09-09 00:21:36.186 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=1 title="FFT: axis_0_cur_torque" pagesAfter=2
+2026-09-09 00:21:36.186 | pid=6436 tid=0x53a8 [operation] | FFT output page created sourcePage=0 outputPage=1 container=0x20260933620
+2026-09-09 00:21:36.186 | pid=6436 tid=0x53a8 [operation] | FFT worker start page=0 outputPage=1 fftSize=512 manager=0x20270240210
+2026-09-09 00:21:36.203 | pid=6436 tid=0x53a8 [operation] | FFT finished signal manager=0x20270240210 containerValid=1
+2026-09-09 00:21:36.206 | pid=6436 tid=0x53a8 [operation] | selected data item callback page=1 name="FFT Spectrum"
+2026-09-09 00:21:36.225 | pid=6436 tid=0x53a8 [operation] | FFT result installed page=1 points=257 graph=0x20260cc2dc0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20260935a60 shuttingDown=0 syncing=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=1 dock=20260935a60 shuttingDown=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=1 container=20260933620 plot=202701b32a0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved calling pm.removePage(1)
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [operation] | plot manager remove page enter index=1 pagesBefore=2 activePage=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove enter index=1 cursorCount=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove enter index=1 pageCount=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageAboutToRemove leave index=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onPageAboutToRemove leave index=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [operation] | page removed callback enter activePage=0 removedPage=1 pages=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [shutdown] | pm.onPageRemoved activeIdx=0 lastRemoved=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups enter removedPage=1 groups=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=0 groupsAfter=0 usedPages=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [xAxis] | reindex link groups leave removedPage=1 groups=0
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [operation] | page removed callback leave activePage=0 pages=1 docks=1
+2026-09-09 00:21:41.813 | pid=6436 tid=0x53a8 [operation] | plot manager remove page leave index=1 pagesAfter=1 activePage=0
+2026-09-09 00:21:46.478 | pid=6436 tid=0x53a8 [operation] | STFT dialog enter page=0 pages=1
+2026-09-09 00:21:53.249 | pid=6436 tid=0x53a8 [operation] | STFT parameters page=0 item="axis_2_cur_torque" samples=53495 window=1024 overlap=512 fftSize=1024 frequency=500 windowType=0 removeBaseline=true highPassCutoff=0.1
+2026-09-09 00:21:53.249 | pid=6436 tid=0x53a8 [operation] | STFT worker start page=0 item="axis_2_cur_torque"
+2026-09-09 00:21:53.256 | pid=6436 tid=0x53a8 [operation] | STFT finished signal sourcePage=0 item="axis_2_cur_torque"
+2026-09-09 00:21:53.256 | pid=6436 tid=0x53a8 [operation] | plot manager add page enter index=1 requestedTitle="STFT: axis_2_cur_torque" pagesBefore=1
+2026-09-09 00:21:53.256 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper enter page=1
+2026-09-09 00:21:53.256 | pid=6436 tid=0x53a8 [operation] | page added callback enter page=1 pageCount=1 layout=0
+2026-09-09 00:21:53.294 | pid=6436 tid=0x53a8 [operation] | page added callback leave page=1 container=0x20264f04de0 plot=0x20264f09a00 dock=0x20260936f20
+2026-09-09 00:21:53.294 | pid=6436 tid=0x53a8 [operation] | cursor page wrapper leave page=1 plot=0x20264f09a00 preselectionTracer=0x2026c916e00
+2026-09-09 00:21:53.294 | pid=6436 tid=0x53a8 [operation] | plot manager add page leave index=1 title="STFT: axis_2_cur_torque" pagesAfter=2
+2026-09-09 00:21:53.294 | pid=6436 tid=0x53a8 [operation] | STFT output page created sourcePage=0 outputPage=1 timeBins=104 freqBins=513
+2026-09-09 00:21:53.294 | pid=6436 tid=0x53a8 [xAxis] | cleanup link groups groupsBefore=1 groupsAfter=1 usedPages=2
+2026-09-09 00:21:53.308 | pid=6436 tid=0x53a8 [operation] | STFT result installed sourcePage=0 outputPage=1 linkGroups=1
+2026-09-09 00:21:59.363 | pid=6436 tid=0x53a8 [operation] | plot manager active page changed page=1 pages=2
+2026-09-09 00:21:59.363 | pid=6436 tid=0x53a8 [operation] | active page changed page=1 pages=2 dock=0x20260936f20
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [operation] | plot manager clear enter pages=2 activePage=1
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onAboutToClear enter cursorCount=0
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [operation] | clear about-to callback enter docks=2
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [operation] | clear about-to callback leave
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | cursor-wrapper onAboutToClear leave
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [operation] | clear callback enter docks=2 expressions=2 combos=2
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | pm.onCleared enter dockWidgets=2 pageDocks=2
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | pm.onCleared removePlotPageDock idx=0 dock=20270106110
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock enter page=0 pageDocks=2
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=0 dock=20270106110 shuttingDown=0
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=0 container=20264f05e00 plot=202602f3600
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=0
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock removeDockWidget page=0 dock=20270106110
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20270106110 shuttingDown=0 syncing=1
+2026-09-09 00:22:22.163 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page not found
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock leave page=0
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | pm.onCleared removePlotPageDock idx=1 dock=20260936f20
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock enter page=1 pageDocks=1
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState enter page=1 dock=20260936f20 shuttingDown=0
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState objects page=1 container=20264f04de0 plot=20264f09a00
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotPageState leave page=1
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock removeDockWidget page=1 dock=20260936f20
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved dw=20260936f20 shuttingDown=0 syncing=1
+2026-09-09 00:22:22.177 | pid=6436 tid=0x53a8 [shutdown] | dockWidgetAboutToBeRemoved page not found
+2026-09-09 00:22:22.179 | pid=6436 tid=0x53a8 [shutdown] | removePlotPageDock leave page=1
+2026-09-09 00:22:22.179 | pid=6436 tid=0x53a8 [shutdown] | pm.onCleared leave
+2026-09-09 00:22:22.179 | pid=6436 tid=0x53a8 [operation] | clear callback leave docks=0
+2026-09-09 00:22:22.179 | pid=6436 tid=0x53a8 [operation] | plot manager clear leave
+2026-09-09 00:22:23.193 | pid=6436 tid=0x53a8 [shutdown] | closeEvent enter
+2026-09-09 00:22:23.193 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup enter persist=1 pageDocks=0 plotDockMgr=2025c944410 dockMgr=2025919b500
+2026-09-09 00:22:23.193 | pid=6436 tid=0x53a8 [operation] | style state saved path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/style.json"
+2026-09-09 00:22:23.193 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup saved UI state
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup stopped plugins
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | disconnectViewerCallbacks enter
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | disconnectViewerCallbacks leave
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup disconnected viewer callbacks
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotOverlaysBeforeShutdown enter labels=0 tracers=0 preSel=0 lines=0 axisCursors=0 highlightRects=0 highlightLines=0 highlightLabels=0
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | cleanupPlotOverlaysBeforeShutdown leave
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup finished overlay cleanup
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | removeAllPlotDocksForShutdown enter pageDocks=0 plotDockMgr=2025c944410
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | removeAllPlotDocksForShutdown leave remaining=0
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup finished plot dock removal
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup disconnected m_plotDockManager signals
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup disconnected m_dockManager signals
+2026-09-09 00:22:23.293 | pid=6436 tid=0x53a8 [shutdown] | closeEvent leave
+2026-09-09 00:22:23.303 | pid=6436 tid=0x53a8 [shutdown] | ~UI enter
+2026-09-09 00:22:23.303 | pid=6436 tid=0x53a8 [shutdown] | beginShutdownCleanup skipped persist=1
+2026-09-09 00:22:23.303 | pid=6436 tid=0x53a8 [shutdown] | ~UI leave

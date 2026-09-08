@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QComboBox>
+#include <QCheckBox>
 #include <QDialog>
 #include <QDoubleSpinBox>
 #include <QLabel>
@@ -28,12 +29,16 @@ public:
     size_t fftSize() const;
     double sampleFrequency() const;
     viewer::STFTWindowType windowType() const;
+    bool removeBaseline() const;
+    double highPassCutoffFrequency() const;
 
     void setRememberedParameters(size_t windowSize,
                                  size_t overlap,
                                  size_t fftSize,
                                  double sampleFrequency,
-                                 viewer::STFTWindowType windowType);
+                                 viewer::STFTWindowType windowType,
+                                 bool removeBaseline,
+                                 double highPassCutoffFrequency);
 
 private:
     QComboBox* m_cmbDataItem = nullptr;
@@ -42,5 +47,7 @@ private:
     QSpinBox* m_spnFFTSize = nullptr;
     QDoubleSpinBox* m_spnSampleFrequency = nullptr;
     QComboBox* m_cmbWindowType = nullptr;
+    QCheckBox* m_chkRemoveBaseline = nullptr;
+    QDoubleSpinBox* m_spnHighPassCutoff = nullptr;
     QLabel* m_lblDataCount = nullptr;
 };

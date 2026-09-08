@@ -291,14 +291,15 @@ if not exist "%PLUGIN_DEST_DIR%\%PLUGIN_ENTRY%" (
     endlocal & exit /b 1
 )
 
-call :deploy_qt_runtime "%PLUGIN_DEST_DIR%\%PLUGIN_ENTRY%"
+rem Viewer 阶段已经部署过 MSVC 运行库；插件阶段只补齐 Qt 依赖，避免重复覆盖 vc_redist.x64.exe。
+call :deploy_qt_runtime "%PLUGIN_DEST_DIR%\%PLUGIN_ENTRY%" --no-compiler-runtime
 if errorlevel 1 endlocal & exit /b 1
 
 echo [部署] 插件 "%PLUGIN_DEPLOY_NAME%"
 endlocal & exit /b 0
 
 :deploy_qt_runtime
-"%WINDEPLOYQT_EXE%" --release --force --dir "%DEPLOY_DIR%" "%~1"
+"%WINDEPLOYQT_EXE%" --release --force %~2 --dir "%DEPLOY_DIR%" "%~1"
 if errorlevel 1 (
     echo [错误] Qt 运行库部署失败，目标文件："%~1"
     exit /b 1

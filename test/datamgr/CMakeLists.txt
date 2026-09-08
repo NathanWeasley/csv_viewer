@@ -29,6 +29,17 @@ target_link_libraries(datamgr_test PRIVATE
     test_base
 )
 
+add_executable(signal_baseline_test
+    test_stft_baseline.cpp
+)
+
+target_include_directories(signal_baseline_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../base
+)
+
+target_compile_options(signal_baseline_test PRIVATE /utf-8)
+target_link_libraries(signal_baseline_test PRIVATE test_base)
+
 add_executable(plugin_data_extension_test
     ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/data_manager.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../code_viewer/datamgr/expression_engine.cpp

@@ -34,20 +34,25 @@ public:
     // ============================================================
     // 启动 FFT 计算
     //
-    // realCol:  输入=信号数据 (viewer::Column*), 输出=幅值
-    // imagCol:  输入=全0 (viewer::Column*), 输出=频率采样点
-    // fftN:     FFT 点数 (必须是2的幂)
-    // sampleInterval: 采样间隔 (秒)
+    // sourceCol/startIndex/sampleCount: 原始信号及所选范围
+    // magnitudeCol/frequencyCol: Manager 写入的幅值与频率结果
+    // fftN: FFT 点数（必须是 2 的幂）
+    // sampleInterval: 采样间隔（秒）
+    // removeBaseline: 是否在补零前执行线性去趋势
     //
     // 回调:
     //   onFinished: 计算完成 (在主线程调用)
     //   onProgress: 进度 0.0~1.0 (在主线程调用)
     // ============================================================
     void startFFT(
-        Column* realCol,
-        Column* imagCol,
+        const Column* sourceCol,
+        size_t startIndex,
+        size_t sampleCount,
+        Column* magnitudeCol,
+        Column* frequencyCol,
         size_t fftN,
         double sampleInterval,
+        bool removeBaseline,
         std::function<void()> onFinished,
         std::function<void(float progress)> onProgress);
 

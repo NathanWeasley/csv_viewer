@@ -1,12 +1,62 @@
 #include "code_viewer/plotmgr/fft/fft_manager.h"
-//#include "code_viewer/datamgr/math/fft_core.h"
 
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
 #include <QMetaObject>
 
+#include <algorithm>
+#include <cmath>
+
 namespace viewer
 {
+
+namespace
+{
+
+// 使用最小二乘直线拟合并原地去除趋势项。仅处理有限值，避免无效点影响拟合参数。
+bool linearDetrendInPlace(double* data, size_t count) noexcept
+{
+    if (!data || count == 0)
+        return false;
+
+    long double sumX = 0.0L;
+    long double sumY = 0.0L;
+    size_t validCount = 0;
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (!std::isfinite(data[i]))
+            continue;
+        sumX += static_cast<long double>(i);
+        sumY += static_cast<long double>(data[i]);
+        ++validCount;
+    }
+    if (validCount == 0)
+        return false;
+
+    const long double meanX = sumX / static_cast<long double>(validCount);
+    const long double meanY = sumY / static_cast<long double>(validCount);
+    long double sumXX = 0.0L;
+    long double sumXY = 0.0L;
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (!std::isfinite(data[i]))
+            continue;
+        const long double centeredX = static_cast<long double>(i) - meanX;
+        sumXX += centeredX * centeredX;
+        sumXY += centeredX * (static_cast<long double>(data[i]) - meanY);
+    }
+
+    const long double slope = sumXX > 0.0L ? sumXY / sumXX : 0.0L;
+    const long double intercept = meanY - slope * meanX;
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (std::isfinite(data[i]))
+            data[i] -= static_cast<double>(intercept + slope * static_cast<long double>(i));
+    }
+    return true;
+}
+
+} // namespace
 
 FFTManager::FFTManager(QObject* parent)
     : QObject(parent)
@@ -34,15 +84,41 @@ void FFTManager::reportProgress(float progress)
 }
 
 void FFTManager::startFFT(
-    Column* realCol,
-    Column* imagCol,
+    const Column* sourceCol,
+    size_t startIndex,
+    size_t sampleCount,
+    Column* magnitudeCol,
+    Column* frequencyCol,
     size_t fftN,
     double sampleInterval,
+    bool removeBaseline,
     std::function<void()> onFinished,
     std::function<void(float progress)> onProgress)
 {
     if (m_running)
         return;
+
+    if (!sourceCol || !magnitudeCol || !frequencyCol || fftN == 0
+        || (fftN & (fftN - 1)) != 0
+        || sampleInterval <= 0.0 || startIndex >= sourceCol->size())
+        return;
+
+    // 数据截取和补零统一由 Manager 完成，UI 只传递用户选择与输出容器。
+    const size_t availableCount = sourceCol->size() - startIndex;
+    const size_t effectiveSampleCount = std::min({ sampleCount, availableCount, fftN });
+    if (effectiveSampleCount == 0)
+        return;
+
+    magnitudeCol->beginOverwrite(fftN);
+    frequencyCol->beginOverwrite(fftN);
+    for (size_t i = 0; i < effectiveSampleCount; ++i)
+        (*magnitudeCol)[i] = (*sourceCol)[startIndex + i];
+    std::fill(magnitudeCol->data() + effectiveSampleCount,
+              magnitudeCol->data() + fftN, 0.0);
+    std::fill(frequencyCol->data(), frequencyCol->data() + fftN, 0.0);
+
+    Column* realCol = magnitudeCol;
+    Column* imagCol = frequencyCol;
 
     m_running = true;
     m_cancelled = false;
@@ -62,13 +138,18 @@ void FFTManager::startFFT(
     // 后台线程通过 QMetaObject::invokeMethod 在主线程报告进度
     QPointer<FFTManager> self(this);
 
-    QFuture<void> future = QtConcurrent::run([realCol, imagCol, fftN, sampleInterval, self]()
+    QFuture<void> future = QtConcurrent::run(
+        [realCol, imagCol, fftN, effectiveSampleCount, sampleInterval, removeBaseline, self]()
     {
         if (!realCol || !imagCol || fftN == 0)
             return;
 
         double* real = realCol->data();
         double* imag = imagCol->data();
+
+        // 仅对真实输入样本拟合直线，补零区不参与去趋势。
+        if (removeBaseline)
+            linearDetrendInPlace(real, effectiveSampleCount);
 
         // ---- 位反转置换 ----
         if (self && !self->m_cancelled)

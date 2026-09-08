@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QDialog>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QSpinBox>
@@ -31,15 +32,18 @@ public:
     double sampleIntervalInputValue() const;
     viewer::TimeUnit sampleIntervalUnit() const;
     size_t fftSize() const;
+    bool removeBaseline() const;
 
     void setRememberedParameters(double sampleIntervalValue,
                                  viewer::TimeUnit sampleUnit,
-                                 size_t fftSize);
+                                 size_t fftSize,
+                                 bool removeBaseline);
 
 private:
     QComboBox* m_cmbDataItem = nullptr;
     QDoubleSpinBox* m_spnSampleInterval = nullptr;
     QComboBox* m_cmbSampleUnit = nullptr;
     QSpinBox* m_spnFFTSize = nullptr;
+    QCheckBox* m_chkRemoveBaseline = nullptr;
     QLabel* m_lblDataCount = nullptr;
 };

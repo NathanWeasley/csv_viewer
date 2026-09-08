@@ -316,6 +316,7 @@ private:
         double sampleIntervalValue = 1.0;
         viewer::TimeUnit sampleUnit = viewer::TimeUnit::Second;
         size_t fftSize = 2;
+        bool removeBaseline = false;
     } m_fftParameterMemory;
 
     struct STFTParameterMemory
@@ -327,6 +328,8 @@ private:
         size_t fftSize = 1024;
         double sampleFrequency = 1.0;
         viewer::STFTWindowType windowType = viewer::STFTWindowType::Hann;
+        bool removeBaseline = false;
+        double highPassCutoffFrequency = 0.1;
     } m_stftParameterMemory;
 
     // Settings state

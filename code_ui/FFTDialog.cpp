@@ -66,6 +66,10 @@ FFTDialog::FFTDialog(const std::vector<std::string>& dataItems,
     m_spnFFTSize->setValue(static_cast<int>(defaultN));
     form->addRow(QString::fromUtf8("FFT 点数:"), m_spnFFTSize);
 
+    m_chkRemoveBaseline = new QCheckBox(QString::fromUtf8("线性去趋势（Linear detrending）"));
+    m_chkRemoveBaseline->setChecked(false);
+    form->addRow(QString::fromUtf8("去基线:"), m_chkRemoveBaseline);
+
     mainLayout->addLayout(form);
     mainLayout->addSpacing(12);
 
@@ -130,12 +134,20 @@ size_t FFTDialog::fftSize() const
     return static_cast<size_t>(m_spnFFTSize->value());
 }
 
+bool FFTDialog::removeBaseline() const
+{
+    return m_chkRemoveBaseline && m_chkRemoveBaseline->isChecked();
+}
+
 void FFTDialog::setRememberedParameters(double sampleIntervalValue,
                                         viewer::TimeUnit sampleUnit,
-                                        size_t fftSizeValue)
+                                        size_t fftSizeValue,
+                                        bool removeBaselineValue)
 {
     m_spnSampleInterval->setValue(sampleIntervalValue);
     if (m_cmbSampleUnit)
         m_cmbSampleUnit->setCurrentIndex(static_cast<int>(sampleUnit));
     m_spnFFTSize->setValue(static_cast<int>(fftSizeValue));
+    if (m_chkRemoveBaseline)
+        m_chkRemoveBaseline->setChecked(removeBaselineValue);
 }

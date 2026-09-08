@@ -1,7 +1,6 @@
 #include "UI.h"
 #include "FFTDialog.h"
 #include "STFTDialog.h"
-#include "code_viewer/datamgr/math/fft_core.h"
 #include "code_viewer/datamgr/math/stft_core.h"
 
 #include <QtConcurrent/QtConcurrent>
@@ -273,7 +272,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         dlg.setRememberedParameters(
             m_fftParameterMemory.sampleIntervalValue,
             m_fftParameterMemory.sampleUnit,
-            m_fftParameterMemory.fftSize);
+            m_fftParameterMemory.fftSize,
+            m_fftParameterMemory.removeBaseline);
     }
     if (dlg.exec() != QDialog::Accepted)
     {
@@ -284,14 +284,17 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     std::string chosenItem = dlg.selectedDataItem();
     double sampleInterval = dlg.sampleInterval();
     size_t fftN = dlg.fftSize();
+    const bool removeBaseline = dlg.removeBaseline();
     m_fftParameterMemory.valid = true;
     m_fftParameterMemory.dataItem = chosenItem;
     m_fftParameterMemory.sampleIntervalValue = dlg.sampleIntervalInputValue();
     m_fftParameterMemory.sampleUnit = dlg.sampleIntervalUnit();
     m_fftParameterMemory.fftSize = fftN;
-    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5")
+    m_fftParameterMemory.removeBaseline = removeBaseline;
+    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5 linearDetrend=%6")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem))
-                      .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16));
+                      .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16)
+                      .arg(removeBaseline ? "true" : "false"));
 
     if (chosenItem != selItem)
     {
@@ -309,16 +312,6 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     // ---- 准备两列数据 ----
     auto realCol = std::make_unique<viewer::Column>(fftN);
     auto imagCol = std::make_unique<viewer::Column>(fftN);
-    realCol->beginOverwrite();
-    imagCol->beginOverwrite();
-
-    size_t copyCount = (dataCount > fftN) ? fftN : dataCount;
-    for (size_t i = 0; i < copyCount; ++i)
-        (*realCol)[i] = (*srcCol)[startIdx + i];
-    for (size_t i = copyCount; i < fftN; ++i)
-        (*realCol)[i] = 0.0;
-    for (size_t i = 0; i < fftN; ++i)
-        (*imagCol)[i] = 0.0;
 
     viewer::Column* realPtr = realCol.get();
     viewer::Column* imagPtr = imagCol.get();
@@ -446,7 +439,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     logOperationTrace(QString("FFT worker start page=%1 outputPage=%2 fftSize=%3 manager=0x%4")
                       .arg(pageIndex).arg(fftPageIdx).arg(fftN)
                       .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16));
-    fftMgr->startFFT(realPtr, imagPtr, fftN, sampleInterval, nullptr, nullptr);
+    fftMgr->startFFT(srcCol, startIdx, dataCount, realPtr, imagPtr, fftN,
+                     sampleInterval, removeBaseline, nullptr, nullptr);
 }
 
 void UI::onSTFTRequested(int pageIndex)
@@ -509,7 +503,9 @@ void UI::showSTFTDialog(int pageIndex)
             m_stftParameterMemory.overlap,
             m_stftParameterMemory.fftSize,
             m_stftParameterMemory.sampleFrequency,
-            m_stftParameterMemory.windowType);
+            m_stftParameterMemory.windowType,
+            m_stftParameterMemory.removeBaseline,
+            m_stftParameterMemory.highPassCutoffFrequency);
     }
     if (dlg.exec() != QDialog::Accepted)
     {
@@ -532,6 +528,8 @@ void UI::showSTFTDialog(int pageIndex)
     const size_t fftSize = dlg.fftSize();
     const double sampleFrequency = dlg.sampleFrequency();
     const viewer::STFTWindowType windowType = dlg.windowType();
+    const bool removeBaseline = dlg.removeBaseline();
+    const double highPassCutoffFrequency = dlg.highPassCutoffFrequency();
     m_stftParameterMemory.valid = true;
     m_stftParameterMemory.dataItem = chosenItem;
     m_stftParameterMemory.windowSize = windowSize;
@@ -539,10 +537,14 @@ void UI::showSTFTDialog(int pageIndex)
     m_stftParameterMemory.fftSize = fftSize;
     m_stftParameterMemory.sampleFrequency = sampleFrequency;
     m_stftParameterMemory.windowType = windowType;
-    logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8")
+    m_stftParameterMemory.removeBaseline = removeBaseline;
+    m_stftParameterMemory.highPassCutoffFrequency = highPassCutoffFrequency;
+    logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8 removeBaseline=%9 highPassCutoff=%10")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem)).arg(srcCol->size())
                       .arg(windowSize).arg(overlap).arg(fftSize)
-                      .arg(sampleFrequency, 0, 'g', 16).arg(static_cast<int>(windowType)));
+                      .arg(sampleFrequency, 0, 'g', 16).arg(static_cast<int>(windowType))
+                      .arg(removeBaseline ? "true" : "false")
+                      .arg(highPassCutoffFrequency, 0, 'g', 16));
     const size_t xIdx = pm.xAxisColumn(pageIndex);
     const bool sourceUsesIndex = pm.usesIndexXAxis(pageIndex);
     const size_t sourceXAxisColumn = pm.selectedXAxisColumn(pageIndex);
@@ -661,8 +663,11 @@ void UI::showSTFTDialog(int pageIndex)
     logOperationTrace(QString("STFT worker start page=%1 item=\"%2\"")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem)));
     watcher->setFuture(QtConcurrent::run(
-        [inputData = std::move(inputData), windowSize, overlap, fftSize, sampleFrequency, windowType]() mutable
+        [inputData = std::move(inputData), windowSize, overlap, fftSize, sampleFrequency,
+         windowType, removeBaseline, highPassCutoffFrequency]() mutable
         {
-            return viewer::stftCompute(inputData, windowSize, overlap, fftSize, sampleFrequency, windowType);
+            return viewer::stftCompute(inputData, windowSize, overlap, fftSize,
+                                       sampleFrequency, windowType, removeBaseline,
+                                       highPassCutoffFrequency);
         }));
 }
