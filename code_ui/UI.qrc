@@ -11,5 +11,7 @@
 		<file alias="SVG/gridview.svg">../data/icons/SVG/gridview.svg</file>
 		<file alias="SVG/rowview.svg">../data/icons/SVG/rowview.svg</file>
 		<file alias="SVG/linkx.svg">../data/icons/SVG/linkx.svg</file>
+        <file alias="SVG/ViewRBT.svg">../data/icons/ViewRBT.svg</file>
+        <file alias="SVG/highlight.svg">../data/icons/highlight.svg</file>
     </qresource>
 </RCC>

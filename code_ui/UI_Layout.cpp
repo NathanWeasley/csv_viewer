@@ -1,4 +1,5 @@
 #include "UI.h"
+#include "code_viewer/stylemgr/theme_icon.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -1285,93 +1286,6 @@ static QString loadIconRaw(IconIdx id)
 	return QString();
 }
 
-/// 三色标记系统：根据 stroke/fill 颜色值分类处理
-///   kColorStroke → 描边反差色（深主题→浅灰, 浅主题→深色）
-///   kColorFill   → 填充相容色（深主题→深底, 浅主题→浅底）
-///   其余颜色     → 保持不变（彩色强调色）
-static QString normalizeSvgColors(const QString& svgText, bool darkMode)
-{
-	// 主题色映射表
-	const QString strokeColor = darkMode ? "#D0D0D0" : "#1A1A1A";  // 反差
-	const QString fillColor   = darkMode ? "#2D2D2D" : "#F0F0F0";  // 相容
-
-	// 归一化 #RGB → #RRGGBB，用于兼容短十六进制比较
-	auto expandHex = [](const QString& hex) -> QString {
-		if (hex.length() == 7) return hex;             // #RRGGBB
-		if (hex.length() == 4 && hex[0] == '#') {      // #RGB → #RRGGBB
-			return QString("#%1%1%2%2%3%3").arg(hex[1]).arg(hex[2]).arg(hex[3]);
-		}
-		return hex;
-	};
-	const QString expandedStroke = expandHex(QLatin1String(kColorStroke));
-	const QString expandedFill   = expandHex(QLatin1String(kColorFill));
-
-	QString result = svgText;
-
-	/// 匹配所有 stroke / fill 颜色值
-	///   支持两种语法：HTML属性 stroke="#000" 和 CSS样式 stroke:#000;
-	QRegularExpression regex(R"((stroke|fill)[\s]*[=:][\s]*\"?(#[0-9a-fA-F]{3,6})\"?[\s;]?)");
-	QRegularExpressionMatchIterator it = regex.globalMatch(result);
-
-	// 收集所有匹配 (位置, 原始长度, 颜色值)，统一从后往前替换
-	struct Match {
-		int pos;
-		int len;
-		QString color;
-	};
-	QList<Match> matches;
-	while (it.hasNext())
-	{
-		QRegularExpressionMatch m = it.next();
-		Match match;
-		match.pos   = m.capturedStart(2);
-		match.len   = m.capturedLength(2);
-		match.color = m.captured(2);
-		matches.append(match);
-	}
-
-	// 按位置从后往前排序，避免替换后位置偏移
-	std::sort(matches.begin(), matches.end(), [](const Match& a, const Match& b) {
-		return a.pos > b.pos;  // 降序
-	});
-
-	for (const Match& m : matches)
-	{
-		QString hexExpanded = expandHex(m.color);
-		QString replacement;
-		if (hexExpanded.compare(expandedStroke, Qt::CaseInsensitive) == 0)
-			replacement = strokeColor;
-		else if (hexExpanded.compare(expandedFill, Qt::CaseInsensitive) == 0)
-			replacement = fillColor;
-		else
-			continue;  // 彩色或其他颜色，保持不变
-
-		result.replace(m.pos, m.len, replacement);
-	}
-
-	return result;
-}
-
-/// 将 SVG 文本渲染为 DPI 感知的 QPixmap → QIcon
-static QIcon renderSvgToIcon(const QString& svgText, int logicalSize = 24)
-{
-	QByteArray svgBytes = svgText.toUtf8();
-
-	qreal dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
-	int physicalSize = qRound(logicalSize * dpr);
-
-	QPixmap pixmap(physicalSize, physicalSize);
-	pixmap.fill(Qt::transparent);
-
-	QSvgRenderer renderer(svgBytes);
-	QPainter painter(&pixmap);
-	renderer.render(&painter);
-	painter.end();
-
-	pixmap.setDevicePixelRatio(dpr);
-	return QIcon(pixmap);
-}
-
 /// 统一入口：根据 IconIdx 加载图标（自动查表 → 颜色标准化 → DPI 渲染）
 static QIcon createIcon(IconIdx id, int logicalSize = 36)
 {
@@ -1393,9 +1307,8 @@ static QIcon createIcon(IconIdx id, int logicalSize = 36)
 	if (svgText.isEmpty())
 		return QIcon();
 
-	bool dark = isSystemInDark();
-	QString normalized = normalizeSvgColors(svgText, dark);
-	return renderSvgToIcon(normalized, logicalSize);
+	return viewer::theme::createSvgIcon(
+		svgText, isSystemInDark(), logicalSize);
 }
 
 // ============================================================

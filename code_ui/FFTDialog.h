@@ -28,7 +28,13 @@ public:
     std::string selectedDataItem() const;
     // 返回转换后的采样间隔（单位：秒）
     double sampleInterval() const;
+    double sampleIntervalInputValue() const;
+    viewer::TimeUnit sampleIntervalUnit() const;
     size_t fftSize() const;
+
+    void setRememberedParameters(double sampleIntervalValue,
+                                 viewer::TimeUnit sampleUnit,
+                                 size_t fftSize);
 
 private:
     QComboBox* m_cmbDataItem = nullptr;

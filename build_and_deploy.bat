@@ -145,7 +145,7 @@ exit /b 0
 
 :build_solution
 echo [构建] "%~1"
-"%MSBUILD_EXE%" "%~1" /m /nologo /t:Build /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=%BUILD_PLATFORM% /p:PostBuildEventUseInBuild=false /verbosity:minimal
+"%MSBUILD_EXE%" "%~1" /m:1 /nologo /t:Build /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=%BUILD_PLATFORM% /p:PostBuildEventUseInBuild=false /verbosity:minimal
 if errorlevel 1 (
     echo [错误] 构建失败："%~1"
     exit /b 1

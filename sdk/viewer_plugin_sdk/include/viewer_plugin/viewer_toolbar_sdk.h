@@ -9,7 +9,7 @@ namespace viewer::plugin
 
 inline constexpr const char* kPluginToolbarProviderId = "viewer.core";
 inline constexpr const char* kPluginToolbarServiceId = "plugin-toolbar";
-inline constexpr int kPluginToolbarServiceVersion = 1;
+inline constexpr int kPluginToolbarServiceVersion = 2;
 
 using PluginToolbarButtonHandle = quint64;
 
@@ -51,6 +51,15 @@ public:
         PluginToolbarButtonHandle button,
         const PluginToolbarButtonSpec& spec) = 0;
     virtual void removeButton(PluginToolbarButtonHandle button) = 0;
+
+    // 由 Viewer 读取并转换 SVG，插件只提供资源路径。该方法追加在 v1
+    // 虚函数之后，以保持旧插件调用已有方法时的二进制兼容性。
+    virtual PluginToolbarButtonHandle addMenuItemSvgButton(
+        const QString& ownerPluginId,
+        PluginMenuHandle menu,
+        const QString& itemId,
+        const QString& svgResourcePath,
+        const PluginToolbarButtonSpec& spec) = 0;
 };
 
 } // namespace viewer::plugin

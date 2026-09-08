@@ -1,113 +1,115 @@
-2026-09-02 20:48:12.005 | pid=44148 tid=0x7f3c [operation] | application startup
-2026-09-02 20:48:12.005 | pid=44148 tid=0x7f3c [operation] | UI constructor enter
-2026-09-02 20:48:12.029 | pid=44148 tid=0x7f3c [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=18446744073709551615
-2026-09-02 20:48:12.029 | pid=44148 tid=0x7f3c [operation] | UI init enter
-2026-09-02 20:48:12.031 | pid=44148 tid=0x7f3c [operation] | UI init menu created
-2026-09-02 20:48:12.031 | pid=44148 tid=0x7f3c [operation] | create main UI enter
-2026-09-02 20:48:12.190 | pid=44148 tid=0x7f3c [operation] | bind plot manager callbacks enter
-2026-09-02 20:48:12.190 | pid=44148 tid=0x7f3c [operation] | bind plot manager callbacks leave
-2026-09-02 20:48:12.190 | pid=44148 tid=0x7f3c [operation] | create main UI leave dockManager=0x288da97fd30 plotDockManager=0x288de194570 dataTree=0x288de1c91b0 bookmarkTree=0x288de0da480
-2026-09-02 20:48:12.190 | pid=44148 tid=0x7f3c [operation] | UI init main docks created
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [xAxis] | default X-axis rules loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/xaxis.json"
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [fileIO] | alias load enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/alias.json" exists=0
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [fileIO] | alias load skipped: file unavailable
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [operation] | global highlight loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/highlight.json" rules=0
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json" exists=0 size=0
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | manager load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json"
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | load file parsed; rebuilding tree
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | rebuild tree enter
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | rebuild tree leave rootFolders=0 rootEntries=0 topLevelItems=0
-2026-09-02 20:48:12.194 | pid=44148 tid=0x7f3c [bookmark] | load file leave
-2026-09-02 20:48:12.584 | pid=44148 tid=0x7f3c [operation] | bind cursor manager callbacks enter
-2026-09-02 20:48:12.584 | pid=44148 tid=0x7f3c [operation] | bind cursor manager callbacks leave
-2026-09-02 20:48:12.625 | pid=44148 tid=0x7f3c [operation] | plugin[3dview] info: Plugin started: 3dview 1.0.0
-2026-09-02 20:48:12.640 | pid=44148 tid=0x7f3c [operation] | plugin[dat_decrypt] info: dat_decrypt initialized.
-2026-09-02 20:48:12.640 | pid=44148 tid=0x7f3c [operation] | plugin[dat_decrypt] info: Plugin started: dat_decrypt 1.0.0
-2026-09-02 20:48:12.659 | pid=44148 tid=0x7f3c [operation] | plugin[log_expand] info: log_expand initialized.
-2026-09-02 20:48:12.659 | pid=44148 tid=0x7f3c [operation] | plugin[log_expand] info: Plugin started: log_expand 1.1.0
-2026-09-02 20:48:12.659 | pid=44148 tid=0x7f3c [operation] | plugin[host] info: Plugin scan completed: discovered=3 started=3
-2026-09-02 20:48:12.659 | pid=44148 tid=0x7f3c [operation] | UI init leave callbacks bound
-2026-09-02 20:48:12.669 | pid=44148 tid=0x7f3c [operation] | UI constructor leave pages=0
-2026-09-02 20:49:46.939 | pid=44148 tid=0x7f3c [fileIO] | ZIP catalog read started archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" progressVisible=1
-2026-09-02 20:49:46.939 | pid=44148 tid=0x7f3c [fileIO] | ZIP catalog read finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" success=1 entries=253
-2026-09-02 20:49:51.760 | pid=44148 tid=0x7f3c [fileIO] | ZIP log parse dispatch archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" hiklogEntries=1 rbtEntries=1 bytes=42853945
-2026-09-02 20:49:51.760 | pid=44148 tid=0x7f3c [fileIO] | ZIP log status progress shown visible=1 value=0 range=0..1000
-2026-09-02 20:49:51.760 | pid=44148 tid=0x7f3c [fileIO] | ZIP hiklog parse input order=0 entryIndex=5 bytes=42016332
-2026-09-02 20:49:51.760 | pid=44148 tid=0x7f3c [fileIO] | ZIP RBT parse input order=0 entryIndex=1 bytes=837613
-2026-09-02 20:49:51.762 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=RBT value=0 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888"
-2026-09-02 20:49:51.813 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=117 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.832 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=215 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.851 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=313 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.868 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=411 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.891 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=508 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.909 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=606 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.926 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=704 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.951 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=802 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.970 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=900 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.987 | pid=44148 tid=0x7f3c [fileIO] | ZIP log progress stage=HikLog value=1000 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
-2026-09-02 20:49:51.987 | pid=44148 tid=0x7f3c [fileIO] | ZIP RBT parse complete source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888" output="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/rbt_log\RBT_2026_05_01_18_46_46_sdk_8888.log" blocks=568 bytes=4281836
-2026-09-02 20:49:52.003 | pid=44148 tid=0x7f3c [fileIO] | ZIP log worker finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" cancelRequested=0 parserCancelled=0 shuttingDown=0 hiklog=1 hikSuccess=1 rbtSuccess=1 rbtErrors=0
-2026-09-02 20:49:52.036 | pid=44148 tid=0x7f3c [operation] | plugin[dat_decrypt] info: DAT conversion started for session 1.
-2026-09-02 20:49:52.037 | pid=44148 tid=0x7f3c [fileIO] | load finished signal columns=267 rows=53495 skipped=0
-2026-09-02 20:49:52.037 | pid=44148 tid=0x7f3c [fileIO] | ZIP hiklog progress completion elapsedMs=278 remainingVisibleMs=922 generation=1
-2026-09-02 20:49:52.090 | pid=44148 tid=0x7f3c [xAxis] | load finished detected X-axis column=0 valid=1 name="time_ts" useIndexDefault=1
-2026-09-02 20:49:52.090 | pid=44148 tid=0x7f3c [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=0
-2026-09-02 20:49:52.091 | pid=44148 tid=0x7f3c [fileIO] | ZIP hiklog parse complete archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" columns=267 rows=53495 warnings=0
-2026-09-02 20:49:52.110 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail=""
-2026-09-02 20:49:52.110 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail="正在准备表达式输入…"
-2026-09-02 20:49:52.110 | pid=44148 tid=0x7f3c [operation] | plugin[log_expand] info: Recomputing 32 expansion item(s): dat_decrypt documents changed
-2026-09-02 20:49:52.111 | pid=44148 tid=0x7f3c [operation] | plugin[dat_decrypt] info: DAT conversion finished: ready=3 failed=0 session=1.
-2026-09-02 20:49:52.121 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=28 detail="已计算 1/32 项"
-2026-09-02 20:49:52.122 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=56 detail="已计算 2/32 项"
-2026-09-02 20:49:52.125 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=84 detail="已计算 3/32 项"
-2026-09-02 20:49:52.127 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=112 detail="已计算 4/32 项"
-2026-09-02 20:49:52.129 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=140 detail="已计算 5/32 项"
-2026-09-02 20:49:52.133 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=168 detail="已计算 6/32 项"
-2026-09-02 20:49:52.139 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=196 detail="已计算 7/32 项"
-2026-09-02 20:49:52.142 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=225 detail="已计算 8/32 项"
-2026-09-02 20:49:52.145 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=253 detail="已计算 9/32 项"
-2026-09-02 20:49:52.148 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=281 detail="已计算 10/32 项"
-2026-09-02 20:49:52.153 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=309 detail="已计算 11/32 项"
-2026-09-02 20:49:52.156 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=337 detail="已计算 12/32 项"
-2026-09-02 20:49:52.160 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=365 detail="已计算 13/32 项"
-2026-09-02 20:49:52.162 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=393 detail="已计算 14/32 项"
-2026-09-02 20:49:52.168 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=421 detail="已计算 15/32 项"
-2026-09-02 20:49:52.171 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=450 detail="已计算 16/32 项"
-2026-09-02 20:49:52.173 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=478 detail="已计算 17/32 项"
-2026-09-02 20:49:52.175 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=506 detail="已计算 18/32 项"
-2026-09-02 20:49:52.180 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=534 detail="已计算 19/32 项"
-2026-09-02 20:49:52.181 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=562 detail="已计算 20/32 项"
-2026-09-02 20:49:52.183 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=590 detail="已计算 21/32 项"
-2026-09-02 20:49:52.186 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=618 detail="已计算 22/32 项"
-2026-09-02 20:49:52.189 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=646 detail="已计算 23/32 项"
-2026-09-02 20:49:52.191 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=674 detail="已计算 24/32 项"
-2026-09-02 20:49:52.194 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=703 detail="已计算 25/32 项"
-2026-09-02 20:49:52.196 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=731 detail="已计算 26/32 项"
-2026-09-02 20:49:52.200 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=759 detail="已计算 27/32 项"
-2026-09-02 20:49:52.202 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=787 detail="已计算 28/32 项"
-2026-09-02 20:49:52.204 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=815 detail="已计算 29/32 项"
-2026-09-02 20:49:52.206 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=843 detail="已计算 30/32 项"
-2026-09-02 20:49:52.210 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=871 detail="已计算 31/32 项"
-2026-09-02 20:49:52.213 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=900 detail="已计算 32/32 项"
-2026-09-02 20:49:52.213 | pid=44148 tid=0x7f3c [fileIO] | plugin progress owner=log_expand handle=13 value=950 detail="正在发布扩充数据并刷新界面…"
-2026-09-02 20:49:52.263 | pid=44148 tid=0x7f3c [operation] | plugin[log_expand] info: Published 32 expansion item(s); commit and UI refresh took 50 ms.
-2026-09-02 22:05:04.371 | pid=44148 tid=0x7f3c [shutdown] | closeEvent enter
-2026-09-02 22:05:04.371 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup enter persist=1 pageDocks=0 plotDockMgr=288de194570 dockMgr=288da97fd30
-2026-09-02 22:05:04.371 | pid=44148 tid=0x7f3c [operation] | style state saved path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/style.json"
-2026-09-02 22:05:04.371 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup saved UI state
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup stopped plugins
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | disconnectViewerCallbacks enter
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | disconnectViewerCallbacks leave
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup disconnected viewer callbacks
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | cleanupPlotOverlaysBeforeShutdown enter labels=0 tracers=0 preSel=0 lines=0 axisCursors=0 highlightRects=0 highlightLines=0 highlightLabels=0
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | cleanupPlotOverlaysBeforeShutdown leave
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup finished overlay cleanup
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | removeAllPlotDocksForShutdown enter pageDocks=0 plotDockMgr=288de194570
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | removeAllPlotDocksForShutdown leave remaining=0
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup finished plot dock removal
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup disconnected m_plotDockManager signals
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup disconnected m_dockManager signals
-2026-09-02 22:05:04.721 | pid=44148 tid=0x7f3c [shutdown] | closeEvent leave
-2026-09-02 22:05:04.740 | pid=44148 tid=0x7f3c [shutdown] | ~UI enter
-2026-09-02 22:05:04.740 | pid=44148 tid=0x7f3c [shutdown] | beginShutdownCleanup skipped persist=1
-2026-09-02 22:05:04.740 | pid=44148 tid=0x7f3c [shutdown] | ~UI leave
+2026-09-08 23:43:14.066 | pid=2288 tid=0xc890 [operation] | application startup
+2026-09-08 23:43:14.066 | pid=2288 tid=0xc890 [operation] | UI constructor enter
+2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=18446744073709551615
+2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | UI init enter
+2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | UI init menu created
+2026-09-08 23:43:14.078 | pid=2288 tid=0xc890 [operation] | create main UI enter
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | bind plot manager callbacks enter
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | bind plot manager callbacks leave
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | create main UI leave dockManager=0x2879088a5a0 plotDockManager=0x28794258fd0 dataTree=0x2879416b030 bookmarkTree=0x2879432e820
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | UI init main docks created
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [xAxis] | default X-axis rules loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/xaxis.json"
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [fileIO] | alias load enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/alias.json" exists=0
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [fileIO] | alias load skipped: file unavailable
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [operation] | global highlight loaded path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/highlight.json" rules=0
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json" exists=0 size=0
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | manager load file enter path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/bookmarks.json"
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file parsed; rebuilding tree
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | rebuild tree enter
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | rebuild tree leave rootFolders=0 rootEntries=0 topLevelItems=0
+2026-09-08 23:43:14.194 | pid=2288 tid=0xc890 [bookmark] | load file leave
+2026-09-08 23:43:14.199 | pid=2288 tid=0xc890 [operation] | bind cursor manager callbacks enter
+2026-09-08 23:43:14.199 | pid=2288 tid=0xc890 [operation] | bind cursor manager callbacks leave
+2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[3dview] info: Plugin started: 3dview 1.0.0
+2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: dat_decrypt initialized.
+2026-09-08 23:43:14.214 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: Plugin started: dat_decrypt 1.0.0
+2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: log_expand initialized.
+2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Plugin started: log_expand 1.1.0
+2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | plugin[host] info: Plugin scan completed: discovered=3 started=3
+2026-09-08 23:43:14.224 | pid=2288 tid=0xc890 [operation] | UI init leave callbacks bound
+2026-09-08 23:43:14.233 | pid=2288 tid=0xc890 [operation] | UI constructor leave pages=0
+2026-09-08 23:43:23.237 | pid=2288 tid=0xc890 [operation] | alias dialog enter aliases=0 columns=0
+2026-09-08 23:43:24.432 | pid=2288 tid=0xc890 [operation] | alias dialog cancelled
+2026-09-08 23:43:37.734 | pid=2288 tid=0xc890 [fileIO] | ZIP catalog read started archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" progressVisible=1
+2026-09-08 23:43:37.734 | pid=2288 tid=0xc890 [fileIO] | ZIP catalog read finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" success=1 entries=253
+2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log parse dispatch archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" hiklogEntries=1 rbtEntries=1 bytes=42853945
+2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log status progress shown visible=1 value=0 range=0..1000
+2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog parse input order=0 entryIndex=5 bytes=42016332
+2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP RBT parse input order=0 entryIndex=1 bytes=837613
+2026-09-08 23:43:41.190 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=RBT value=0 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888"
+2026-09-08 23:43:41.236 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=117 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.258 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=215 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.274 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=313 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.293 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=411 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.316 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=508 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.334 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=606 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.356 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=704 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.384 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=802 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.403 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=900 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.419 | pid=2288 tid=0xc890 [fileIO] | ZIP log progress stage=HikLog value=1000 source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::rcd_servo_20260502_164006~20260502_164901.hiklog"
+2026-09-08 23:43:41.419 | pid=2288 tid=0xc890 [fileIO] | ZIP RBT parse complete source="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip::RBT_2026_05_01_18_46_46_sdk_8888" output="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/rbt_log\RBT_2026_05_01_18_46_46_sdk_8888.log" blocks=568 bytes=4281836
+2026-09-08 23:43:41.427 | pid=2288 tid=0xc890 [fileIO] | ZIP log worker finished archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" cancelRequested=0 parserCancelled=0 shuttingDown=0 hiklog=1 hikSuccess=1 rbtSuccess=1 rbtErrors=0
+2026-09-08 23:43:41.443 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: DAT conversion started for session 1.
+2026-09-08 23:43:41.444 | pid=2288 tid=0xc890 [fileIO] | load finished signal columns=267 rows=53495 skipped=0
+2026-09-08 23:43:41.444 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog progress completion elapsedMs=257 remainingVisibleMs=943 generation=1
+2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [xAxis] | load finished detected X-axis column=0 valid=1 name="time_ts" useIndexDefault=1
+2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [xAxis] | plot manager new-page X-axis defaults useIndex=1 column=0
+2026-09-08 23:43:41.496 | pid=2288 tid=0xc890 [fileIO] | ZIP hiklog parse complete archive="E:/Projects/weekendbuild/_App/csv_viewer/data/Dev_Log_20260502_185203.zip" columns=267 rows=53495 warnings=0
+2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail=""
+2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=0 detail="正在准备表达式输入…"
+2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Recomputing 32 expansion item(s): dat_decrypt documents changed
+2026-09-08 23:43:41.507 | pid=2288 tid=0xc890 [operation] | plugin[dat_decrypt] info: DAT conversion finished: ready=3 failed=0 session=1.
+2026-09-08 23:43:41.515 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=28 detail="已计算 1/32 项"
+2026-09-08 23:43:41.515 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=56 detail="已计算 2/32 项"
+2026-09-08 23:43:41.519 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=84 detail="已计算 3/32 项"
+2026-09-08 23:43:41.523 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=112 detail="已计算 4/32 项"
+2026-09-08 23:43:41.524 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=140 detail="已计算 5/32 项"
+2026-09-08 23:43:41.527 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=168 detail="已计算 6/32 项"
+2026-09-08 23:43:41.532 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=196 detail="已计算 7/32 项"
+2026-09-08 23:43:41.536 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=225 detail="已计算 8/32 项"
+2026-09-08 23:43:41.538 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=253 detail="已计算 9/32 项"
+2026-09-08 23:43:41.541 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=281 detail="已计算 10/32 项"
+2026-09-08 23:43:41.546 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=309 detail="已计算 11/32 项"
+2026-09-08 23:43:41.548 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=337 detail="已计算 12/32 项"
+2026-09-08 23:43:41.551 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=365 detail="已计算 13/32 项"
+2026-09-08 23:43:41.553 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=393 detail="已计算 14/32 项"
+2026-09-08 23:43:41.559 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=421 detail="已计算 15/32 项"
+2026-09-08 23:43:41.562 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=450 detail="已计算 16/32 项"
+2026-09-08 23:43:41.565 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=478 detail="已计算 17/32 项"
+2026-09-08 23:43:41.567 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=506 detail="已计算 18/32 项"
+2026-09-08 23:43:41.570 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=534 detail="已计算 19/32 项"
+2026-09-08 23:43:41.572 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=562 detail="已计算 20/32 项"
+2026-09-08 23:43:41.574 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=590 detail="已计算 21/32 项"
+2026-09-08 23:43:41.576 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=618 detail="已计算 22/32 项"
+2026-09-08 23:43:41.580 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=646 detail="已计算 23/32 项"
+2026-09-08 23:43:41.582 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=674 detail="已计算 24/32 项"
+2026-09-08 23:43:41.585 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=703 detail="已计算 25/32 项"
+2026-09-08 23:43:41.587 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=731 detail="已计算 26/32 项"
+2026-09-08 23:43:41.590 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=759 detail="已计算 27/32 项"
+2026-09-08 23:43:41.592 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=787 detail="已计算 28/32 项"
+2026-09-08 23:43:41.595 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=815 detail="已计算 29/32 项"
+2026-09-08 23:43:41.600 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=843 detail="已计算 30/32 项"
+2026-09-08 23:43:41.602 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=871 detail="已计算 31/32 项"
+2026-09-08 23:43:41.603 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=900 detail="已计算 32/32 项"
+2026-09-08 23:43:41.603 | pid=2288 tid=0xc890 [fileIO] | plugin progress owner=log_expand handle=13 value=950 detail="正在发布扩充数据并刷新界面…"
+2026-09-08 23:43:41.659 | pid=2288 tid=0xc890 [operation] | plugin[log_expand] info: Published 32 expansion item(s); commit and UI refresh took 55 ms.
+2026-09-08 23:44:14.894 | pid=2288 tid=0xc890 [shutdown] | closeEvent enter
+2026-09-08 23:44:14.894 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup enter persist=1 pageDocks=0 plotDockMgr=28794258fd0 dockMgr=2879088a5a0
+2026-09-08 23:44:14.903 | pid=2288 tid=0xc890 [operation] | style state saved path="E:/Projects/weekendbuild/_App/csv_viewer/deploy/user/style.json"
+2026-09-08 23:44:14.903 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup saved UI state
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup stopped plugins
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | disconnectViewerCallbacks enter
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | disconnectViewerCallbacks leave
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected viewer callbacks
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | cleanupPlotOverlaysBeforeShutdown enter labels=0 tracers=0 preSel=0 lines=0 axisCursors=0 highlightRects=0 highlightLines=0 highlightLabels=0
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | cleanupPlotOverlaysBeforeShutdown leave
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup finished overlay cleanup
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | removeAllPlotDocksForShutdown enter pageDocks=0 plotDockMgr=28794258fd0
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | removeAllPlotDocksForShutdown leave remaining=0
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup finished plot dock removal
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected m_plotDockManager signals
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup disconnected m_dockManager signals
+2026-09-08 23:44:15.314 | pid=2288 tid=0xc890 [shutdown] | closeEvent leave
+2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | ~UI enter
+2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | beginShutdownCleanup skipped persist=1
+2026-09-08 23:44:15.346 | pid=2288 tid=0xc890 [shutdown] | ~UI leave

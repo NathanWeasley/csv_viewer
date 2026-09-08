@@ -113,7 +113,29 @@ double FFTDialog::sampleInterval() const
     return rawValue;
 }
 
+double FFTDialog::sampleIntervalInputValue() const
+{
+    return m_spnSampleInterval->value();
+}
+
+viewer::TimeUnit FFTDialog::sampleIntervalUnit() const
+{
+    return m_cmbSampleUnit
+        ? static_cast<viewer::TimeUnit>(m_cmbSampleUnit->currentIndex())
+        : viewer::TimeUnit::Second;
+}
+
 size_t FFTDialog::fftSize() const
 {
     return static_cast<size_t>(m_spnFFTSize->value());
+}
+
+void FFTDialog::setRememberedParameters(double sampleIntervalValue,
+                                        viewer::TimeUnit sampleUnit,
+                                        size_t fftSizeValue)
+{
+    m_spnSampleInterval->setValue(sampleIntervalValue);
+    if (m_cmbSampleUnit)
+        m_cmbSampleUnit->setCurrentIndex(static_cast<int>(sampleUnit));
+    m_spnFFTSize->setValue(static_cast<int>(fftSizeValue));
 }

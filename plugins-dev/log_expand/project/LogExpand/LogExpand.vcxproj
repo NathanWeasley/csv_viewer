@@ -33,6 +33,14 @@
     <None Include="..\..\data\log_expand_mapping.json" />
     <None Include="..\..\plugin.json" />
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\code\config\log_expand.qrc">
+      <FileType>Document</FileType>
+      <Command>&quot;$(QtToolsPath)\rcc.exe&quot; --name log_expand -o &quot;$(IntDir)qrc_log_expand.cpp&quot; &quot;%(FullPath)&quot;</Command>
+      <Outputs>$(IntDir)qrc_log_expand.cpp</Outputs>
+      <AdditionalInputs>$(MSBuildProjectDirectory)\..\..\..\..\data\icons\ViewExpr.svg;$(MSBuildProjectDirectory)\..\..\..\..\data\icons\CCEXP.svg;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{8A4C3386-C6B0-4E54-AF5B-9301E1086B5A}</ProjectGuid>
     <Keyword>QtVS_v304</Keyword>

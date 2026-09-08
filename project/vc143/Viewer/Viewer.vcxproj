@@ -31,6 +31,7 @@
     <ClCompile Include="..\..\..\code_viewer\plotmgr\plot_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\plotmgr\cursor\cursor_manager.cpp" />
     <ClCompile Include="..\..\..\code_viewer\stylemgr\style_manager.cpp" />
+    <ClCompile Include="..\..\..\code_viewer\stylemgr\theme_icon.cpp" />
     <ClCompile Include="..\..\..\code_viewer\viewer\viewer_cb.cpp" />
     <ClCompile Include="..\..\..\code_viewer\viewer\viewer_lib.cpp" />
   </ItemGroup>
@@ -64,6 +65,7 @@
     <ClInclude Include="..\..\..\code_viewer\plotmgr\graph\opengl\column_graph_gl_painter.h" />
     <ClInclude Include="..\..\..\code_viewer\stylemgr\style_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\stylemgr\style_struct.h" />
+    <ClInclude Include="..\..\..\code_viewer\stylemgr\theme_icon.h" />
     <QtMoc Include="..\..\..\code_viewer\plotmgr\graph\qcp_column_graph.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\highlight\highlight_manager.h" />
     <ClInclude Include="..\..\..\code_viewer\plotmgr\plot_manager.h" />

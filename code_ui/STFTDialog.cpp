@@ -155,3 +155,17 @@ viewer::STFTWindowType STFTDialog::windowType() const
 {
     return static_cast<viewer::STFTWindowType>(m_cmbWindowType->currentIndex());
 }
+
+void STFTDialog::setRememberedParameters(size_t windowSizeValue,
+                                         size_t overlapValue,
+                                         size_t fftSizeValue,
+                                         double sampleFrequencyValue,
+                                         viewer::STFTWindowType windowTypeValue)
+{
+    // 先恢复窗长以同步重叠点数的有效上限，再恢复其余参数。
+    m_spnWindowSize->setValue(static_cast<int>(windowSizeValue));
+    m_spnOverlap->setValue(static_cast<int>(overlapValue));
+    m_spnFFTSize->setValue(static_cast<int>(fftSizeValue));
+    m_spnSampleFrequency->setValue(sampleFrequencyValue);
+    m_cmbWindowType->setCurrentIndex(static_cast<int>(windowTypeValue));
+}

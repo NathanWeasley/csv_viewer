@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/plugins/nathan.viewer.dat_decrypt">
+        <file alias="PLGN/ViewJSON.svg">../../../../data/icons/ViewJSON.svg</file>
+        <file alias="PLGN/ExportJSON.svg">../../../../data/icons/ExportJSON.svg</file>
+    </qresource>
+</RCC>

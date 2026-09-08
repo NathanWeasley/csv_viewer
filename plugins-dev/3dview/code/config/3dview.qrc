@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/plugins/nathan.viewer.3dview">
+        <file alias="PLGN/3dview.svg">../../../../data/icons/3dview.svg</file>
+    </qresource>
+</RCC>

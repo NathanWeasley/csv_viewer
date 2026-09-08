@@ -59,14 +59,14 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::LOADCSV,
 		0,
-		"Load CSVs",
+		"载入CSV文件",
 		IconSource::SvgFile,
 		":/icons/SVG/loadcsv.svg"
 	},
 	{
 		IconIdx::LOADFOLDER,
 		0,
-		"Load Folders",
+		"载入文件夹内全部CSV文件",
 		IconSource::SvgFile,
 		":/icons/SVG/loadfolder.svg"
 	},
@@ -80,7 +80,7 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::LOADHIKLOG,
 		0,
-		"Load ZIP Logs (HikLog / RBT)",
+		"载入ZIP日志",
 		IconSource::SvgFile,
 		":/icons/SVG/loadhiklog.svg"
 	},
@@ -89,12 +89,12 @@ static const IconEntry g_iconTable[] =
 		0,
 		u8"查看RBT日志",
 		IconSource::SvgFile,
-		"" // Placeholder; replace with the final plugin-independent SVG asset.
+		":/icons/SVG/ViewRBT.svg" // Placeholder; replace with the final plugin-independent SVG asset.
 	},
 	{
 		IconIdx::CLEAR,
 		0,
-		"Clear All",
+		"清除数据",
 		IconSource::SvgFile,
 		":/icons/SVG/clear.svg"
 	},
@@ -133,7 +133,7 @@ static const IconEntry g_iconTable[] =
 	{
 		IconIdx::ADDEXPR,
 		2,
-		"Add Global Expression",
+		"全局表达式",
 		IconSource::SvgFile,
 		":/icons/SVG/addexpr.svg"
 	},
@@ -142,14 +142,14 @@ static const IconEntry g_iconTable[] =
 		2,
 		u8"全局高亮规则",
 		IconSource::SvgFile,
-		"" // 图标占位；后续替换为正式 SVG 资源路径
+		":/icons/SVG/highlight.svg" // 图标占位；后续替换为正式 SVG 资源路径
 	},
 
 	// Group 3:
 	{
 		IconIdx::VARRENAME,
 		3,
-		"Rename Variable",
+		"变量重名名",
 		IconSource::SvgFile,
 		":/icons/SVG/varrename.svg"
 	},

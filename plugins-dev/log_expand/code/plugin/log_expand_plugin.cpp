@@ -190,15 +190,19 @@ void LogExpandPlugin::createToolbarButtons()
     mappedButton.placeholderText = QStringLiteral("MAP");
     mappedButton.toolTip = QString::fromUtf8(u8"查看映射变量");
     mappedButton.order = 300;
-    m_mappedVariablesToolbarButton = m_toolbarService->addMenuItemButton(
-        id(), m_menu, QStringLiteral("mapped_variables"), mappedButton);
+    m_mappedVariablesToolbarButton = m_toolbarService->addMenuItemSvgButton(
+        id(), m_menu, QStringLiteral("mapped_variables"),
+        QStringLiteral(":/plugins/nathan.viewer.log_expand/PLGN/CCEXP.svg"),
+        mappedButton);
 
     PluginToolbarButtonSpec editButton;
     editButton.placeholderText = QStringLiteral("EXP");
     editButton.toolTip = QString::fromUtf8(u8"编辑扩充数据项");
     editButton.order = 310;
-    m_editExpansionsToolbarButton = m_toolbarService->addMenuItemButton(
-        id(), m_menu, QStringLiteral("edit_expansions"), editButton);
+    m_editExpansionsToolbarButton = m_toolbarService->addMenuItemSvgButton(
+        id(), m_menu, QStringLiteral("edit_expansions"),
+        QStringLiteral(":/plugins/nathan.viewer.log_expand/PLGN/ViewExpr.svg"),
+        editButton);
 }
 
 void LogExpandPlugin::createMenu()
@@ -768,3 +772,4 @@ QHash<QString, QString> LogExpandPlugin::lastStatusMap() const
 }
 
 #include "moc_log_expand_plugin.cpp"
+#include "qrc_log_expand.cpp"

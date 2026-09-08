@@ -43,7 +43,7 @@ AboutDialog::AboutDialog(QWidget* parent)
     infoLayout->addWidget(sep);
 
     // 开发者
-    auto* devLabel = new QLabel(QStringLiteral("By Nathan.Guan & GPT 5.5 Sol"));
+    auto* devLabel = new QLabel(QStringLiteral("By Nathan.Guan & GPT 5.6 Sol"));
     infoLayout->addWidget(devLabel);
 
     // (暂不实现) Git Commit — 待 MSBuild Target 注入宏后启用

@@ -539,14 +539,22 @@ QObject* object = host->plugins()->queryService(
 auto* toolbar = qobject_cast<IPluginToolbarService*>(object);
 
 PluginToolbarButtonSpec button;
-button.icon = QIcon(QStringLiteral(":/my_plugin/open.svg"));
+button.placeholderText = QStringLiteral("OPEN");
 button.toolTip = QStringLiteral("打开视图");
 button.order = 100;
 const PluginToolbarButtonHandle handle = toolbar
-    ? toolbar->addMenuItemButton(id(), menuHandle,
-                                 QStringLiteral("open"), button)
+    ? toolbar->addMenuItemSvgButton(
+          id(), menuHandle, QStringLiteral("open"),
+          QStringLiteral(":/plugins/my_plugin/open.svg"), button)
     : 0;
 ```
+
+`addMenuItemSvgButton()` 由 Viewer 统一读取、校验和渲染 SVG。SVG 中的
+`#000000`/`#000`（包括未声明 `fill` 时的 SVG 默认黑色）会转换为当前主题的
+前景色，`#FFFFFF`/`#FFF` 会转换为相容的填充色，其他强调色保持不变；系统深浅色
+主题改变后会自动重新生成图标。插件不应
+自行判断主题或准备第二套颜色，资源加载失败时 Viewer 会记录原因并使用
+`placeholderText`。
 
 工具栏服务不接受独立回调，只引用 `addPluginMenu()` 已创建的 Action 或
 CheckableAction。这样菜单与按钮始终调用同一功能，并共享 enabled、visible 和

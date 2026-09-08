@@ -39,6 +39,14 @@
     <None Include="..\..\data\3dview.json" />
     <None Include="..\..\plugin.json" />
   </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\code\config\3dview.qrc">
+      <FileType>Document</FileType>
+      <Command>&quot;$(QtToolsPath)\rcc.exe&quot; --name 3dview -o &quot;$(IntDir)qrc_3dview.cpp&quot; &quot;%(FullPath)&quot;</Command>
+      <Outputs>$(IntDir)qrc_3dview.cpp</Outputs>
+      <AdditionalInputs>$(MSBuildProjectDirectory)\..\..\..\..\data\icons\3dview.svg;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
+  </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{FA24F37F-634D-4B4E-82A2-549A0ED10DC9}</ProjectGuid>
     <Keyword>QtVS_v304</Keyword>

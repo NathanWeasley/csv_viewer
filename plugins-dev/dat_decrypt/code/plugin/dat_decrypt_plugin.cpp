@@ -223,15 +223,19 @@ void DatDecryptPlugin::createToolbarButtons()
     viewButton.placeholderText = QStringLiteral("JSON");
     viewButton.toolTip = QString::fromUtf8(u8"查看JSON");
     viewButton.order = 200;
-    m_viewToolbarButton = m_toolbarService->addMenuItemButton(
-        id(), m_menu, QStringLiteral("view"), viewButton);
+    m_viewToolbarButton = m_toolbarService->addMenuItemSvgButton(
+        id(), m_menu, QStringLiteral("view"),
+        QStringLiteral(":/plugins/nathan.viewer.dat_decrypt/PLGN/ViewJSON.svg"),
+        viewButton);
 
     PluginToolbarButtonSpec exportButton;
     exportButton.placeholderText = QStringLiteral("OUT");
     exportButton.toolTip = QString::fromUtf8(u8"导出JSON");
     exportButton.order = 210;
-    m_exportToolbarButton = m_toolbarService->addMenuItemButton(
-        id(), m_menu, QStringLiteral("export"), exportButton);
+    m_exportToolbarButton = m_toolbarService->addMenuItemSvgButton(
+        id(), m_menu, QStringLiteral("export"),
+        QStringLiteral(":/plugins/nathan.viewer.dat_decrypt/PLGN/ExportJSON.svg"),
+        exportButton);
 }
 
 void DatDecryptPlugin::createMenu()
@@ -750,3 +754,4 @@ void DatDecryptPlugin::log(LogLevel level, const QString& message) const
 }
 
 #include "moc_dat_decrypt_plugin.cpp"
+#include "qrc_dat_decrypt.cpp"

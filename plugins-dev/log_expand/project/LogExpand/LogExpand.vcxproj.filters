@@ -39,6 +39,11 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\..\code\config\log_expand.qrc">
+      <Filter>Plugin</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\..\data\log_expand_mapping.json">
       <Filter>Plugin</Filter>
     </None>

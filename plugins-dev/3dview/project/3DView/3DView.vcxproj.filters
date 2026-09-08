@@ -78,6 +78,11 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
+    <CustomBuild Include="..\..\code\config\3dview.qrc">
+      <Filter>Config</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
     <None Include="..\..\data\3dview.json">
       <Filter>Config</Filter>
     </None>

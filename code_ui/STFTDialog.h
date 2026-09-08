@@ -29,6 +29,12 @@ public:
     double sampleFrequency() const;
     viewer::STFTWindowType windowType() const;
 
+    void setRememberedParameters(size_t windowSize,
+                                 size_t overlap,
+                                 size_t fftSize,
+                                 double sampleFrequency,
+                                 viewer::STFTWindowType windowType);
+
 private:
     QComboBox* m_cmbDataItem = nullptr;
     QSpinBox* m_spnWindowSize = nullptr;

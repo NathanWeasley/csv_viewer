@@ -30,6 +30,12 @@ public:
         const viewer::plugin::PluginToolbarButtonSpec& spec) override;
     void removeButton(
         viewer::plugin::PluginToolbarButtonHandle button) override;
+    viewer::plugin::PluginToolbarButtonHandle addMenuItemSvgButton(
+        const QString& ownerPluginId,
+        viewer::plugin::PluginMenuHandle menu,
+        const QString& itemId,
+        const QString& svgResourcePath,
+        const viewer::plugin::PluginToolbarButtonSpec& spec) override;
 
     void removeOwnedButtons(const QString& ownerPluginId);
 
@@ -41,12 +47,14 @@ private:
         QString itemId;
         QPointer<QAction> action;
         viewer::plugin::PluginToolbarButtonSpec spec;
+        QString svgResourcePath;
         QIcon originalIcon;
         QString originalToolTip;
     };
 
     QIcon resolvedIcon(
-        const viewer::plugin::PluginToolbarButtonSpec& spec) const;
+        const ButtonRecord& record,
+        QString* svgError = nullptr) const;
     QIcon placeholderIcon(const QString& text) const;
     void applyRecord(ButtonRecord& record);
     void rebuildOrder();

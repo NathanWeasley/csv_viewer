@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -41,6 +41,14 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\plugin.json" />
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="..\..\code\config\dat_decrypt.qrc">
+      <FileType>Document</FileType>
+      <Command>&quot;$(QtToolsPath)\rcc.exe&quot; --name dat_decrypt -o &quot;$(IntDir)qrc_dat_decrypt.cpp&quot; &quot;%(FullPath)&quot;</Command>
+      <Outputs>$(IntDir)qrc_dat_decrypt.cpp</Outputs>
+      <AdditionalInputs>$(MSBuildProjectDirectory)\..\..\..\..\data\icons\ViewJSON.svg;$(MSBuildProjectDirectory)\..\..\..\..\data\icons\ExportJSON.svg;%(AdditionalInputs)</AdditionalInputs>
+    </CustomBuild>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D1BA4746-1400-4D9D-8762-537182390660}</ProjectGuid>

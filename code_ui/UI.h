@@ -30,6 +30,7 @@
 #include "AboutDialog.h"
 #include "DockManager.h"
 #include "code_qcp/qcustomplot.h"
+#include "code_viewer/datamgr/math/stft_core.h"
 #include "code_viewer/plotmgr/fft/fft_manager.h"
 #include "code_viewer/plotmgr/graph/qcp_column_graph.h"
 #include "code_viewer/plotmgr/highlight/highlight_manager.h"
@@ -306,6 +307,27 @@ private:
     QCPItemRect* m_fftSelectRect = nullptr;
     std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftMagCols;
     std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftFreqCols;
+
+    // 仅在本次程序启动期间保留，不写入任何配置文件。
+    struct FFTParameterMemory
+    {
+        bool valid = false;
+        std::string dataItem;
+        double sampleIntervalValue = 1.0;
+        viewer::TimeUnit sampleUnit = viewer::TimeUnit::Second;
+        size_t fftSize = 2;
+    } m_fftParameterMemory;
+
+    struct STFTParameterMemory
+    {
+        bool valid = false;
+        std::string dataItem;
+        size_t windowSize = 1024;
+        size_t overlap = 512;
+        size_t fftSize = 1024;
+        double sampleFrequency = 1.0;
+        viewer::STFTWindowType windowType = viewer::STFTWindowType::Hann;
+    } m_stftParameterMemory;
 
     // Settings state
     bool m_adaptiveDownsampling = true;

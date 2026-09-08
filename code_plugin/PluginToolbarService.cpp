@@ -1,6 +1,7 @@
 #include "code_plugin/PluginToolbarService.h"
 
 #include "code_plugin/PluginHost.h"
+#include "code_viewer/stylemgr/theme_icon.h"
 
 #include <QAction>
 #include <QApplication>
@@ -105,6 +106,38 @@ void PluginToolbarService::removeButton(PluginToolbarButtonHandle button)
     removeSeparatorIfUnused();
 }
 
+PluginToolbarButtonHandle PluginToolbarService::addMenuItemSvgButton(
+    const QString& ownerPluginId,
+    PluginMenuHandle menu,
+    const QString& itemId,
+    const QString& svgResourcePath,
+    const PluginToolbarButtonSpec& spec)
+{
+    const PluginToolbarButtonHandle handle = addMenuItemButton(
+        ownerPluginId, menu, itemId, spec);
+    if (!handle)
+        return 0;
+
+    auto it = m_buttons.find(handle);
+    if (it == m_buttons.end())
+        return 0;
+    it->svgResourcePath = svgResourcePath.trimmed();
+
+    QString errorMessage;
+    if (it->svgResourcePath.isEmpty())
+        errorMessage = QStringLiteral("SVG 资源路径为空");
+    else
+        resolvedIcon(it.value(), &errorMessage);
+    if (!errorMessage.isEmpty() && m_host)
+    {
+        m_host->write(ownerPluginId, LogLevel::Warning,
+            QStringLiteral("工具栏图标加载失败：%1（%2），已使用占位图标")
+                .arg(it->svgResourcePath, errorMessage));
+    }
+    rebuildOrder();
+    return handle;
+}
+
 void PluginToolbarService::removeOwnedButtons(const QString& ownerPluginId)
 {
     QList<PluginToolbarButtonHandle> handles;
@@ -118,10 +151,26 @@ void PluginToolbarService::removeOwnedButtons(const QString& ownerPluginId)
 }
 
 QIcon PluginToolbarService::resolvedIcon(
-    const PluginToolbarButtonSpec& spec) const
+    const ButtonRecord& record,
+    QString* svgError) const
 {
     const bool dark = QGuiApplication::styleHints()
         && QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+    if (svgError)
+        svgError->clear();
+    if (!record.svgResourcePath.isEmpty())
+    {
+        const QSize iconSize = m_toolBar && m_toolBar->iconSize().isValid()
+            ? m_toolBar->iconSize() : QSize(36, 36);
+        const int logicalSize = qMax(iconSize.width(), iconSize.height());
+        const qreal dpr = m_toolBar ? m_toolBar->devicePixelRatioF() : 1.0;
+        QIcon themedIcon = viewer::theme::loadSvgIcon(
+            record.svgResourcePath, dark, logicalSize, dpr, svgError);
+        if (!themedIcon.isNull())
+            return themedIcon;
+    }
+
+    const PluginToolbarButtonSpec& spec = record.spec;
     if (dark && !spec.darkIcon.isNull())
         return spec.darkIcon;
     if (!spec.icon.isNull())
@@ -166,7 +215,7 @@ void PluginToolbarService::applyRecord(ButtonRecord& record)
 {
     if (!record.action)
         return;
-    record.action->setIcon(resolvedIcon(record.spec));
+    record.action->setIcon(resolvedIcon(record));
     record.action->setToolTip(record.spec.toolTip.isEmpty()
         ? record.originalToolTip : record.spec.toolTip);
 

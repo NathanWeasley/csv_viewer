@@ -11,8 +11,6 @@
 #include <algorithm>
 #include <cmath>
 
-extern bool isSystemInDark();
-
 namespace
 {
 
@@ -105,22 +103,6 @@ std::vector<double> buildAlignedSTFTTimeAxis(const viewer::Column* xCol,
     }
 
     return axis;
-}
-
-void applyColorScaleTheme(QCPColorScale* colorScale, const viewer::PlotTheme& theme)
-{
-    if (!colorScale || !colorScale->axis())
-        return;
-
-    QColor axisColor = theme.axisLabelColor.toQColor();
-    QColor tickColor = theme.tickLabelColor.toQColor();
-    QPen basePen(theme.basePenColor.toQColor(), theme.basePenWidth);
-
-    colorScale->axis()->setLabelColor(axisColor);
-    colorScale->axis()->setTickLabelColor(tickColor);
-    colorScale->axis()->setBasePen(basePen);
-    colorScale->axis()->setTickPen(basePen);
-    colorScale->axis()->setSubTickPen(basePen);
 }
 
 } // namespace
@@ -278,9 +260,21 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     const auto& dataItems = pm.pageInfo(pageIndex).dataItems;
     std::vector<std::string> itemList(dataItems.begin(), dataItems.end());
 
-    // 显示对话框（传入当前 X 轴单位作为采样间隔默认单位）
+    // 优先恢复本次启动期间上次确认过的参数；已记忆数据项不可用时使用当前项。
     viewer::TimeUnit xUnit = dm.GetXAxisUnit();
-    FFTDialog dlg(itemList, selItem, dataCount, xUnit, this);
+    const bool rememberedItemAvailable = m_fftParameterMemory.valid
+        && std::find(itemList.begin(), itemList.end(),
+                     m_fftParameterMemory.dataItem) != itemList.end();
+    const std::string initialItem = rememberedItemAvailable
+        ? m_fftParameterMemory.dataItem : selItem;
+    FFTDialog dlg(itemList, initialItem, dataCount, xUnit, this);
+    if (m_fftParameterMemory.valid)
+    {
+        dlg.setRememberedParameters(
+            m_fftParameterMemory.sampleIntervalValue,
+            m_fftParameterMemory.sampleUnit,
+            m_fftParameterMemory.fftSize);
+    }
     if (dlg.exec() != QDialog::Accepted)
     {
         logOperationTrace(QString("FFT dialog cancelled page=%1").arg(pageIndex));
@@ -290,6 +284,11 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     std::string chosenItem = dlg.selectedDataItem();
     double sampleInterval = dlg.sampleInterval();
     size_t fftN = dlg.fftSize();
+    m_fftParameterMemory.valid = true;
+    m_fftParameterMemory.dataItem = chosenItem;
+    m_fftParameterMemory.sampleIntervalValue = dlg.sampleIntervalInputValue();
+    m_fftParameterMemory.sampleUnit = dlg.sampleIntervalUnit();
+    m_fftParameterMemory.fftSize = fftN;
     logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem))
                       .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16));
@@ -497,7 +496,21 @@ void UI::showSTFTDialog(int pageIndex)
     std::vector<std::string> itemList(pageInfo.dataItems.begin(), pageInfo.dataItems.end());
     const double defaultSampleFrequency = estimateSampleFrequencyHz(dm, pm, pageIndex);
 
-    STFTDialog dlg(itemList, selItem, srcCol->size(), defaultSampleFrequency, this);
+    const bool rememberedItemAvailable = m_stftParameterMemory.valid
+        && std::find(itemList.begin(), itemList.end(),
+                     m_stftParameterMemory.dataItem) != itemList.end();
+    const std::string initialItem = rememberedItemAvailable
+        ? m_stftParameterMemory.dataItem : selItem;
+    STFTDialog dlg(itemList, initialItem, srcCol->size(), defaultSampleFrequency, this);
+    if (m_stftParameterMemory.valid)
+    {
+        dlg.setRememberedParameters(
+            m_stftParameterMemory.windowSize,
+            m_stftParameterMemory.overlap,
+            m_stftParameterMemory.fftSize,
+            m_stftParameterMemory.sampleFrequency,
+            m_stftParameterMemory.windowType);
+    }
     if (dlg.exec() != QDialog::Accepted)
     {
         logOperationTrace(QString("STFT dialog cancelled page=%1").arg(pageIndex));
@@ -519,6 +532,13 @@ void UI::showSTFTDialog(int pageIndex)
     const size_t fftSize = dlg.fftSize();
     const double sampleFrequency = dlg.sampleFrequency();
     const viewer::STFTWindowType windowType = dlg.windowType();
+    m_stftParameterMemory.valid = true;
+    m_stftParameterMemory.dataItem = chosenItem;
+    m_stftParameterMemory.windowSize = windowSize;
+    m_stftParameterMemory.overlap = overlap;
+    m_stftParameterMemory.fftSize = fftSize;
+    m_stftParameterMemory.sampleFrequency = sampleFrequency;
+    m_stftParameterMemory.windowType = windowType;
     logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem)).arg(srcCol->size())
                       .arg(windowSize).arg(overlap).arg(fftSize)
@@ -591,12 +611,6 @@ void UI::showSTFTDialog(int pageIndex)
                 }
             }
 
-            auto* colorScale = new QCPColorScale(plot);
-            plot->plotLayout()->addElement(0, 1, colorScale);
-            colorScale->setType(QCPAxis::atRight);
-            colorScale->axis()->setLabel(QString::fromUtf8("幅值 (dB)"));
-
-            colorMap->setColorScale(colorScale);
             colorMap->setGradient(QCPColorGradient::gpJet);
             colorMap->setInterpolate(false);
             colorMap->rescaleDataRange();
@@ -605,9 +619,6 @@ void UI::showSTFTDialog(int pageIndex)
             plot->yAxis->setLabel(QString::fromUtf8("频率 (Hz)"));
             plot->xAxis->setRange(timeRange);
             plot->yAxis->setRange(freqRange);
-
-            const auto& theme = m_viewer.GetStyleManager().plotTheme(isSystemInDark());
-            applyColorScaleTheme(colorScale, theme);
 
             if (auto* vbox = container->findChild<QVBoxLayout*>())
             {

@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/plugins/nathan.viewer.log_expand">
+        <file alias="PLGN/ViewExpr.svg">../../../../data/icons/ViewExpr.svg</file>
+        <file alias="PLGN/CCEXP.svg">../../../../data/icons/CCEXP.svg</file>
+    </qresource>
+</RCC>

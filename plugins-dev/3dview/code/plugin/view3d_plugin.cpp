@@ -77,8 +77,10 @@ bool View3DPlugin::initialize(IViewerHost* host)
             button.placeholderText = QStringLiteral("3D");
             button.toolTip = QString::fromUtf8(u8"打开3D视图");
             button.order = 100;
-            m_openToolbarButton = m_toolbarService->addMenuItemButton(
-                id(), m_menu, QStringLiteral("show"), button);
+            m_openToolbarButton = m_toolbarService->addMenuItemSvgButton(
+                id(), m_menu, QStringLiteral("show"),
+                QStringLiteral(":/plugins/nathan.viewer.3dview/PLGN/3dview.svg"),
+                button);
         }
     }
 
@@ -183,3 +185,4 @@ void View3DPlugin::scheduleRefreshData()
 }
 
 #include "moc_view3d_plugin.cpp"
+#include "qrc_3dview.cpp"
