@@ -41,6 +41,7 @@ struct PlotPageInfo
     ExprManager exprMgr;
 
     HighlightManager highlightMgr;
+    bool overrideGlobalHighlightRules = false;
 };
 
 // ============================================================

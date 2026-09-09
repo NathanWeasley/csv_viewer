@@ -90,6 +90,10 @@ UI::UI(QWidget *parent)
         // 新图窗是否默认按数据索引绘图（仅影响随后创建的图窗）。
         m_defaultPlotByIndex = settings.value("plotByIndexByDefault", true).toBool();
         m_dateAxisName = settings.value("dateAxisName").toString();
+
+        // 历史配置没有该项时保持原有的全局高亮启用行为。
+        m_globalHighlightEnabled =
+            settings.value("globalHighlightEnabled", true).toBool();
     }
 
     m_viewer.GetDataManager().SetDateAxisName(m_dateAxisName.toUtf8().toStdString());
@@ -294,6 +298,7 @@ void UI::beginShutdownCleanup(bool persistUiState)
         settings.setValue("autoGrouping", m_autoGroupingEnabled);
         settings.setValue("plotByIndexByDefault", m_defaultPlotByIndex);
         settings.setValue("dateAxisName", m_dateAxisName);
+        settings.setValue("globalHighlightEnabled", m_globalHighlightEnabled);
 
         saveState();
         logShutdownTrace("beginShutdownCleanup saved UI state");

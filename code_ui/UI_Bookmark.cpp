@@ -251,6 +251,7 @@ void UI::addBookmark(int pageIndex)
     entry.legendVisible = info.legendVisible;
     entry.logX = (plot->xAxis->scaleType() == QCPAxis::stLogarithmic);
     entry.logY = (plot->yAxis->scaleType() == QCPAxis::stLogarithmic);
+    entry.overrideGlobalHighlightRules = info.overrideGlobalHighlightRules;
 
     for (const auto& item : info.dataItems)
     {
@@ -337,6 +338,8 @@ void UI::restoreBookmark(const viewer::BookmarkEntry& entry)
                      .arg(entry.dataItems.size()).arg(entry.graphs.size())
                      .arg(entry.highlights.size()).arg(pm.pageCount()));
     int newIdx = pm.addPage(entry.name);
+    pm.pageInfo(newIdx).overrideGlobalHighlightRules =
+        entry.overrideGlobalHighlightRules;
     logBookmarkTrace(QString("restore page added newPage=%1 pageCount=%2").arg(newIdx).arg(pm.pageCount()));
     pm.setXAxisState(newIdx, entry.useIndexXAxis, entry.xAxisColumn);
     logXAxisTrace(QString("bookmark restore set X axis page=%1 useIndex=%2 column=%3")

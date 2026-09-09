@@ -294,6 +294,7 @@ private:
 
     // Highlight state
     viewer::HighlightManager m_globalHighlightMgr;
+    bool m_globalHighlightEnabled = true;
     QHash<int, QList<QCPItemRect*>> m_highlightRects;
     QHash<int, QList<QCPItemLine*>> m_highlightLines;
     QHash<int, QList<QCPItemText*>> m_highlightLabels;

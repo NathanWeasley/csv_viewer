@@ -40,6 +40,7 @@ struct BookmarkEntry
     std::vector<std::string>       dataItems;       // Y 列名集合
     std::vector<GraphStyleSnapshot> graphs;          // 每列样式快照
     std::vector<HighlightRule>     highlights;      // 高亮规则
+    bool                           overrideGlobalHighlightRules = false;
 };
 
 // ============================================================

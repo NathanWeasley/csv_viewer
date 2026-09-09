@@ -85,12 +85,14 @@ static QString conditionToChinese(viewer::HighlightCondition cond)
 // ============================================================
 
 HighlightDialog::HighlightDialog(const std::vector<std::string>& columnNames,
+                                   Scope scope,
                                    QWidget* parent)
     : QDialog(parent)
+    , m_scope(scope)
     , m_columnNames(columnNames)
 {
     setWindowTitle(QString::fromUtf8("高亮规则配置"));
-    setFixedSize(750, 480);
+    setFixedSize(750, 510);
     buildUI();
     if (g_hasLastHighlightEditorRule)
         fillUIToRule(g_lastHighlightEditorRule);
@@ -113,6 +115,23 @@ HighlightDialog::~HighlightDialog()
 void HighlightDialog::buildUI()
 {
     auto* mainLayout = new QVBoxLayout(this);
+
+    m_scopeOption = new QCheckBox(this);
+    if (m_scope == Scope::Global)
+    {
+        m_scopeOption->setText(QString::fromUtf8("启用全局高亮规则"));
+        m_scopeOption->setToolTip(QString::fromUtf8(
+            "关闭后所有图窗都不再应用全局规则，图窗级规则仍然有效。"));
+        m_scopeOption->setChecked(true);
+    }
+    else
+    {
+        m_scopeOption->setText(QString::fromUtf8("覆盖全局规则"));
+        m_scopeOption->setToolTip(QString::fromUtf8(
+            "选中后此图窗不再响应全局规则，只应用下方配置的图窗级规则。"));
+        m_scopeOption->setChecked(false);
+    }
+    mainLayout->addWidget(m_scopeOption);
 
     // ---- 中央分栏：左右分栏 ----
     auto* splitter = new QSplitter(Qt::Horizontal);
@@ -281,6 +300,30 @@ void HighlightDialog::setRules(const std::vector<viewer::HighlightRule>& rules)
 
     clearRuleSelection();
     updateRuleButtons();
+}
+
+void HighlightDialog::setGlobalRulesEnabled(bool enabled)
+{
+    if (m_scope == Scope::Global && m_scopeOption)
+        m_scopeOption->setChecked(enabled);
+}
+
+bool HighlightDialog::globalRulesEnabled() const
+{
+    return m_scope == Scope::Global && m_scopeOption
+        ? m_scopeOption->isChecked() : true;
+}
+
+void HighlightDialog::setOverrideGlobalRules(bool enabled)
+{
+    if (m_scope == Scope::Plot && m_scopeOption)
+        m_scopeOption->setChecked(enabled);
+}
+
+bool HighlightDialog::overridesGlobalRules() const
+{
+    return m_scope == Scope::Plot && m_scopeOption
+        ? m_scopeOption->isChecked() : false;
 }
 
 // ============================================================

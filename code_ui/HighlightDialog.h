@@ -8,6 +8,7 @@
 #include <QPushButton>
 #include <QListWidget>
 #include <QLabel>
+#include <QCheckBox>
 #include <vector>
 #include <string>
 
@@ -32,7 +33,14 @@ class HighlightDialog : public QDialog
     Q_OBJECT
 
 public:
+    enum class Scope
+    {
+        Global,
+        Plot
+    };
+
     explicit HighlightDialog(const std::vector<std::string>& columnNames,
+                              Scope scope,
                               QWidget* parent = nullptr);
     ~HighlightDialog() override;
 
@@ -41,6 +49,11 @@ public:
 
     // 设置初始规则列表（用于编辑已有规则）
     void setRules(const std::vector<viewer::HighlightRule>& rules);
+
+    void setGlobalRulesEnabled(bool enabled);
+    bool globalRulesEnabled() const;
+    void setOverrideGlobalRules(bool enabled);
+    bool overridesGlobalRules() const;
 
 private slots:
     void onAddRule();
@@ -87,8 +100,10 @@ private:
     QPushButton*     m_btnCopy = nullptr;
     QPushButton*     m_btnPaste = nullptr;
     QPushButton*     m_btnRead = nullptr;
+    QCheckBox*       m_scopeOption = nullptr;
 
     // ---- 数据 ----
+    Scope m_scope = Scope::Plot;
     std::vector<std::string> m_columnNames;
     std::vector<viewer::HighlightRule> m_rules;  // 右侧列表对应的规则
 };

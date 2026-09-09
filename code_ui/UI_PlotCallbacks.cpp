@@ -224,12 +224,16 @@ void UI::bindPlotManagerCallbacks()
                     bool legendOn = pm.pageInfo(pageIndex).legendVisible;
                     const bool sourceUsesIndex = pm.usesIndexXAxis(pageIndex);
                     const size_t sourceXAxisColumn = pm.selectedXAxisColumn(pageIndex);
+                    const bool sourceOverridesGlobalHighlights =
+                        pm.pageInfo(pageIndex).overrideGlobalHighlightRules;
 
                     // 创建新图窗
                     int newIdx = pm.addPage();
 
                     // ---- 复制 X 轴配置 ----
                     pm.setXAxisState(newIdx, sourceUsesIndex, sourceXAxisColumn);
+                    pm.pageInfo(newIdx).overrideGlobalHighlightRules =
+                        sourceOverridesGlobalHighlights;
 
                     // ---- 先复制表达式数据（在 addDataItem 之前，避免 getOrCreate 创建的本地拷贝被替换）----
                     {

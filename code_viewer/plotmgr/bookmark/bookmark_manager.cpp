@@ -450,6 +450,7 @@ void BookmarkMgr::entryToJson(const BookmarkEntry& entry, QJsonObject& out) cons
     out["legendVisible"] = entry.legendVisible;
     out["logX"]          = entry.logX;
     out["logY"]          = entry.logY;
+    out["overrideGlobalHighlightRules"] = entry.overrideGlobalHighlightRules;
 
     QJsonArray diArr;
     for (const auto& di : entry.dataItems)
@@ -481,6 +482,8 @@ void BookmarkMgr::jsonToEntry(const QJsonObject& obj, BookmarkEntry& out)
     out.legendVisible = obj.value("legendVisible").toBool(false);
     out.logX          = obj.value("logX").toBool(false);
     out.logY          = obj.value("logY").toBool(false);
+    out.overrideGlobalHighlightRules =
+        obj.value("overrideGlobalHighlightRules").toBool(false);
 
     out.dataItems.clear();
     QJsonArray diArr = obj.value("dataItems").toArray();

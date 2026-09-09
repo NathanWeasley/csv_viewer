@@ -112,7 +112,10 @@ std::vector<viewer::HighlightRule> UI::effectiveHighlightRules(int pageIndex) co
     if (pageIndex < 0 || pageIndex >= m_viewer.GetPlotManager().pageCount())
         return result;
 
-    const auto& plotRules = m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.rules();
+    const auto& pageInfo = m_viewer.GetPlotManager().pageInfo(pageIndex);
+    const auto& plotRules = pageInfo.highlightMgr.rules();
+    if (pageInfo.overrideGlobalHighlightRules || !m_globalHighlightEnabled)
+        return plotRules;
     return viewer::HighlightManager::mergeRules(m_globalHighlightMgr.rules(), plotRules);
 }
 
@@ -120,8 +123,11 @@ bool UI::hasEffectiveHighlightRules(int pageIndex) const
 {
     if (pageIndex < 0 || pageIndex >= m_viewer.GetPlotManager().pageCount())
         return false;
+    const auto& pageInfo = m_viewer.GetPlotManager().pageInfo(pageIndex);
+    if (pageInfo.overrideGlobalHighlightRules || !m_globalHighlightEnabled)
+        return pageInfo.highlightMgr.ruleCount() > 0;
     return m_globalHighlightMgr.ruleCount() > 0
-        || m_viewer.GetPlotManager().pageInfo(pageIndex).highlightMgr.ruleCount() > 0;
+        || pageInfo.highlightMgr.ruleCount() > 0;
 }
 
 void UI::renderAllHighlights()
@@ -175,14 +181,29 @@ void UI::showGlobalHighlightDialog()
     const auto& columnNames = m_viewer.GetDataManager().GetColumnNames();
     std::vector<std::string> columns(columnNames.begin(), columnNames.end());
 
-    HighlightDialog dialog(columns, this);
+    HighlightDialog dialog(columns, HighlightDialog::Scope::Global, this);
     dialog.setWindowTitle(QString::fromUtf8("全局高亮规则"));
     dialog.setRules(m_globalHighlightMgr.rules());
+    dialog.setGlobalRulesEnabled(m_globalHighlightEnabled);
     if (dialog.exec() != QDialog::Accepted)
         return;
 
     m_globalHighlightMgr.insertAllRules(dialog.getRules());
+    m_globalHighlightEnabled = dialog.globalRulesEnabled();
     saveGlobalHighlightFile();
+    {
+        const QString userDirectory =
+            QCoreApplication::applicationDirPath() + QStringLiteral("/user");
+        QDir().mkpath(userDirectory);
+        QSettings settings(userDirectory + QStringLiteral("/config.ini"),
+                           QSettings::IniFormat);
+        settings.setValue(QStringLiteral("globalHighlightEnabled"),
+                          m_globalHighlightEnabled);
+        settings.sync();
+        logOperationTrace(QString("global highlight enabled saved value=%1 status=%2")
+                          .arg(m_globalHighlightEnabled)
+                          .arg(static_cast<int>(settings.status())));
+    }
     renderAllHighlights();
 }
 
@@ -208,12 +229,14 @@ void UI::showHighlightDialog(int pageIndex)
     std::vector<std::string> columns(colNames.begin(), colNames.end());
 
     // 创建对话框
-    HighlightDialog dlg(columns, this);
+    HighlightDialog dlg(columns, HighlightDialog::Scope::Plot, this);
     dlg.setWindowTitle(QString::fromUtf8("图窗高亮规则"));
 
     // 设置已有规则
     auto& hlMgr = pm.pageInfo(pageIndex).highlightMgr;
     dlg.setRules(hlMgr.rules());
+    dlg.setOverrideGlobalRules(
+        pm.pageInfo(pageIndex).overrideGlobalHighlightRules);
 
     if (dlg.exec() != QDialog::Accepted)
     {
@@ -226,11 +249,14 @@ void UI::showHighlightDialog(int pageIndex)
     hlMgr.clearAll();
     for (const auto& rule : newRules)
         hlMgr.addRule(rule);
+    pm.pageInfo(pageIndex).overrideGlobalHighlightRules =
+        dlg.overridesGlobalRules();
 
     // 渲染高亮
     renderHighlights(pageIndex);
-    logOperationTrace(QString("highlight dialog accepted page=%1 rules=%2")
-                      .arg(pageIndex).arg(newRules.size()));
+    logOperationTrace(QString("highlight dialog accepted page=%1 rules=%2 overrideGlobal=%3")
+                      .arg(pageIndex).arg(newRules.size())
+                      .arg(pm.pageInfo(pageIndex).overrideGlobalHighlightRules));
 }
 
 // ============================================================
@@ -298,8 +324,10 @@ void UI::renderHighlights(int pageIndex)
     viewer::HighlightManager effectiveManager;
     effectiveManager.insertAllRules(std::move(effectiveRules));
     auto intervals = effectiveManager.computeIntervals(dm, xAxisColumn);
-    logOperationTrace(QString("highlight intervals computed page=%1 globalRules=%2 plotRules=%3 effectiveRules=%4 intervals=%5 useIndex=%6 xColumn=%7")
-                      .arg(pageIndex).arg(m_globalHighlightMgr.ruleCount()).arg(plotRules.size())
+    logOperationTrace(QString("highlight intervals computed page=%1 globalEnabled=%2 overrideGlobal=%3 globalRules=%4 plotRules=%5 effectiveRules=%6 intervals=%7 useIndex=%8 xColumn=%9")
+                      .arg(pageIndex).arg(m_globalHighlightEnabled)
+                      .arg(pm.pageInfo(pageIndex).overrideGlobalHighlightRules)
+                      .arg(m_globalHighlightMgr.ruleCount()).arg(plotRules.size())
                       .arg(effectiveManager.ruleCount()).arg(intervals.size())
                       .arg(xAxisColumn == static_cast<size_t>(-1)).arg(xAxisColumn));
 
