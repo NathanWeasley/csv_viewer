@@ -509,7 +509,9 @@ void UI::ensureRbtLogViewer()
 {
     if (m_rbtLogViewer)
         return;
-    m_rbtLogViewer = new RbtLogViewerWindow(this);
+    // Keep tool windows parentless, as 3dview does, and explicitly destroy
+    // them as part of the Viewer shutdown sequence.
+    m_rbtLogViewer = new RbtLogViewerWindow();
     connect(m_rbtLogViewer, &RbtLogViewerWindow::markRequested,
             this, &UI::markRbtLineOnPlots);
     connect(m_rbtLogViewer, &RbtLogViewerWindow::jumpResult, this,

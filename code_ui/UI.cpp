@@ -30,6 +30,7 @@
 #include "code_plugin/PluginHost.h"
 #include "code_plugin/PluginManager.h"
 #include "LogTimeMapper.h"
+#include "RbtLogViewer.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>
@@ -311,6 +312,15 @@ void UI::beginShutdownCleanup(bool persistUiState)
     }
     m_pluginHost.reset();
     logShutdownTrace("beginShutdownCleanup stopped plugins");
+
+    if (m_rbtLogViewer)
+    {
+        auto* rbtLogViewer = m_rbtLogViewer;
+        m_rbtLogViewer = nullptr;
+        rbtLogViewer->releaseFiles();
+        delete rbtLogViewer;
+        logShutdownTrace("beginShutdownCleanup destroyed RBT log viewer");
+    }
 
     disconnectViewerCallbacks();
     logShutdownTrace("beginShutdownCleanup disconnected viewer callbacks");

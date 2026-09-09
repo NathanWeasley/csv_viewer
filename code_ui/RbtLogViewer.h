@@ -93,6 +93,7 @@ Q_SIGNALS:
                     bool success, const QString& reason);
 
 private:
+    void presentWindow();
     void beginOpenFile(const QString& path);
     void beginFind(bool backward);
     void updateStatus(qsizetype oneBasedLine = 1);

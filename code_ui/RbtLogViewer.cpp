@@ -715,6 +715,7 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
 {
     setWindowFlag(Qt::Window, true);
     setAttribute(Qt::WA_DeleteOnClose, false);
+    setAttribute(Qt::WA_QuitOnClose, false);
     setWindowTitle(QString::fromUtf8(u8"RBT 日志快速查看"));
     resize(1200, 780);
 
@@ -790,9 +791,7 @@ void RbtLogViewerWindow::openFiles(const QStringList& paths)
             m_files->itemData(index).toString()).absoluteFilePath());
     if (!validPaths.isEmpty() && installedPaths == validPaths)
     {
-        show();
-        raise();
-        activateWindow();
+        presentWindow();
         return;
     }
 
@@ -815,9 +814,7 @@ void RbtLogViewerWindow::openFiles(const QStringList& paths)
         m_textView->clearFile();
         m_status->setText(QString::fromUtf8(u8"临时目录中没有已解析的 RBT 日志。"));
     }
-    show();
-    raise();
-    activateWindow();
+    presentWindow();
 }
 
 void RbtLogViewerWindow::releaseFiles()
@@ -863,9 +860,7 @@ bool RbtLogViewerWindow::openFileAtLine(
             return false;
         }
         m_textView->jumpToLine(zeroBasedLine);
-        show();
-        raise();
-        activateWindow();
+        presentWindow();
         if (error)
             error->clear();
         emit jumpResult(QFileInfo(path).absoluteFilePath(), zeroBasedLine, true, {});
@@ -894,12 +889,20 @@ bool RbtLogViewerWindow::openFileAtLine(
     m_files->setCurrentIndex(index);
     m_files->blockSignals(false);
     beginOpenFile(m_files->itemData(index).toString());
-    show();
-    raise();
-    activateWindow();
+    presentWindow();
     if (error)
         error->clear();
     return true;
+}
+
+void RbtLogViewerWindow::presentWindow()
+{
+    if (isMinimized())
+        showNormal();
+    else
+        show();
+    raise();
+    activateWindow();
 }
 
 void RbtLogViewerWindow::beginOpenFile(const QString& path)
