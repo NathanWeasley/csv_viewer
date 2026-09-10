@@ -22,11 +22,12 @@ struct STFTResult
     size_t freqBinCount = 0;
     std::vector<double> timeAxis;
     std::vector<double> freqAxis;
-    std::vector<double> magnitudeDb;
+    std::vector<double> spectrumValues;
+    bool powerSpectrum = false;
 
     bool empty() const noexcept
     {
-        return timeBinCount == 0 || freqBinCount == 0 || magnitudeDb.empty();
+        return timeBinCount == 0 || freqBinCount == 0 || spectrumValues.empty();
     }
 };
 
@@ -158,7 +159,8 @@ inline STFTResult stftCompute(const Column& src,
                               double sampleFrequency,
                               STFTWindowType windowType,
                               bool removeBaseline = false,
-                              double highPassCutoffFrequency = 0.1)
+                              double highPassCutoffFrequency = 0.1,
+                              bool calculatePowerSpectrum = false)
 {
     STFTResult result;
     if (windowSize == 0 || fftSize == 0 || overlap >= windowSize || sampleFrequency <= 0.0)
@@ -186,15 +188,15 @@ inline STFTResult stftCompute(const Column& src,
 
     result.timeBinCount = frameCount;
     result.freqBinCount = freqCount;
+    result.powerSpectrum = calculatePowerSpectrum;
     result.timeAxis.resize(frameCount);
     result.freqAxis.resize(freqCount);
-    result.magnitudeDb.resize(frameCount * freqCount);
+    result.spectrumValues.resize(frameCount * freqCount);
 
     const std::vector<double> window = buildSTFTWindow(windowSize, windowType);
     std::vector<double> real(fftSize, 0.0);
     std::vector<double> imag(fftSize, 0.0);
     const double sampleInterval = 1.0 / sampleFrequency;
-    const double minMagnitude = 1e-12;
 
     for (size_t k = 0; k < freqCount; ++k)
         result.freqAxis[k] = static_cast<double>(k) * sampleFrequency / static_cast<double>(fftSize);
@@ -221,8 +223,8 @@ inline STFTResult stftCompute(const Column& src,
 
         for (size_t k = 0; k < freqCount; ++k)
         {
-            const double mag = std::max(real[k], minMagnitude);
-            result.magnitudeDb[k * frameCount + frame] = 20.0 * std::log10(mag);
+            result.spectrumValues[k * frameCount + frame] =
+                spectrumValueFromMagnitude(real[k], calculatePowerSpectrum);
         }
     }
 

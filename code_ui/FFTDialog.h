@@ -33,11 +33,13 @@ public:
     viewer::TimeUnit sampleIntervalUnit() const;
     size_t fftSize() const;
     bool removeBaseline() const;
+    bool calculatePowerSpectrum() const;
 
     void setRememberedParameters(double sampleIntervalValue,
                                  viewer::TimeUnit sampleUnit,
                                  size_t fftSize,
-                                 bool removeBaseline);
+                                 bool removeBaseline,
+                                 bool calculatePowerSpectrum);
 
 private:
     QComboBox* m_cmbDataItem = nullptr;
@@ -45,5 +47,6 @@ private:
     QComboBox* m_cmbSampleUnit = nullptr;
     QSpinBox* m_spnFFTSize = nullptr;
     QCheckBox* m_chkRemoveBaseline = nullptr;
+    QCheckBox* m_chkCalculatePowerSpectrum = nullptr;
     QLabel* m_lblDataCount = nullptr;
 };

@@ -80,6 +80,10 @@ STFTDialog::STFTDialog(const std::vector<std::string>& dataItems,
     m_spnHighPassCutoff->setEnabled(false);
     form->addRow(QString::fromUtf8("高通截止频率:"), m_spnHighPassCutoff);
 
+    m_chkCalculatePowerSpectrum = new QCheckBox(QString::fromUtf8("计算功率谱"));
+    m_chkCalculatePowerSpectrum->setChecked(false);
+    form->addRow(QString::fromUtf8("频谱输出:"), m_chkCalculatePowerSpectrum);
+
     const auto updateHighPassCutoffRange = [this](double sampleFrequency)
     {
         // 截止频率必须严格小于奈奎斯特频率；低采样率时自动收窄范围。
@@ -198,6 +202,12 @@ bool STFTDialog::removeBaseline() const
     return m_chkRemoveBaseline && m_chkRemoveBaseline->isChecked();
 }
 
+bool STFTDialog::calculatePowerSpectrum() const
+{
+    return m_chkCalculatePowerSpectrum
+        && m_chkCalculatePowerSpectrum->isChecked();
+}
+
 double STFTDialog::highPassCutoffFrequency() const
 {
     return m_spnHighPassCutoff ? m_spnHighPassCutoff->value() : 0.1;
@@ -209,7 +219,8 @@ void STFTDialog::setRememberedParameters(size_t windowSizeValue,
                                          double sampleFrequencyValue,
                                          viewer::STFTWindowType windowTypeValue,
                                          bool removeBaselineValue,
-                                         double highPassCutoffFrequencyValue)
+                                         double highPassCutoffFrequencyValue,
+                                         bool calculatePowerSpectrumValue)
 {
     // 先恢复窗长以同步重叠点数的有效上限，再恢复其余参数。
     m_spnWindowSize->setValue(static_cast<int>(windowSizeValue));
@@ -219,4 +230,6 @@ void STFTDialog::setRememberedParameters(size_t windowSizeValue,
     m_cmbWindowType->setCurrentIndex(static_cast<int>(windowTypeValue));
     m_chkRemoveBaseline->setChecked(removeBaselineValue);
     m_spnHighPassCutoff->setValue(highPassCutoffFrequencyValue);
+    if (m_chkCalculatePowerSpectrum)
+        m_chkCalculatePowerSpectrum->setChecked(calculatePowerSpectrumValue);
 }

@@ -318,6 +318,7 @@ private:
         viewer::TimeUnit sampleUnit = viewer::TimeUnit::Second;
         size_t fftSize = 2;
         bool removeBaseline = false;
+        bool calculatePowerSpectrum = false;
     } m_fftParameterMemory;
 
     struct STFTParameterMemory
@@ -331,6 +332,7 @@ private:
         viewer::STFTWindowType windowType = viewer::STFTWindowType::Hann;
         bool removeBaseline = false;
         double highPassCutoffFrequency = 0.1;
+        bool calculatePowerSpectrum = false;
     } m_stftParameterMemory;
 
     // Settings state

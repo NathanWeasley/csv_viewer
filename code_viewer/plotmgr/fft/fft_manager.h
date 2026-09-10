@@ -39,6 +39,7 @@ public:
     // fftN: FFT 点数（必须是 2 的幂）
     // sampleInterval: 采样间隔（秒）
     // removeBaseline: 是否在补零前执行线性去趋势
+    // calculatePowerSpectrum: 是否将幅值平方后以 dB 表示
     //
     // 回调:
     //   onFinished: 计算完成 (在主线程调用)
@@ -53,6 +54,7 @@ public:
         size_t fftN,
         double sampleInterval,
         bool removeBaseline,
+        bool calculatePowerSpectrum,
         std::function<void()> onFinished,
         std::function<void(float progress)> onProgress);
 

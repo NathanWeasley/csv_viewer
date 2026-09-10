@@ -273,7 +273,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
             m_fftParameterMemory.sampleIntervalValue,
             m_fftParameterMemory.sampleUnit,
             m_fftParameterMemory.fftSize,
-            m_fftParameterMemory.removeBaseline);
+            m_fftParameterMemory.removeBaseline,
+            m_fftParameterMemory.calculatePowerSpectrum);
     }
     if (dlg.exec() != QDialog::Accepted)
     {
@@ -285,16 +286,19 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     double sampleInterval = dlg.sampleInterval();
     size_t fftN = dlg.fftSize();
     const bool removeBaseline = dlg.removeBaseline();
+    const bool calculatePowerSpectrum = dlg.calculatePowerSpectrum();
     m_fftParameterMemory.valid = true;
     m_fftParameterMemory.dataItem = chosenItem;
     m_fftParameterMemory.sampleIntervalValue = dlg.sampleIntervalInputValue();
     m_fftParameterMemory.sampleUnit = dlg.sampleIntervalUnit();
     m_fftParameterMemory.fftSize = fftN;
     m_fftParameterMemory.removeBaseline = removeBaseline;
-    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5 linearDetrend=%6")
+    m_fftParameterMemory.calculatePowerSpectrum = calculatePowerSpectrum;
+    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5 linearDetrend=%6 powerSpectrum=%7")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem))
                       .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16)
-                      .arg(removeBaseline ? "true" : "false"));
+                      .arg(removeBaseline ? "true" : "false")
+                      .arg(calculatePowerSpectrum ? "true" : "false"));
 
     if (chosenItem != selItem)
     {
@@ -303,7 +307,10 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
     }
 
     // ---- 创建 FFT 图窗 ----
-    int fftPageIdx = pm.addFFTPage("FFT: " + chosenItem);
+    const std::string spectrumName = calculatePowerSpectrum
+        ? "FFT Power Spectrum (dB)" : "FFT Amplitude Spectrum";
+    int fftPageIdx = pm.addFFTPage("FFT: " + chosenItem
+        + (calculatePowerSpectrum ? " [Power dB]" : " [Amplitude]"));
     QPointer<QWidget> fftContainer = getPlotContainer(fftPageIdx);
     logOperationTrace(QString("FFT output page created sourcePage=%1 outputPage=%2 container=0x%3")
                       .arg(pageIndex).arg(fftPageIdx)
@@ -330,7 +337,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         });
 
     connect(fftMgr, &viewer::FFTManager::finished, this,
-        [this, fftMgr, fftContainer,
+        [this, fftMgr, fftContainer, spectrumName, calculatePowerSpectrum,
          realCol = std::move(realCol), imagCol = std::move(imagCol)]() mutable
         {
             logOperationTrace(QString("FFT finished signal manager=0x%1 containerValid=%2")
@@ -372,9 +379,13 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 
             // 创建 graph：key=频率列, data=幅值列
             auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
-            graph->setName("FFT Spectrum");
+            graph->setName(QString::fromStdString(spectrumName));
             graph->setDataColumns(freqPtr, magPtr);
             graph->setPen(QPen(QColor(60, 140, 255), 1));
+            plot->xAxis->setLabel(QString::fromUtf8("频率 (Hz)"));
+            plot->yAxis->setLabel(calculatePowerSpectrum
+                ? QString::fromUtf8("功率谱 (dB)")
+                : QString::fromUtf8("幅值"));
 
             // ---- 向工具栏注册 FFT 数据项，启用样式编辑 ----
             {
@@ -391,8 +402,10 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
                             if (cmbDataItem)
                             {
                                 cmbDataItem->blockSignals(true);
-                                cmbDataItem->addItem("FFT Spectrum");
-                                cmbDataItem->setItemData(0, "FFT Spectrum", Qt::UserRole);
+                                const QString displayName =
+                                    QString::fromStdString(spectrumName);
+                                cmbDataItem->addItem(displayName);
+                                cmbDataItem->setItemData(0, displayName, Qt::UserRole);
                                 cmbDataItem->setCurrentIndex(0);
                                 cmbDataItem->blockSignals(false);
 
@@ -400,7 +413,7 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 
                                 // 触发 onSelectedDataItemChanged → 加载 graph 样式到工具栏控件
                                 auto& pm = m_viewer.GetPlotManager();
-                                pm.setSelectedDataItem(fftPageIdx, "FFT Spectrum");
+                                pm.setSelectedDataItem(fftPageIdx, spectrumName);
 
                                 // 启用删除按钮（占位，FFT 不支持删除单曲线）
                                 auto* btnDelete = qobject_cast<QPushButton*>(hb->itemAt(10)->widget());
@@ -440,7 +453,8 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
                       .arg(pageIndex).arg(fftPageIdx).arg(fftN)
                       .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16));
     fftMgr->startFFT(srcCol, startIdx, dataCount, realPtr, imagPtr, fftN,
-                     sampleInterval, removeBaseline, nullptr, nullptr);
+                     sampleInterval, removeBaseline, calculatePowerSpectrum,
+                     nullptr, nullptr);
 }
 
 void UI::onSTFTRequested(int pageIndex)
@@ -505,7 +519,8 @@ void UI::showSTFTDialog(int pageIndex)
             m_stftParameterMemory.sampleFrequency,
             m_stftParameterMemory.windowType,
             m_stftParameterMemory.removeBaseline,
-            m_stftParameterMemory.highPassCutoffFrequency);
+            m_stftParameterMemory.highPassCutoffFrequency,
+            m_stftParameterMemory.calculatePowerSpectrum);
     }
     if (dlg.exec() != QDialog::Accepted)
     {
@@ -530,6 +545,7 @@ void UI::showSTFTDialog(int pageIndex)
     const viewer::STFTWindowType windowType = dlg.windowType();
     const bool removeBaseline = dlg.removeBaseline();
     const double highPassCutoffFrequency = dlg.highPassCutoffFrequency();
+    const bool calculatePowerSpectrum = dlg.calculatePowerSpectrum();
     m_stftParameterMemory.valid = true;
     m_stftParameterMemory.dataItem = chosenItem;
     m_stftParameterMemory.windowSize = windowSize;
@@ -539,12 +555,14 @@ void UI::showSTFTDialog(int pageIndex)
     m_stftParameterMemory.windowType = windowType;
     m_stftParameterMemory.removeBaseline = removeBaseline;
     m_stftParameterMemory.highPassCutoffFrequency = highPassCutoffFrequency;
-    logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8 removeBaseline=%9 highPassCutoff=%10")
+    m_stftParameterMemory.calculatePowerSpectrum = calculatePowerSpectrum;
+    logOperationTrace(QString("STFT parameters page=%1 item=\"%2\" samples=%3 window=%4 overlap=%5 fftSize=%6 frequency=%7 windowType=%8 removeBaseline=%9 highPassCutoff=%10 powerSpectrum=%11")
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem)).arg(srcCol->size())
                       .arg(windowSize).arg(overlap).arg(fftSize)
                       .arg(sampleFrequency, 0, 'g', 16).arg(static_cast<int>(windowType))
                       .arg(removeBaseline ? "true" : "false")
-                      .arg(highPassCutoffFrequency, 0, 'g', 16));
+                      .arg(highPassCutoffFrequency, 0, 'g', 16)
+                      .arg(calculatePowerSpectrum ? "true" : "false"));
     const size_t xIdx = pm.xAxisColumn(pageIndex);
     const bool sourceUsesIndex = pm.usesIndexXAxis(pageIndex);
     const size_t sourceXAxisColumn = pm.selectedXAxisColumn(pageIndex);
@@ -580,7 +598,9 @@ void UI::showSTFTDialog(int pageIndex)
             auto& pm = m_viewer.GetPlotManager();
             m_pendingDockTargetPage = pageIndex;
             m_pendingDockArea = ads::BottomDockWidgetArea;
-            const int stftPageIndex = pm.addFFTPage("STFT: " + chosenItem);
+            const int stftPageIndex = pm.addFFTPage(
+                "STFT: " + chosenItem
+                + (result.powerSpectrum ? " [Power dB]" : " [Amplitude]"));
             pm.setXAxisState(stftPageIndex, sourceUsesIndex, sourceXAxisColumn);
             logOperationTrace(QString("STFT output page created sourcePage=%1 outputPage=%2 timeBins=%3 freqBins=%4")
                               .arg(pageIndex).arg(stftPageIndex)
@@ -608,8 +628,8 @@ void UI::showSTFTDialog(int pageIndex)
                     colorMap->data()->setCell(
                         timeIndex,
                         freqIndex,
-                        result.magnitudeDb[static_cast<size_t>(freqIndex) * result.timeBinCount +
-                                           static_cast<size_t>(timeIndex)]);
+                        result.spectrumValues[static_cast<size_t>(freqIndex) * result.timeBinCount +
+                                              static_cast<size_t>(timeIndex)]);
                 }
             }
 
@@ -664,10 +684,12 @@ void UI::showSTFTDialog(int pageIndex)
                       .arg(pageIndex).arg(QString::fromStdString(chosenItem)));
     watcher->setFuture(QtConcurrent::run(
         [inputData = std::move(inputData), windowSize, overlap, fftSize, sampleFrequency,
-         windowType, removeBaseline, highPassCutoffFrequency]() mutable
+         windowType, removeBaseline, highPassCutoffFrequency,
+         calculatePowerSpectrum]() mutable
         {
             return viewer::stftCompute(inputData, windowSize, overlap, fftSize,
                                        sampleFrequency, windowType, removeBaseline,
-                                       highPassCutoffFrequency);
+                                       highPassCutoffFrequency,
+                                       calculatePowerSpectrum);
         }));
 }

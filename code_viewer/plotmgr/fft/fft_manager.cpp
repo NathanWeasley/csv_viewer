@@ -1,4 +1,5 @@
 #include "code_viewer/plotmgr/fft/fft_manager.h"
+#include "code_viewer/datamgr/math/fft_core.h"
 
 #include <QtConcurrent/QtConcurrent>
 #include <QThread>
@@ -92,6 +93,7 @@ void FFTManager::startFFT(
     size_t fftN,
     double sampleInterval,
     bool removeBaseline,
+    bool calculatePowerSpectrum,
     std::function<void()> onFinished,
     std::function<void(float progress)> onProgress)
 {
@@ -139,7 +141,8 @@ void FFTManager::startFFT(
     QPointer<FFTManager> self(this);
 
     QFuture<void> future = QtConcurrent::run(
-        [realCol, imagCol, fftN, effectiveSampleCount, sampleInterval, removeBaseline, self]()
+        [realCol, imagCol, fftN, effectiveSampleCount, sampleInterval,
+         removeBaseline, calculatePowerSpectrum, self]()
     {
         if (!realCol || !imagCol || fftN == 0)
             return;
@@ -253,7 +256,10 @@ void FFTManager::startFFT(
             if (self && (i % 4096 == 0) && self->m_cancelled)
                 return;
 
-            real[i] = std::sqrt(real[i] * real[i] + imag[i] * imag[i]);
+            const double magnitude =
+                std::sqrt(real[i] * real[i] + imag[i] * imag[i]);
+            real[i] = spectrumValueFromMagnitude(
+                magnitude, calculatePowerSpectrum);
             imag[i] = static_cast<double>(i) * fs / static_cast<double>(fftN);
         }
         realCol->recalcMinMax();

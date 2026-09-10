@@ -70,6 +70,10 @@ FFTDialog::FFTDialog(const std::vector<std::string>& dataItems,
     m_chkRemoveBaseline->setChecked(false);
     form->addRow(QString::fromUtf8("去基线:"), m_chkRemoveBaseline);
 
+    m_chkCalculatePowerSpectrum = new QCheckBox(QString::fromUtf8("计算功率谱"));
+    m_chkCalculatePowerSpectrum->setChecked(false);
+    form->addRow(QString::fromUtf8("频谱输出:"), m_chkCalculatePowerSpectrum);
+
     mainLayout->addLayout(form);
     mainLayout->addSpacing(12);
 
@@ -139,10 +143,17 @@ bool FFTDialog::removeBaseline() const
     return m_chkRemoveBaseline && m_chkRemoveBaseline->isChecked();
 }
 
+bool FFTDialog::calculatePowerSpectrum() const
+{
+    return m_chkCalculatePowerSpectrum
+        && m_chkCalculatePowerSpectrum->isChecked();
+}
+
 void FFTDialog::setRememberedParameters(double sampleIntervalValue,
                                         viewer::TimeUnit sampleUnit,
                                         size_t fftSizeValue,
-                                        bool removeBaselineValue)
+                                        bool removeBaselineValue,
+                                        bool calculatePowerSpectrumValue)
 {
     m_spnSampleInterval->setValue(sampleIntervalValue);
     if (m_cmbSampleUnit)
@@ -150,4 +161,6 @@ void FFTDialog::setRememberedParameters(double sampleIntervalValue,
     m_spnFFTSize->setValue(static_cast<int>(fftSizeValue));
     if (m_chkRemoveBaseline)
         m_chkRemoveBaseline->setChecked(removeBaselineValue);
+    if (m_chkCalculatePowerSpectrum)
+        m_chkCalculatePowerSpectrum->setChecked(calculatePowerSpectrumValue);
 }

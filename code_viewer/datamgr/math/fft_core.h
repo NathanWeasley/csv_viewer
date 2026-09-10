@@ -10,6 +10,19 @@
 namespace viewer
 {
 
+// Convert an FFT-bin magnitude to the selected spectrum representation.
+// Power is expressed in dB relative to 1.0.  The floor keeps zero-valued
+// bins finite and matches the existing STFT display floor of -240 dB.
+inline double spectrumValueFromMagnitude(double magnitude,
+                                         bool calculatePowerSpectrum)
+{
+    if (!calculatePowerSpectrum)
+        return magnitude;
+
+    constexpr double minimumMagnitude = 1e-12;
+    return 20.0 * std::log10(std::max(magnitude, minimumMagnitude));
+}
+
 // ============================================================
 // 基-2 时域抽取 (DIT) 原位 FFT
 //

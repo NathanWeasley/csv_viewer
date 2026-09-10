@@ -85,15 +85,36 @@ TEST(STFTBaseline, STFTAppliesBaselineRemovalBeforeWindowing)
 {
     viewer::Column source(std::vector<double>(128, 5.0));
     const viewer::STFTResult raw = viewer::stftCompute(
-        source, 128, 0, 128, 10.0, viewer::STFTWindowType::Rectangular);
+        source, 128, 0, 128, 10.0, viewer::STFTWindowType::Rectangular,
+        false, 0.1, true);
     const viewer::STFTResult filtered = viewer::stftCompute(
         source, 128, 0, 128, 10.0, viewer::STFTWindowType::Rectangular,
-        true, 0.1);
+        true, 0.1, true);
 
     TEST_ASSERT_FALSE(raw.empty());
     TEST_ASSERT_FALSE(filtered.empty());
-    TEST_ASSERT_TRUE(raw.magnitudeDb[0] > 0.0);
-    TEST_ASSERT_NEAR(filtered.magnitudeDb[0], -240.0, 1e-9);
+    TEST_ASSERT_TRUE(raw.spectrumValues[0] > 0.0);
+    TEST_ASSERT_NEAR(filtered.spectrumValues[0], -240.0, 1e-9);
+}
+
+TEST(STFTBaseline, SelectsAmplitudeOrPowerSpectrum)
+{
+    viewer::Column source(std::vector<double>(8, 1.0));
+    const viewer::STFTResult amplitude = viewer::stftCompute(
+        source, 8, 0, 8, 8.0, viewer::STFTWindowType::Rectangular,
+        false, 0.1, false);
+    const viewer::STFTResult powerDb = viewer::stftCompute(
+        source, 8, 0, 8, 8.0, viewer::STFTWindowType::Rectangular,
+        false, 0.1, true);
+
+    TEST_ASSERT_FALSE(amplitude.empty());
+    TEST_ASSERT_FALSE(powerDb.empty());
+    TEST_ASSERT_FALSE(amplitude.powerSpectrum);
+    TEST_ASSERT_TRUE(powerDb.powerSpectrum);
+    TEST_ASSERT_NEAR(amplitude.spectrumValues[0], 8.0, 1e-12);
+    TEST_ASSERT_NEAR(powerDb.spectrumValues[0],
+                     10.0 * std::log10(64.0), 1e-12);
+    TEST_ASSERT_NEAR(powerDb.spectrumValues[1], -240.0, 1e-9);
 }
 
 } // TEST_GROUP(STFTBaseline)

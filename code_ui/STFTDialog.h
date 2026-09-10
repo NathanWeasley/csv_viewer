@@ -30,6 +30,7 @@ public:
     double sampleFrequency() const;
     viewer::STFTWindowType windowType() const;
     bool removeBaseline() const;
+    bool calculatePowerSpectrum() const;
     double highPassCutoffFrequency() const;
 
     void setRememberedParameters(size_t windowSize,
@@ -38,7 +39,8 @@ public:
                                  double sampleFrequency,
                                  viewer::STFTWindowType windowType,
                                  bool removeBaseline,
-                                 double highPassCutoffFrequency);
+                                 double highPassCutoffFrequency,
+                                 bool calculatePowerSpectrum);
 
 private:
     QComboBox* m_cmbDataItem = nullptr;
@@ -48,6 +50,7 @@ private:
     QDoubleSpinBox* m_spnSampleFrequency = nullptr;
     QComboBox* m_cmbWindowType = nullptr;
     QCheckBox* m_chkRemoveBaseline = nullptr;
+    QCheckBox* m_chkCalculatePowerSpectrum = nullptr;
     QDoubleSpinBox* m_spnHighPassCutoff = nullptr;
     QLabel* m_lblDataCount = nullptr;
 };
