@@ -1345,7 +1345,12 @@ void UI::bindPlotManagerCallbacks()
             if (cmbDataItem->count() > 0)
             {
                 auto& pm = m_viewer.GetPlotManager();
-                pm.setSelectedDataItem(pageIndex, cmbDataItem->currentText().toStdString());
+                // itemText is only a presentation label and may carry the
+                // expression-edited "*" suffix.  Keep PlotManager keyed by
+                // the undecorated data item name stored in UserRole.
+                const QString selectedName =
+                    cmbDataItem->currentData(Qt::UserRole).toString();
+                pm.setSelectedDataItem(pageIndex, selectedName.toStdString());
             }
             else
             {
