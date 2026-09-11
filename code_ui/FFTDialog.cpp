@@ -28,6 +28,9 @@ FFTDialog::FFTDialog(const std::vector<std::string>& dataItems,
         if (dataItems[i] == selectedItem)
             selIdx = static_cast<int>(i);
     }
+    m_cmbDataItem->addItem(QString::fromUtf8("全部已加载数据"));
+    m_cmbDataItem->setItemData(
+        m_cmbDataItem->count() - 1, true, AllDataItemsRole);
     if (selIdx >= 0)
         m_cmbDataItem->setCurrentIndex(selIdx);
     form->addRow(QString::fromUtf8("数据项:"), m_cmbDataItem);
@@ -106,7 +109,30 @@ FFTDialog::FFTDialog(const std::vector<std::string>& dataItems,
 
 std::string FFTDialog::selectedDataItem() const
 {
+    if (allDataItemsSelected())
+        return {};
     return m_cmbDataItem->currentText().toStdString();
+}
+
+bool FFTDialog::allDataItemsSelected() const
+{
+    return m_cmbDataItem
+        && m_cmbDataItem->currentData(AllDataItemsRole).toBool();
+}
+
+void FFTDialog::setAllDataItemsSelected(bool selected)
+{
+    if (!selected || !m_cmbDataItem)
+        return;
+
+    for (int index = 0; index < m_cmbDataItem->count(); ++index)
+    {
+        if (m_cmbDataItem->itemData(index, AllDataItemsRole).toBool())
+        {
+            m_cmbDataItem->setCurrentIndex(index);
+            return;
+        }
+    }
 }
 
 double FFTDialog::sampleInterval() const

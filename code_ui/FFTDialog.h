@@ -27,6 +27,8 @@ public:
               QWidget* parent = nullptr);
 
     std::string selectedDataItem() const;
+    bool allDataItemsSelected() const;
+    void setAllDataItemsSelected(bool selected);
     // 返回转换后的采样间隔（单位：秒）
     double sampleInterval() const;
     double sampleIntervalInputValue() const;
@@ -42,6 +44,8 @@ public:
                                  bool calculatePowerSpectrum);
 
 private:
+    static constexpr int AllDataItemsRole = Qt::UserRole + 1;
+
     QComboBox* m_cmbDataItem = nullptr;
     QDoubleSpinBox* m_spnSampleInterval = nullptr;
     QComboBox* m_cmbSampleUnit = nullptr;

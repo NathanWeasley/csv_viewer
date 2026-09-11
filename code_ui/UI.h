@@ -306,7 +306,7 @@ private:
     QPoint m_fftSelStart;
     QPoint m_fftSelEnd;
     QCPItemRect* m_fftSelectRect = nullptr;
-    std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftMagCols;
+    std::unordered_map<int, std::vector<std::unique_ptr<viewer::Column>>> m_fftMagCols;
     std::unordered_map<int, std::unique_ptr<viewer::Column>> m_fftFreqCols;
 
     // 仅在本次程序启动期间保留，不写入任何配置文件。
@@ -319,6 +319,7 @@ private:
         size_t fftSize = 2;
         bool removeBaseline = false;
         bool calculatePowerSpectrum = false;
+        bool allDataItems = false;
     } m_fftParameterMemory;
 
     struct STFTParameterMemory

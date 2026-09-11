@@ -9,6 +9,9 @@
 #include <QPointer>
 #include <algorithm>
 #include <cmath>
+#include <functional>
+#include <memory>
+#include <unordered_set>
 
 namespace
 {
@@ -103,6 +106,28 @@ std::vector<double> buildAlignedSTFTTimeAxis(const viewer::Column* xCol,
 
     return axis;
 }
+
+struct FFTBatchItem
+{
+    std::string sourceName;
+    QColor sourceColor;
+    std::unique_ptr<viewer::Column> sourceColumn;
+    std::unique_ptr<viewer::Column> spectrumColumn;
+};
+
+struct FFTBatchState
+{
+    QPointer<QWidget> outputContainer;
+    std::vector<FFTBatchItem> items;
+    std::unique_ptr<viewer::Column> frequencyColumn;
+    size_t nextItem = 0;
+    size_t startIndex = 0;
+    size_t sampleCount = 0;
+    size_t fftSize = 0;
+    double sampleInterval = 1.0;
+    bool removeBaseline = false;
+    bool calculatePowerSpectrum = false;
+};
 
 } // namespace
 
@@ -261,12 +286,16 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
 
     // 优先恢复本次启动期间上次确认过的参数；已记忆数据项不可用时使用当前项。
     viewer::TimeUnit xUnit = dm.GetXAxisUnit();
+    const bool rememberedAllDataItems = m_fftParameterMemory.valid
+        && m_fftParameterMemory.allDataItems;
     const bool rememberedItemAvailable = m_fftParameterMemory.valid
+        && !rememberedAllDataItems
         && std::find(itemList.begin(), itemList.end(),
                      m_fftParameterMemory.dataItem) != itemList.end();
     const std::string initialItem = rememberedItemAvailable
         ? m_fftParameterMemory.dataItem : selItem;
     FFTDialog dlg(itemList, initialItem, dataCount, xUnit, this);
+    dlg.setAllDataItemsSelected(rememberedAllDataItems);
     if (m_fftParameterMemory.valid)
     {
         dlg.setRememberedParameters(
@@ -282,179 +311,282 @@ void UI::showFFTDialog(int pageIndex, double xMin, double xMax)
         return;
     }
 
-    std::string chosenItem = dlg.selectedDataItem();
+    const bool allDataItems = dlg.allDataItemsSelected();
+    const std::string chosenItem = dlg.selectedDataItem();
     double sampleInterval = dlg.sampleInterval();
     size_t fftN = dlg.fftSize();
     const bool removeBaseline = dlg.removeBaseline();
     const bool calculatePowerSpectrum = dlg.calculatePowerSpectrum();
     m_fftParameterMemory.valid = true;
     m_fftParameterMemory.dataItem = chosenItem;
+    m_fftParameterMemory.allDataItems = allDataItems;
     m_fftParameterMemory.sampleIntervalValue = dlg.sampleIntervalInputValue();
     m_fftParameterMemory.sampleUnit = dlg.sampleIntervalUnit();
     m_fftParameterMemory.fftSize = fftN;
     m_fftParameterMemory.removeBaseline = removeBaseline;
     m_fftParameterMemory.calculatePowerSpectrum = calculatePowerSpectrum;
-    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" samplesInRange=%3 fftSize=%4 sampleInterval=%5 linearDetrend=%6 powerSpectrum=%7")
-                      .arg(pageIndex).arg(QString::fromStdString(chosenItem))
+    const QString selectionLabel = allDataItems
+        ? QString::fromUtf8("全部已加载数据")
+        : QString::fromStdString(chosenItem);
+    logOperationTrace(QString("FFT parameters page=%1 item=\"%2\" allItems=%3 samplesInRange=%4 fftSize=%5 sampleInterval=%6 linearDetrend=%7 powerSpectrum=%8")
+                      .arg(pageIndex).arg(selectionLabel)
+                      .arg(allDataItems ? "true" : "false")
                       .arg(dataCount).arg(fftN).arg(sampleInterval, 0, 'g', 16)
                       .arg(removeBaseline ? "true" : "false")
                       .arg(calculatePowerSpectrum ? "true" : "false"));
 
-    if (chosenItem != selItem)
+    // Preserve the source plot order for batch results so the result selector
+    // follows the same order the user sees in the source window.
+    auto* sourcePlot = getPlot(pageIndex);
+    if (!sourcePlot)
+        return;
+
+    std::vector<std::string> sourceNames;
+    if (allDataItems)
     {
-        srcCol = resolveFFTSourceColumn(chosenItem);
-        if (!srcCol) return;
+        std::unordered_set<std::string> appendedNames;
+        for (int index = 0; index < sourcePlot->plottableCount(); ++index)
+        {
+            auto* plottable = sourcePlot->plottable(index);
+            if (!plottable)
+                continue;
+            const std::string name = plottable->name().toStdString();
+            if (dataItems.count(name) > 0 && appendedNames.insert(name).second)
+                sourceNames.push_back(name);
+        }
+        for (const std::string& name : itemList)
+        {
+            if (appendedNames.insert(name).second)
+                sourceNames.push_back(name);
+        }
+    }
+    else if (!chosenItem.empty())
+    {
+        sourceNames.push_back(chosenItem);
     }
 
-    // ---- 创建 FFT 图窗 ----
-    const std::string spectrumName = calculatePowerSpectrum
-        ? "FFT Power Spectrum (dB)" : "FFT Amplitude Spectrum";
-    int fftPageIdx = pm.addFFTPage("FFT: " + chosenItem
-        + (calculatePowerSpectrum ? " [Power dB]" : " [Amplitude]"));
-    QPointer<QWidget> fftContainer = getPlotContainer(fftPageIdx);
-    logOperationTrace(QString("FFT output page created sourcePage=%1 outputPage=%2 container=0x%3")
-                      .arg(pageIndex).arg(fftPageIdx)
-                      .arg(reinterpret_cast<quintptr>(fftContainer.data()), 0, 16));
+    if (sourceNames.empty())
+    {
+        QMessageBox::warning(this, QString::fromUtf8("FFT 失败"),
+                             QString::fromUtf8("没有可用于 FFT 的已加载数据。"));
+        return;
+    }
 
-    // ---- 准备两列数据 ----
-    auto realCol = std::make_unique<viewer::Column>(fftN);
-    auto imagCol = std::make_unique<viewer::Column>(fftN);
+    auto state = std::make_shared<FFTBatchState>();
+    state->startIndex = 0;
+    state->sampleCount = dataCount;
+    state->fftSize = fftN;
+    state->sampleInterval = sampleInterval;
+    state->removeBaseline = removeBaseline;
+    state->calculatePowerSpectrum = calculatePowerSpectrum;
+    state->frequencyColumn = std::make_unique<viewer::Column>(fftN);
+    state->items.reserve(sourceNames.size());
 
-    viewer::Column* realPtr = realCol.get();
-    viewer::Column* imagPtr = imagCol.get();
-
-    // ---- 启动 FFT 线程 ----
-    auto* fftMgr = new viewer::FFTManager(this);
-
-    m_progressBar->setRange(0, 100);
-    m_progressBar->setValue(0);
-    m_progressBar->setVisible(true);
-
-    connect(fftMgr, &viewer::FFTManager::progressChanged, this,
-        [this](float progress)
+    for (const std::string& name : sourceNames)
+    {
+        const viewer::Column* sourceColumn = resolveFFTSourceColumn(name);
+        if (!sourceColumn || endIdx >= sourceColumn->size())
         {
-            m_progressBar->setValue(static_cast<int>(progress * 100.0f));
-        });
+            QMessageBox::warning(
+                this, QString::fromUtf8("FFT 失败"),
+                QString::fromUtf8("数据项“%1”在框选范围内没有完整的有效数据。")
+                    .arg(QString::fromStdString(name)));
+            return;
+        }
 
-    connect(fftMgr, &viewer::FFTManager::finished, this,
-        [this, fftMgr, fftContainer, spectrumName, calculatePowerSpectrum,
-         realCol = std::move(realCol), imagCol = std::move(imagCol)]() mutable
+        std::vector<double> selectedSamples(dataCount);
+        for (size_t offset = 0; offset < dataCount; ++offset)
+            selectedSamples[offset] = (*sourceColumn)[startIdx + offset];
+
+        QColor sourceColor(60, 140, 255);
+        for (int index = 0; index < sourcePlot->plottableCount(); ++index)
         {
-            logOperationTrace(QString("FFT finished signal manager=0x%1 containerValid=%2")
-                              .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16).arg(!fftContainer.isNull()));
-            m_progressBar->setVisible(false);
-
-            if (!fftContainer)
+            auto* plottable = sourcePlot->plottable(index);
+            if (plottable && plottable->name().toStdString() == name)
             {
-                fftMgr->deleteLater();
-                return;
+                sourceColor = plottable->pen().color();
+                break;
             }
+        }
 
-            int fftPageIdx = -1;
-            for (auto it = m_pageDocks.begin(); it != m_pageDocks.end(); ++it)
+        FFTBatchItem item;
+        item.sourceName = name;
+        item.sourceColor = sourceColor;
+        item.sourceColumn = std::make_unique<viewer::Column>(
+            std::move(selectedSamples));
+        item.spectrumColumn = std::make_unique<viewer::Column>(fftN);
+        state->items.push_back(std::move(item));
+    }
+
+    const QString outputTitle = QString::fromUtf8("FFT: %1 [%2]")
+        .arg(selectionLabel)
+        .arg(calculatePowerSpectrum
+            ? QString::fromUtf8("功率谱 dB")
+            : QString::fromUtf8("幅值谱"));
+    const int outputPageIndex = pm.addFFTPage(outputTitle.toStdString());
+    state->outputContainer = getPlotContainer(outputPageIndex);
+    logOperationTrace(QString("FFT output page created sourcePage=%1 outputPage=%2 items=%3 container=0x%4")
+                      .arg(pageIndex).arg(outputPageIndex).arg(state->items.size())
+                      .arg(reinterpret_cast<quintptr>(state->outputContainer.data()), 0, 16));
+
+    auto installResults = [this, state]() mutable
+    {
+        m_progressBar->setVisible(false);
+        if (!state->outputContainer)
+            return;
+
+        int fftPageIndex = -1;
+        for (auto it = m_pageDocks.begin(); it != m_pageDocks.end(); ++it)
+        {
+            if (it.value()
+                && it.value()->widget() == state->outputContainer.data())
             {
-                if (it.value() && it.value()->widget() == fftContainer.data())
-                {
-                    fftPageIdx = it.key();
-                    break;
-                }
+                fftPageIndex = it.key();
+                break;
             }
-            if (fftPageIdx < 0 || fftPageIdx >= plotPageCount())
-            {
-                fftMgr->deleteLater();
-                return;
-            }
+        }
+        if (fftPageIndex < 0 || fftPageIndex >= plotPageCount())
+            return;
 
-            auto* container = fftContainer.data();
-            auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
-            if (!plot)
-            {
-                fftMgr->deleteLater();
-                return;
-            }
+        auto* container = state->outputContainer.data();
+        auto* plot = container ? container->findChild<QCustomPlot*>() : nullptr;
+        if (!plot || !state->frequencyColumn)
+            return;
 
-            // 持有列生命周期
-            viewer::Column* magPtr = realCol.get();
-            viewer::Column* freqPtr = imagCol.get();
+        viewer::Column* frequencyColumn = state->frequencyColumn.get();
+        std::vector<std::unique_ptr<viewer::Column>> spectrumColumns;
+        spectrumColumns.reserve(state->items.size());
 
-            // 创建 graph：key=频率列, data=幅值列
+        for (auto& item : state->items)
+        {
+            viewer::Column* spectrumColumn = item.spectrumColumn.get();
             auto* graph = new viewer::QCPColumnGraph(plot->xAxis, plot->yAxis);
-            graph->setName(QString::fromStdString(spectrumName));
-            graph->setDataColumns(freqPtr, magPtr);
-            graph->setPen(QPen(QColor(60, 140, 255), 1));
-            plot->xAxis->setLabel(QString::fromUtf8("频率 (Hz)"));
-            plot->yAxis->setLabel(calculatePowerSpectrum
-                ? QString::fromUtf8("功率谱 (dB)")
-                : QString::fromUtf8("幅值"));
+            graph->setName(QString::fromStdString(item.sourceName));
+            graph->setDataColumns(frequencyColumn, spectrumColumn);
+            graph->setPen(QPen(item.sourceColor, 1));
+            spectrumColumns.push_back(std::move(item.spectrumColumn));
+        }
 
-            // ---- 向工具栏注册 FFT 数据项，启用样式编辑 ----
+        plot->xAxis->setLabel(QString::fromUtf8("频率 (Hz)"));
+        plot->yAxis->setLabel(state->calculatePowerSpectrum
+            ? QString::fromUtf8("功率谱 (dB)")
+            : QString::fromUtf8("幅值"));
+
+        if (auto* vbox = container->findChild<QVBoxLayout*>())
+        {
+            if (vbox->count() >= 1)
             {
-                auto* vbox = container->findChild<QVBoxLayout*>();
-                if (vbox && vbox->count() >= 1)
+                if (auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget()))
                 {
-                    auto* toolbar = qobject_cast<QWidget*>(vbox->itemAt(0)->widget());
-                    if (toolbar)
+                    if (auto* hb = toolbar->findChild<QHBoxLayout*>())
                     {
-                        auto* hb = toolbar->findChild<QHBoxLayout*>();
-                        if (hb && hb->count() >= 11)
+                        if (hb->count() >= 11)
                         {
-                            auto* cmbDataItem = qobject_cast<QComboBox*>(hb->itemAt(0)->widget());
-                            if (cmbDataItem)
+                            if (auto* combo = qobject_cast<QComboBox*>(hb->itemAt(0)->widget()))
                             {
-                                cmbDataItem->blockSignals(true);
-                                const QString displayName =
-                                    QString::fromStdString(spectrumName);
-                                cmbDataItem->addItem(displayName);
-                                cmbDataItem->setItemData(0, displayName, Qt::UserRole);
-                                cmbDataItem->setCurrentIndex(0);
-                                cmbDataItem->blockSignals(false);
+                                combo->blockSignals(true);
+                                for (const auto& item : state->items)
+                                {
+                                    const QString name =
+                                        QString::fromStdString(item.sourceName);
+                                    combo->addItem(name);
+                                    combo->setItemData(
+                                        combo->count() - 1, name, Qt::UserRole);
+                                }
+                                combo->setCurrentIndex(0);
+                                combo->blockSignals(false);
+                                m_toolbarCombos[fftPageIndex] = combo;
+                                m_viewer.GetPlotManager().setSelectedDataItem(
+                                    fftPageIndex, state->items.front().sourceName);
+                            }
 
-                                m_toolbarCombos[fftPageIdx] = cmbDataItem;
-
-                                // 触发 onSelectedDataItemChanged → 加载 graph 样式到工具栏控件
-                                auto& pm = m_viewer.GetPlotManager();
-                                pm.setSelectedDataItem(fftPageIdx, spectrumName);
-
-                                // 启用删除按钮（占位，FFT 不支持删除单曲线）
-                                auto* btnDelete = qobject_cast<QPushButton*>(hb->itemAt(10)->widget());
-                                if (btnDelete)
-                                    btnDelete->setEnabled(false);  // FFT 图窗禁止删除
+                            if (auto* deleteButton = qobject_cast<QPushButton*>(
+                                    hb->itemAt(10)->widget()))
+                            {
+                                deleteButton->setEnabled(false);
                             }
                         }
                     }
-
-                    // 隐藏表达式编辑栏（FFT 数据不支持表达式）
-                    if (vbox->count() >= 3)
-                    {
-                        auto* exprBar = qobject_cast<QWidget*>(vbox->itemAt(2)->widget());
-                        if (exprBar)
-                            exprBar->setVisible(false);
-                    }
                 }
             }
+            if (vbox->count() >= 3)
+            {
+                if (auto* expressionBar = qobject_cast<QWidget*>(
+                        vbox->itemAt(2)->widget()))
+                {
+                    expressionBar->setVisible(false);
+                }
+            }
+        }
 
-            // 存储列生命周期
-            m_fftMagCols[fftPageIdx] = std::move(realCol);
-            m_fftFreqCols[fftPageIdx] = std::move(imagCol);
-            setPlotPageBaseChrome(fftPageIdx, true, false);
-            updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
+        m_fftMagCols[fftPageIndex] = std::move(spectrumColumns);
+        m_fftFreqCols[fftPageIndex] = std::move(state->frequencyColumn);
+        setPlotPageBaseChrome(fftPageIndex, true, false);
+        updatePlotPageChromeForLayout(m_viewer.GetPlotManager().layoutMode());
+        plot->rescaleAxes();
+        plot->replot();
 
-            plot->rescaleAxes();
-            plot->replot();
+        logOperationTrace(QString("FFT batch result installed page=%1 items=%2 pointsPerItem=%3")
+                          .arg(fftPageIndex).arg(state->items.size())
+                          .arg(frequencyColumn->size()));
+    };
 
-            logOperationTrace(QString("FFT result installed page=%1 points=%2 graph=0x%3")
-                              .arg(fftPageIdx).arg(magPtr->size())
-                              .arg(reinterpret_cast<quintptr>(graph), 0, 16));
+    m_progressBar->setRange(0, 1000);
+    m_progressBar->setValue(0);
+    m_progressBar->setVisible(true);
 
-            fftMgr->deleteLater();
-        });
+    auto startNext = std::make_shared<std::function<void()>>();
+    const std::weak_ptr<std::function<void()>> weakStartNext = startNext;
+    *startNext = [this, state, installResults, weakStartNext]() mutable
+    {
+        if (!state->outputContainer)
+        {
+            m_progressBar->setVisible(false);
+            return;
+        }
+        if (state->nextItem >= state->items.size())
+        {
+            installResults();
+            return;
+        }
 
-    logOperationTrace(QString("FFT worker start page=%1 outputPage=%2 fftSize=%3 manager=0x%4")
-                      .arg(pageIndex).arg(fftPageIdx).arg(fftN)
-                      .arg(reinterpret_cast<quintptr>(fftMgr), 0, 16));
-    fftMgr->startFFT(srcCol, startIdx, dataCount, realPtr, imagPtr, fftN,
-                     sampleInterval, removeBaseline, calculatePowerSpectrum,
-                     nullptr, nullptr);
+        const auto continuation = weakStartNext.lock();
+        if (!continuation)
+            return;
+
+        const size_t itemIndex = state->nextItem;
+        FFTBatchItem& item = state->items[itemIndex];
+        auto* fftManager = new viewer::FFTManager(this);
+        connect(fftManager, &viewer::FFTManager::progressChanged, this,
+            [this, state, itemIndex](float itemProgress)
+            {
+                const double totalProgress =
+                    (static_cast<double>(itemIndex) + itemProgress)
+                    / static_cast<double>(state->items.size());
+                m_progressBar->setValue(static_cast<int>(totalProgress * 1000.0));
+            });
+        connect(fftManager, &viewer::FFTManager::finished, this,
+            [this, state, fftManager, continuation]()
+            {
+                logOperationTrace(QString("FFT batch item finished item=%1 total=%2 manager=0x%3")
+                                  .arg(state->nextItem + 1).arg(state->items.size())
+                                  .arg(reinterpret_cast<quintptr>(fftManager), 0, 16));
+                ++state->nextItem;
+                fftManager->deleteLater();
+                (*continuation)();
+            });
+
+        logOperationTrace(QString("FFT batch item start item=%1 total=%2 name=\"%3\" manager=0x%4")
+                          .arg(itemIndex + 1).arg(state->items.size())
+                          .arg(QString::fromStdString(item.sourceName))
+                          .arg(reinterpret_cast<quintptr>(fftManager), 0, 16));
+        fftManager->startFFT(
+            item.sourceColumn.get(), state->startIndex, state->sampleCount,
+            item.spectrumColumn.get(), state->frequencyColumn.get(),
+            state->fftSize, state->sampleInterval, state->removeBaseline,
+            state->calculatePowerSpectrum, nullptr, nullptr);
+    };
+    (*startNext)();
 }
 
 void UI::onSTFTRequested(int pageIndex)
