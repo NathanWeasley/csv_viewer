@@ -33,6 +33,9 @@
     <Filter Include="jsonmgr">
       <UniqueIdentifier>{8C2C24EB-2863-45C8-9064-6BB725517F63}</UniqueIdentifier>
     </Filter>
+    <Filter Include="textmgr">
+      <UniqueIdentifier>{472E21CC-1783-4502-93B5-B4824F99C33A}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\code_viewer\base\trace_logger.cpp">
@@ -103,6 +106,12 @@
     </ClCompile>
     <ClCompile Include="..\..\..\code_viewer\plotmgr\fft\fft_manager.cpp">
       <Filter>plotmgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\textmgr\rbt_text_manager.cpp">
+      <Filter>textmgr</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\code_viewer\textmgr\rbt_time_mapper.cpp">
+      <Filter>textmgr</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -202,6 +211,9 @@
     <ClInclude Include="..\..\..\code_viewer\datamgr\math\stft_core.h">
       <Filter>datamgr\math</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\..\code_viewer\textmgr\rbt_time_mapper.h">
+      <Filter>textmgr</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <QtMoc Include="..\..\..\code_viewer\viewer\viewer_lib.h">
@@ -212,6 +224,9 @@
     </QtMoc>
     <QtMoc Include="..\..\..\code_viewer\plotmgr\fft\fft_manager.h">
       <Filter>plotmgr</Filter>
+    </QtMoc>
+    <QtMoc Include="..\..\..\code_viewer\textmgr\rbt_text_manager.h">
+      <Filter>textmgr</Filter>
     </QtMoc>
   </ItemGroup>
 </Project>

@@ -1,0 +1,8 @@
+{
+    "aliases": [
+        {
+            "from": "robState_proc_state",
+            "to": "rcu_sta"
+        }
+    ]
+}

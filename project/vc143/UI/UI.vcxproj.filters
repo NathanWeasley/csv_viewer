@@ -30,9 +30,6 @@
     <ClCompile Include="..\..\..\code_ui\RbtLogViewer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\code_ui\LogTimeMapper.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\..\code_ui\UI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -117,9 +114,6 @@
   <ItemGroup>
     <ClInclude Include="..\..\..\code_ui\icons_base64.h">
       <Filter>Source Files\icons</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\..\code_ui\LogTimeMapper.h">
-      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\..\code_plugin\PluginHost.h" />
     <ClInclude Include="..\..\..\code_plugin\PluginManager.h" />

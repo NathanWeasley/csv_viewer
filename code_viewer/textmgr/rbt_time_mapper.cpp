@@ -1,4 +1,4 @@
-#include "LogTimeMapper.h"
+#include "code_viewer/textmgr/rbt_time_mapper.h"
 
 #include "code_viewer/datamgr/data_manager.h"
 
@@ -12,6 +12,9 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+
+namespace viewer
+{
 
 namespace
 {
@@ -50,7 +53,7 @@ QString formatTimestamp(qint64 timestampUs)
 }
 }
 
-QString LogTimeMapper::pathKey(const QString& path)
+QString RbtTimeMapper::pathKey(const QString& path)
 {
     QString key = QDir::cleanPath(QFileInfo(path).absoluteFilePath());
 #ifdef Q_OS_WIN
@@ -59,7 +62,7 @@ QString LogTimeMapper::pathKey(const QString& path)
     return key;
 }
 
-bool LogTimeMapper::parseRbtTimestamp(const QByteArray& line, qint64& timestampUs)
+bool RbtTimeMapper::parseRbtTimestamp(const QByteArray& line, qint64& timestampUs)
 {
     const char* bytes = line.constData();
     const int size = line.size();
@@ -108,7 +111,7 @@ bool LogTimeMapper::parseRbtTimestamp(const QByteArray& line, qint64& timestampU
     return false;
 }
 
-bool LogTimeMapper::parseDataDate(const std::string& value, qint64& secondTimestampUs)
+bool RbtTimeMapper::parseDataDate(const std::string& value, qint64& secondTimestampUs)
 {
     const char* bytes = value.data();
     const int size = static_cast<int>(value.size());
@@ -133,7 +136,7 @@ bool LogTimeMapper::parseDataDate(const std::string& value, qint64& secondTimest
     return false;
 }
 
-bool LogTimeMapper::buildRbtIndex(const QStringList& files, QString* error)
+bool RbtTimeMapper::buildRbtIndex(const QStringList& files, QString* error)
 {
     struct IndexedFile
     {
@@ -219,7 +222,7 @@ bool LogTimeMapper::buildRbtIndex(const QStringList& files, QString* error)
     return true;
 }
 
-bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
+bool RbtTimeMapper::align(const viewer::DataManager& data, QString* error)
 {
     clearAlignment();
     const size_t rowCount = data.GetRowCount();
@@ -343,7 +346,7 @@ bool LogTimeMapper::align(const viewer::DataManager& data, QString* error)
     return false;
 }
 
-const LogTimeMapper::Entry* LogTimeMapper::nearestEntry(qint64 timestampUs) const
+const RbtTimeMapper::Entry* RbtTimeMapper::nearestEntry(qint64 timestampUs) const
 {
     if (m_entries.isEmpty())
         return nullptr;
@@ -363,7 +366,7 @@ const LogTimeMapper::Entry* LogTimeMapper::nearestEntry(qint64 timestampUs) cons
         ? &left : &*found;
 }
 
-const LogTimeMapper::Entry* LogTimeMapper::entryForLine(
+const RbtTimeMapper::Entry* RbtTimeMapper::entryForLine(
     const QString& filePath, qsizetype line) const
 {
     const QString key = pathKey(filePath);
@@ -394,7 +397,7 @@ const LogTimeMapper::Entry* LogTimeMapper::entryForLine(
     return line - left.line <= right.line - line ? &left : &right;
 }
 
-bool LogTimeMapper::dataIndexForAxisValue(
+bool RbtTimeMapper::dataIndexForAxisValue(
     const viewer::DataManager& data, double value, size_t& dataIndex) const
 {
     const viewer::Column* axis = data.GetColumn(data.GetXAxisColumn());
@@ -420,7 +423,7 @@ bool LogTimeMapper::dataIndexForAxisValue(
     return true;
 }
 
-bool LogTimeMapper::rbtLocationForDataIndex(
+bool RbtTimeMapper::rbtLocationForDataIndex(
     const viewer::DataManager& data, size_t dataIndex, RbtLocation& location,
     QString* error) const
 {
@@ -484,7 +487,7 @@ bool LogTimeMapper::rbtLocationForDataIndex(
     return true;
 }
 
-bool LogTimeMapper::dataIndexForRbtLocation(
+bool RbtTimeMapper::dataIndexForRbtLocation(
     const viewer::DataManager& data, const QString& filePath,
     qsizetype line, size_t& dataIndex, QString* error) const
 {
@@ -561,3 +564,5 @@ bool LogTimeMapper::dataIndexForRbtLocation(
         error->clear();
     return true;
 }
+
+} // namespace viewer

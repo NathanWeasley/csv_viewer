@@ -1,20 +1,28 @@
-2026-09-11 15:49:25.698 | OpenGL probe vendor=NVIDIA Corporation renderer=NVIDIA GeForce RTX 3070 Ti Laptop GPU/PCIe/SSE2 version=4.6.0 NVIDIA 555.97 readbackSuitable=1 override=0
-2026-09-11 15:49:25.700 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:49:25.701 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:49:25.787 | QCPPaintBufferGlFbo realloc logical=760x50 dpr=1.25 physical=950x63 samples=0 approxColorMiB=0.2 approxDepthStencilMiB=0.2 approxReadbackMiB=0.2
-2026-09-11 15:49:25.811 | QCPPaintBufferGlFbo realloc logical=824x723 dpr=1.25 physical=1030x904 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
-2026-09-11 15:49:43.413 | OpenGL probe vendor=NVIDIA Corporation renderer=NVIDIA GeForce RTX 3070 Ti Laptop GPU/PCIe/SSE2 version=4.6.0 NVIDIA 555.97 readbackSuitable=1 override=0
-2026-09-11 15:49:43.417 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:49:43.418 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:49:43.427 | QCPPaintBufferGlFbo realloc logical=824x723 dpr=1.25 physical=1030x904 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
-2026-09-11 15:49:43.463 | QCPPaintBufferGlFbo realloc logical=824x765 dpr=1.25 physical=1030x956 samples=0 approxColorMiB=3.8 approxDepthStencilMiB=3.8 approxReadbackMiB=3.8
-2026-09-11 15:50:02.028 | OpenGL probe vendor=NVIDIA Corporation renderer=NVIDIA GeForce RTX 3070 Ti Laptop GPU/PCIe/SSE2 version=4.6.0 NVIDIA 555.97 readbackSuitable=1 override=0
-2026-09-11 15:50:02.030 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:50:02.031 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:50:02.039 | QCPPaintBufferGlFbo realloc logical=824x723 dpr=1.25 physical=1030x904 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
-2026-09-11 15:50:02.071 | QCPPaintBufferGlFbo realloc logical=824x765 dpr=1.25 physical=1030x956 samples=0 approxColorMiB=3.8 approxDepthStencilMiB=3.8 approxReadbackMiB=3.8
-2026-09-11 15:50:33.940 | OpenGL probe vendor=NVIDIA Corporation renderer=NVIDIA GeForce RTX 3070 Ti Laptop GPU/PCIe/SSE2 version=4.6.0 NVIDIA 555.97 readbackSuitable=1 override=0
-2026-09-11 15:50:33.942 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:50:33.943 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
-2026-09-11 15:50:33.954 | QCPPaintBufferGlFbo realloc logical=824x723 dpr=1.25 physical=1030x904 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
-2026-09-11 15:50:33.986 | QCPPaintBufferGlFbo realloc logical=824x765 dpr=1.25 physical=1030x956 samples=0 approxColorMiB=3.8 approxDepthStencilMiB=3.8 approxReadbackMiB=3.8
+2026-09-12 21:35:10.277 | OpenGL probe vendor=NVIDIA Corporation renderer=NVIDIA GeForce RTX 3080 Ti/PCIe/SSE2 version=4.6.0 NVIDIA 591.86 readbackSuitable=1 override=0
+2026-09-12 21:35:10.280 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
+2026-09-12 21:35:10.281 | QCPPaintBufferGlFbo realloc logical=640x480 dpr=1.25 physical=800x600 samples=0 approxColorMiB=1.8 approxDepthStencilMiB=1.8 approxReadbackMiB=1.8
+2026-09-12 21:35:10.310 | QCPPaintBufferGlFbo realloc logical=760x50 dpr=1.25 physical=950x63 samples=0 approxColorMiB=0.2 approxDepthStencilMiB=0.2 approxReadbackMiB=0.2
+2026-09-12 21:35:10.333 | QCPPaintBufferGlFbo realloc logical=815x745 dpr=1.25 physical=1019x931 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
+2026-09-12 21:35:14.727 | QCPPaintBufferGlFbo realloc logical=816x745 dpr=1.25 physical=1020x931 samples=0 approxColorMiB=3.6 approxDepthStencilMiB=3.6 approxReadbackMiB=3.6
+2026-09-12 21:35:14.759 | QCPPaintBufferGlFbo realloc logical=826x760 dpr=1.25 physical=1033x950 samples=0 approxColorMiB=3.7 approxDepthStencilMiB=3.7 approxReadbackMiB=3.7
+2026-09-12 21:35:14.798 | QCPPaintBufferGlFbo realloc logical=868x792 dpr=1.25 physical=1085x990 samples=0 approxColorMiB=4.1 approxDepthStencilMiB=4.1 approxReadbackMiB=4.1
+2026-09-12 21:35:14.815 | QCPPaintBufferGlFbo realloc logical=900x811 dpr=1.25 physical=1125x1014 samples=0 approxColorMiB=4.4 approxDepthStencilMiB=4.4 approxReadbackMiB=4.4
+2026-09-12 21:35:14.836 | QCPPaintBufferGlFbo realloc logical=940x831 dpr=1.25 physical=1175x1039 samples=0 approxColorMiB=4.7 approxDepthStencilMiB=4.7 approxReadbackMiB=4.7
+2026-09-12 21:35:14.853 | QCPPaintBufferGlFbo realloc logical=973x842 dpr=1.25 physical=1216x1053 samples=0 approxColorMiB=4.9 approxDepthStencilMiB=4.9 approxReadbackMiB=4.9
+2026-09-12 21:35:14.871 | QCPPaintBufferGlFbo realloc logical=1002x849 dpr=1.25 physical=1253x1061 samples=0 approxColorMiB=5.1 approxDepthStencilMiB=5.1 approxReadbackMiB=5.1
+2026-09-12 21:35:14.890 | QCPPaintBufferGlFbo realloc logical=1026x851 dpr=1.25 physical=1283x1064 samples=0 approxColorMiB=5.2 approxDepthStencilMiB=5.2 approxReadbackMiB=5.2
+2026-09-12 21:35:14.910 | QCPPaintBufferGlFbo realloc logical=1049x849 dpr=1.25 physical=1311x1061 samples=0 approxColorMiB=5.3 approxDepthStencilMiB=5.3 approxReadbackMiB=5.3
+2026-09-12 21:35:14.931 | QCPPaintBufferGlFbo realloc logical=1063x848 dpr=1.25 physical=1329x1060 samples=0 approxColorMiB=5.4 approxDepthStencilMiB=5.4 approxReadbackMiB=5.4
+2026-09-12 21:35:14.947 | QCPPaintBufferGlFbo realloc logical=1076x848 dpr=1.25 physical=1345x1060 samples=0 approxColorMiB=5.4 approxDepthStencilMiB=5.4 approxReadbackMiB=5.4
+2026-09-12 21:35:14.963 | QCPPaintBufferGlFbo realloc logical=1080x848 dpr=1.25 physical=1350x1060 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:14.985 | QCPPaintBufferGlFbo realloc logical=1084x848 dpr=1.25 physical=1355x1060 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:15.051 | QCPPaintBufferGlFbo realloc logical=1083x848 dpr=1.25 physical=1354x1060 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:15.091 | QCPPaintBufferGlFbo realloc logical=1084x852 dpr=1.25 physical=1355x1065 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:15.114 | QCPPaintBufferGlFbo realloc logical=1085x855 dpr=1.25 physical=1356x1069 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:15.131 | QCPPaintBufferGlFbo realloc logical=1086x856 dpr=1.25 physical=1358x1070 samples=0 approxColorMiB=5.5 approxDepthStencilMiB=5.5 approxReadbackMiB=5.5
+2026-09-12 21:35:15.244 | QCPPaintBufferGlFbo realloc logical=1087x857 dpr=1.25 physical=1359x1071 samples=0 approxColorMiB=5.6 approxDepthStencilMiB=5.6 approxReadbackMiB=5.6
+2026-09-12 21:35:15.288 | QCPPaintBufferGlFbo realloc logical=1088x863 dpr=1.25 physical=1360x1079 samples=0 approxColorMiB=5.6 approxDepthStencilMiB=5.6 approxReadbackMiB=5.6
+2026-09-12 21:35:15.313 | QCPPaintBufferGlFbo realloc logical=1088x865 dpr=1.25 physical=1360x1081 samples=0 approxColorMiB=5.6 approxDepthStencilMiB=5.6 approxReadbackMiB=5.6
+2026-09-12 21:35:15.336 | QCPPaintBufferGlFbo realloc logical=1089x876 dpr=1.25 physical=1361x1095 samples=0 approxColorMiB=5.7 approxDepthStencilMiB=5.7 approxReadbackMiB=5.7
+2026-09-12 21:35:15.353 | QCPPaintBufferGlFbo realloc logical=1089x883 dpr=1.25 physical=1361x1104 samples=0 approxColorMiB=5.7 approxDepthStencilMiB=5.7 approxReadbackMiB=5.7
+2026-09-12 21:35:15.554 | QCPPaintBufferGlFbo realloc logical=1090x886 dpr=1.25 physical=1363x1108 samples=0 approxColorMiB=5.8 approxDepthStencilMiB=5.8 approxReadbackMiB=5.8

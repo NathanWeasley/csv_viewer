@@ -1,6 +1,6 @@
 #include "UI.h"
 
-#include "LogTimeMapper.h"
+#include "code_viewer/textmgr/rbt_time_mapper.h"
 #include "RbtLogViewer.h"
 
 #include <QMessageBox>
@@ -114,7 +114,7 @@ void UI::jumpFromPlotToRbt(int pageIndex, QCustomPlot* plot, const QPoint& pos)
         }
     }
 
-    LogTimeMapper::RbtLocation location;
+    viewer::RbtTimeMapper::RbtLocation location;
     if (!m_logTimeMapper->rbtLocationForDataIndex(
             data, dataIndex, location, &error))
     {

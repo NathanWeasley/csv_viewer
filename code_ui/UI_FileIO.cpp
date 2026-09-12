@@ -1,6 +1,6 @@
 #include "UI.h"
 #include "RbtLogViewer.h"
-#include "LogTimeMapper.h"
+#include "code_viewer/textmgr/rbt_time_mapper.h"
 
 #include <qtreewidget.h>
 #include <qlabel.h>
@@ -77,7 +77,7 @@ struct ZipLogLoadResult
     viewer::logparse::RbtLogBatchResult rbt;
     bool hasHiklog = false;
     bool cancelled = false;
-    std::shared_ptr<LogTimeMapper> timeMapper;
+    std::shared_ptr<viewer::RbtTimeMapper> timeMapper;
 };
 
 QString formatByteCount(uint64_t bytes)
@@ -1079,7 +1079,7 @@ void UI::onLoadHiklogClicked()
                 }
                 if (!parsedFiles.isEmpty() && !result.rbt.cancelled)
                 {
-                    result.timeMapper = std::make_shared<LogTimeMapper>();
+                    result.timeMapper = std::make_shared<viewer::RbtTimeMapper>();
                     result.timeMapper->buildRbtIndex(parsedFiles);
                 }
             }

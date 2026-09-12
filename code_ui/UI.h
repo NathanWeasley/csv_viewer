@@ -41,7 +41,7 @@ class HighlightDialog;
 class PluginHost;
 class PluginManager;
 class RbtLogViewerWindow;
-class LogTimeMapper;
+namespace viewer { class RbtTimeMapper; }
 class QMenu;
 class QFrame;
 namespace ads { class CDockWidget; }
@@ -290,7 +290,7 @@ private:
     quint64 m_activePluginProgressHandle = 0;
     quint64 m_pluginProgressGeneration = 0;
     RbtLogViewerWindow* m_rbtLogViewer = nullptr;
-    std::shared_ptr<LogTimeMapper> m_logTimeMapper;
+    std::shared_ptr<viewer::RbtTimeMapper> m_logTimeMapper;
 
     // Highlight state
     viewer::HighlightManager m_globalHighlightMgr;

@@ -1,0 +1,14 @@
+{
+    "rules": [
+        {
+            "alpha": 100,
+            "color": "#0072bd",
+            "condition": 5,
+            "dataColumn": "proInfo_proLineID",
+            "label": "",
+            "value1": 0.5,
+            "value2": 0
+        }
+    ],
+    "version": 1
+}

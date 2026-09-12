@@ -42,7 +42,7 @@
 #include "HighlightDialog.h"
 #include "AliasDialog.h"
 #include "XAxisDialog.h"
-#include "LogTimeMapper.h"
+#include "code_viewer/textmgr/rbt_time_mapper.h"
 #include <qdir.h>
 #include <qfile.h>
 #include <qjsondocument.h>

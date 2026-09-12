@@ -1,5 +1,7 @@
 #pragma once
 
+#include "code_viewer/base/base_def.h"
+
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
@@ -9,17 +11,20 @@
 #include <cstdint>
 #include <string>
 
-namespace viewer { class DataManager; }
+namespace viewer
+{
 
-// Builds a compact timestamp/line index for parsed RBT text files and aligns it
-// with a configured HikLog/CSV date column plus DataManager's default time axis.
-class LogTimeMapper
+class DataManager;
+
+// 为已解析的 RBT 文本建立紧凑的时间戳/行号索引，并将其与
+// HikLog/CSV 的日期列及 DataManager 默认时间轴对齐。
+class VIEWER_API RbtTimeMapper
 {
 public:
     struct RbtLocation
     {
         QString filePath;
-        qsizetype line = -1; // zero-based
+        qsizetype line = -1; // 从零开始计数
     };
 
     bool buildRbtIndex(const QStringList& files, QString* error = nullptr);
@@ -68,3 +73,5 @@ private:
     double m_axisSecondsPerUnit = 1.0;
     size_t m_alignedRowCount = 0;
 };
+
+} // namespace viewer

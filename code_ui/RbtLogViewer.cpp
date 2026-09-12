@@ -3,14 +3,17 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QClipboard>
+#include <QColorDialog>
 #include <QComboBox>
 #include <QContextMenuEvent>
+#include <QCoreApplication>
 #include <QDesktopServices>
 #include <QDir>
 #include <QFileInfo>
 #include <QFontDatabase>
-#include <QFutureWatcher>
 #include <QHBoxLayout>
+#include <QHeaderView>
+#include <QItemSelectionModel>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
@@ -21,33 +24,19 @@
 #include <QPainter>
 #include <QPushButton>
 #include <QScrollBar>
+#include <QStyledItemDelegate>
+#include <QTabWidget>
+#include <QTableView>
 #include <QTextLayout>
+#include <QUuid>
 #include <QUrl>
 #include <QVBoxLayout>
-#include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
 #include <limits>
 
 namespace
 {
-
-constexpr qint64 kIndexChunkSize = 8LL * 1024LL * 1024LL;
-constexpr qsizetype kMaximumIndexedLines = 25'000'000;
-
-struct LineIndexResult
-{
-    QVector<quint64> offsets;
-    qint64 fileSize = 0;
-    QString error;
-};
-
-struct FindResult
-{
-    qint64 offset = -1;
-    bool wrapped = false;
-    QString error;
-};
 
 QFont logFont()
 {
@@ -76,170 +65,165 @@ QString byteCountText(quint64 bytes)
             + QString::fromLatin1(units[unit]);
 }
 
-LineIndexResult buildLineIndex(const QString& path)
+QString patternFilePath()
 {
-    LineIndexResult result;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-    {
-        result.error = file.errorString();
-        return result;
-    }
-    result.fileSize = file.size();
-    result.offsets.reserve(static_cast<qsizetype>(
-        std::min<qint64>(result.fileSize / 48 + 1, 4'000'000)));
-    result.offsets.push_back(0);
-
-    quint64 absoluteOffset = 0;
-    while (!file.atEnd())
-    {
-        const QByteArray chunk = file.read(kIndexChunkSize);
-        if (chunk.isEmpty() && file.error() != QFile::NoError)
-        {
-            result.error = file.errorString();
-            result.offsets.clear();
-            return result;
-        }
-        const char* data = chunk.constData();
-        for (qsizetype index = 0; index < chunk.size(); ++index)
-        {
-            if (data[index] != '\n')
-                continue;
-            if (result.offsets.size() >= kMaximumIndexedLines)
-            {
-                result.error = QString::fromUtf8(u8"日志行数超过查看器上限（2500 万行）。");
-                result.offsets.clear();
-                return result;
-            }
-            result.offsets.push_back(absoluteOffset + static_cast<quint64>(index) + 1);
-        }
-        absoluteOffset += static_cast<quint64>(chunk.size());
-    }
-    return result;
-}
-
-QByteArray comparableBytes(QByteArray bytes, bool caseSensitive)
-{
-    return caseSensitive ? bytes : bytes.toLower();
-}
-
-qint64 findForwardRange(QFile& file,
-                        const QByteArray& needle,
-                        qint64 begin,
-                        qint64 end,
-                        bool caseSensitive)
-{
-    if (begin >= end)
-        return -1;
-    constexpr qint64 kChunk = 8LL * 1024LL * 1024LL;
-    QByteArray tail;
-    qint64 position = begin;
-    while (position < end)
-    {
-        if (!file.seek(position))
-            return -1;
-        const QByteArray current = file.read(std::min(kChunk, end - position));
-        if (current.isEmpty())
-            break;
-        const QByteArray combined = tail + current;
-        const qint64 base = position - tail.size();
-        const QByteArray comparable = comparableBytes(combined, caseSensitive);
-        qsizetype found = comparable.indexOf(needle);
-        while (found >= 0)
-        {
-            const qint64 absolute = base + found;
-            if (absolute >= begin && absolute + needle.size() <= end)
-                return absolute;
-            found = comparable.indexOf(needle, found + 1);
-        }
-        const qsizetype overlap = std::min<qsizetype>(
-            std::max<qsizetype>(0, needle.size() - 1), combined.size());
-        tail = combined.right(overlap);
-        position += current.size();
-    }
-    return -1;
-}
-
-qint64 findLastInRange(QFile& file,
-                       const QByteArray& needle,
-                       qint64 begin,
-                       qint64 end,
-                       bool caseSensitive)
-{
-    if (begin >= end)
-        return -1;
-    constexpr qint64 kChunk = 8LL * 1024LL * 1024LL;
-    QByteArray tail;
-    qint64 position = begin;
-    qint64 last = -1;
-    while (position < end)
-    {
-        if (!file.seek(position))
-            return -1;
-        const QByteArray current = file.read(std::min(kChunk, end - position));
-        if (current.isEmpty())
-            break;
-        const QByteArray combined = tail + current;
-        const qint64 base = position - tail.size();
-        const QByteArray comparable = comparableBytes(combined, caseSensitive);
-        qsizetype found = comparable.indexOf(needle);
-        while (found >= 0)
-        {
-            const qint64 absolute = base + found;
-            if (absolute >= begin && absolute + needle.size() <= end)
-                last = absolute;
-            found = comparable.indexOf(needle, found + 1);
-        }
-        const qsizetype overlap = std::min<qsizetype>(
-            std::max<qsizetype>(0, needle.size() - 1), combined.size());
-        tail = combined.right(overlap);
-        position += current.size();
-    }
-    return last;
-}
-
-FindResult findInFile(const QString& path,
-                      QByteArray needle,
-                      qint64 start,
-                      bool backward,
-                      bool caseSensitive)
-{
-    FindResult result;
-    QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-    {
-        result.error = file.errorString();
-        return result;
-    }
-    if (needle.isEmpty())
-        return result;
-    if (!caseSensitive)
-        needle = needle.toLower();
-    const qint64 size = file.size();
-    start = std::clamp<qint64>(start, 0, size);
-
-    if (backward)
-    {
-        result.offset = findLastInRange(file, needle, 0, start, caseSensitive);
-        if (result.offset < 0)
-        {
-            result.offset = findLastInRange(file, needle, start, size, caseSensitive);
-            result.wrapped = result.offset >= 0;
-        }
-    }
-    else
-    {
-        result.offset = findForwardRange(file, needle, start, size, caseSensitive);
-        if (result.offset < 0)
-        {
-            result.offset = findForwardRange(file, needle, 0, start, caseSensitive);
-            result.wrapped = result.offset >= 0;
-        }
-    }
-    return result;
+    return QDir(QCoreApplication::applicationDirPath())
+        .filePath(QStringLiteral("user/rbt_match_patterns.json"));
 }
 
 } // namespace
+
+namespace
+{
+
+class PatternColorDelegate final : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    void paint(QPainter* painter, const QStyleOptionViewItem& option,
+               const QModelIndex& index) const override
+    {
+        QStyleOptionViewItem baseOption(option);
+        initStyleOption(&baseOption, index);
+        baseOption.text.clear();
+        QStyledItemDelegate::paint(painter, baseOption, index);
+
+        QColor color = index.data(Qt::EditRole).value<QColor>();
+        if (!color.isValid())
+            return;
+        QColor swatch = color;
+        swatch.setAlpha(255);
+        const QRect rect = option.rect.adjusted(8, 5, -8, -5);
+        painter->save();
+        painter->setPen(option.palette.mid().color());
+        painter->setBrush(swatch);
+        painter->drawRoundedRect(rect, 3, 3);
+        painter->restore();
+    }
+};
+
+} // namespace
+
+RbtPatternTableModel::RbtPatternTableModel(QObject* parent)
+    : QAbstractTableModel(parent)
+{
+}
+
+int RbtPatternTableModel::rowCount(const QModelIndex& parent) const
+{
+    return parent.isValid() ? 0 : static_cast<int>(m_rules.size());
+}
+
+int RbtPatternTableModel::columnCount(const QModelIndex& parent) const
+{
+    return parent.isValid() ? 0 : 3;
+}
+
+QVariant RbtPatternTableModel::data(const QModelIndex& index, int role) const
+{
+    if (!index.isValid() || index.row() < 0 || index.row() >= m_rules.size())
+        return {};
+    const viewer::RbtPatternRule& rule = m_rules[index.row()];
+    if (role == Qt::DisplayRole || role == Qt::EditRole)
+    {
+        switch (index.column())
+        {
+        case 0: return rule.name;
+        case 1: return rule.expression;
+        case 2: return rule.color;
+        default: return {};
+        }
+    }
+    if (role == Qt::ToolTipRole && index.column() == 2)
+        return QString::fromUtf8(u8"双击选择高亮颜色");
+    return {};
+}
+
+QVariant RbtPatternTableModel::headerData(
+    int section, Qt::Orientation orientation, int role) const
+{
+    if (orientation != Qt::Horizontal || role != Qt::DisplayRole)
+        return QAbstractTableModel::headerData(section, orientation, role);
+    switch (section)
+    {
+    case 0: return QString::fromUtf8(u8"模式名称");
+    case 1: return QString::fromUtf8(u8"模式正则表达式");
+    case 2: return QString::fromUtf8(u8"高亮颜色");
+    default: return {};
+    }
+}
+
+Qt::ItemFlags RbtPatternTableModel::flags(const QModelIndex& index) const
+{
+    if (!index.isValid())
+        return Qt::ItemIsEnabled;
+    Qt::ItemFlags result = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+    if (index.column() < 2)
+        result |= Qt::ItemIsEditable;
+    return result;
+}
+
+bool RbtPatternTableModel::setData(
+    const QModelIndex& index, const QVariant& value, int role)
+{
+    if (role != Qt::EditRole || !index.isValid()
+        || index.row() < 0 || index.row() >= m_rules.size())
+        return false;
+    viewer::RbtPatternRule& rule = m_rules[index.row()];
+    switch (index.column())
+    {
+    case 0: rule.name = value.toString(); break;
+    case 1: rule.expression = value.toString(); break;
+    case 2:
+        if (!value.value<QColor>().isValid())
+            return false;
+        rule.color = value.value<QColor>();
+        break;
+    default: return false;
+    }
+    emit dataChanged(index, index, { Qt::DisplayRole, Qt::EditRole });
+    return true;
+}
+
+bool RbtPatternTableModel::removeRows(
+    int row, int count, const QModelIndex& parent)
+{
+    if (parent.isValid() || row < 0 || count <= 0 || row + count > m_rules.size())
+        return false;
+    beginRemoveRows({}, row, row + count - 1);
+    m_rules.remove(row, count);
+    endRemoveRows();
+    return true;
+}
+
+void RbtPatternTableModel::setRules(QVector<viewer::RbtPatternRule> rules)
+{
+    beginResetModel();
+    m_rules = std::move(rules);
+    endResetModel();
+}
+
+void RbtPatternTableModel::addRule()
+{
+    viewer::RbtPatternRule rule;
+    rule.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+    int suffix = m_rules.size() + 1;
+    do
+    {
+        rule.name = QString::fromUtf8(u8"新模式 %1").arg(suffix++);
+    }
+    while (std::any_of(m_rules.cbegin(), m_rules.cend(), [&rule](const auto& existing)
+    {
+        return existing.name.compare(rule.name, Qt::CaseInsensitive) == 0;
+    }));
+    rule.expression = QStringLiteral("ERROR|WARN");
+    rule.color = QColor(255, 235, 59, 80);
+    const int row = m_rules.size();
+    beginInsertRows({}, row, row);
+    m_rules.push_back(std::move(rule));
+    endInsertRows();
+}
 
 RbtLogTextView::RbtLogTextView(QWidget* parent)
     : QAbstractScrollArea(parent), m_textFont(logFont())
@@ -262,76 +246,59 @@ RbtLogTextView::~RbtLogTextView()
     clearFile();
 }
 
-bool RbtLogTextView::setIndexedFile(
-    const QString& path, QVector<quint64> lineOffsets, QString* error)
+void RbtLogTextView::setDocument(
+    std::shared_ptr<const viewer::RbtTextDocument> document)
 {
     clearFile();
-    m_file.setFileName(path);
-    if (!m_file.open(QIODevice::ReadOnly))
-    {
-        if (error)
-            *error = m_file.errorString();
-        return false;
-    }
-    m_fileSize = m_file.size();
-    if (m_fileSize > 0)
-    {
-        m_mapped = m_file.map(0, m_fileSize);
-        if (!m_mapped)
-        {
-            if (error)
-                *error = m_file.errorString();
-            m_file.close();
-            m_fileSize = 0;
-            return false;
-        }
-    }
-    m_lineOffsets = std::move(lineOffsets);
-    if (m_lineOffsets.isEmpty())
-        m_lineOffsets.push_back(0);
-    m_anchor = {};
-    m_cursor = {};
-    m_searchByteOffset = -1;
-    m_searchByteLength = 0;
+    m_document = std::move(document);
     updateScrollBar();
     viewport()->update();
-    return true;
+}
+
+void RbtLogTextView::setMatchIndex(
+    std::shared_ptr<const viewer::RbtMatchIndex> matchIndex)
+{
+    m_matchIndex = std::move(matchIndex);
+    m_currentPatternLine = -1;
+    viewport()->update();
 }
 
 void RbtLogTextView::clearFile()
 {
-    if (m_mapped)
-        m_file.unmap(m_mapped);
-    m_mapped = nullptr;
-    m_file.close();
-    m_file.setFileName(QString());
-    m_fileSize = 0;
-    m_lineOffsets.clear();
+    m_document.reset();
+    m_matchIndex.reset();
+    m_anchor = {};
+    m_cursor = {};
     m_searchByteOffset = -1;
     m_searchByteLength = 0;
+    m_currentPatternLine = -1;
     verticalScrollBar()->setRange(0, 0);
     viewport()->update();
 }
 
+qsizetype RbtLogTextView::lineCount() const noexcept
+{
+    return m_document ? m_document->lineCount() : 0;
+}
+
+quint64 RbtLogTextView::fileSize() const noexcept
+{
+    return m_document ? static_cast<quint64>(m_document->fileSize()) : 0;
+}
+
+QString RbtLogTextView::filePath() const
+{
+    return m_document ? m_document->filePath() : QString();
+}
+
 QString RbtLogTextView::lineText(qsizetype line) const
 {
-    if (line < 0 || line >= m_lineOffsets.size() || !m_mapped)
-        return {};
-    const quint64 begin = m_lineOffsets[line];
-    quint64 end = line + 1 < m_lineOffsets.size()
-        ? m_lineOffsets[line + 1] : static_cast<quint64>(m_fileSize);
-    if (end > begin && m_mapped[end - 1] == '\n')
-        --end;
-    return QString::fromUtf8(
-        reinterpret_cast<const char*>(m_mapped + begin),
-        static_cast<qsizetype>(end - begin));
+    return m_document ? m_document->lineText(line) : QString();
 }
 
 quint64 RbtLogTextView::lineStart(qsizetype line) const
 {
-    if (m_lineOffsets.isEmpty())
-        return 0;
-    return m_lineOffsets[std::clamp<qsizetype>(line, 0, m_lineOffsets.size() - 1)];
+    return m_document ? m_document->lineStart(line) : 0;
 }
 
 void RbtLogTextView::updateScrollBar()
@@ -360,11 +327,11 @@ void RbtLogTextView::paintEvent(QPaintEvent*)
 {
     QPainter painter(viewport());
     painter.fillRect(viewport()->rect(), palette().base());
-    if (m_lineOffsets.isEmpty())
+    if (lineCount() <= 0)
         return;
 
     const QFontMetrics metrics(m_textFont);
-    const int digits = QString::number(m_lineOffsets.size()).size();
+    const int digits = QString::number(lineCount()).size();
     const int marginWidth = metrics.horizontalAdvance(QLatin1Char('9')) * digits + 18;
     painter.fillRect(QRect(0, 0, marginWidth, viewport()->height()),
                      palette().alternateBase());
@@ -380,7 +347,7 @@ void RbtLogTextView::paintEvent(QPaintEvent*)
     qreal y = 0.0;
     const qreal textWidth = std::max(20, viewport()->width() - marginWidth - 10);
     for (qsizetype lineIndex = verticalScrollBar()->value();
-         lineIndex < m_lineOffsets.size() && y < viewport()->height(); ++lineIndex)
+         lineIndex < lineCount() && y < viewport()->height(); ++lineIndex)
     {
         const QString text = lineText(lineIndex);
         QTextLayout layout(text, m_textFont);
@@ -400,6 +367,22 @@ void RbtLogTextView::paintEvent(QPaintEvent*)
         }
         layout.endLayout();
         height = std::max<qreal>(height, metrics.height());
+
+        const int ruleIndex = m_matchIndex
+            ? m_matchIndex->firstRuleForLine(lineIndex) : -1;
+        if (ruleIndex >= 0 && ruleIndex < m_matchIndex->rules().size())
+        {
+            QColor color = m_matchIndex->rules()[ruleIndex].color;
+            if (color.alpha() == 255)
+                color.setAlpha(80);
+            painter.fillRect(QRectF(marginWidth, y,
+                viewport()->width() - marginWidth, height), color);
+        }
+        if (lineIndex == m_currentPatternLine)
+        {
+            painter.fillRect(QRectF(marginWidth, y, 4, height),
+                             palette().highlight());
+        }
 
         QList<QTextLayout::FormatRange> formats;
         if (hasSelection() && lineIndex >= selectionBegin.line
@@ -433,15 +416,15 @@ void RbtLogTextView::paintEvent(QPaintEvent*)
 RbtLogTextView::TextPosition RbtLogTextView::positionAt(const QPoint& point) const
 {
     TextPosition result;
-    if (m_lineOffsets.isEmpty())
+    if (lineCount() <= 0)
         return result;
     const QFontMetrics metrics(m_textFont);
-    const int digits = QString::number(m_lineOffsets.size()).size();
+    const int digits = QString::number(lineCount()).size();
     const int marginWidth = metrics.horizontalAdvance(QLatin1Char('9')) * digits + 18;
     const qreal textWidth = std::max(20, viewport()->width() - marginWidth - 10);
     qreal y = 0.0;
     result.line = verticalScrollBar()->value();
-    for (qsizetype lineIndex = result.line; lineIndex < m_lineOffsets.size(); ++lineIndex)
+    for (qsizetype lineIndex = result.line; lineIndex < lineCount(); ++lineIndex)
     {
         const QString text = lineText(lineIndex);
         QTextLayout layout(text, m_textFont);
@@ -463,7 +446,7 @@ RbtLogTextView::TextPosition RbtLogTextView::positionAt(const QPoint& point) con
         }
         layout.endLayout();
         height = std::max<qreal>(height, metrics.height());
-        if (point.y() < y + height || lineIndex + 1 == m_lineOffsets.size())
+        if (point.y() < y + height || lineIndex + 1 == lineCount())
         {
             result.line = lineIndex;
             result.column = text.size();
@@ -483,7 +466,7 @@ RbtLogTextView::TextPosition RbtLogTextView::positionAt(const QPoint& point) con
         if (y >= viewport()->height())
             break;
     }
-    result.line = m_lineOffsets.size() - 1;
+    result.line = lineCount() - 1;
     result.column = lineText(result.line).size();
     return result;
 }
@@ -497,10 +480,11 @@ void RbtLogTextView::resizeEvent(QResizeEvent* event)
 
 void RbtLogTextView::mousePressEvent(QMouseEvent* event)
 {
-    if (event->button() == Qt::LeftButton && !m_lineOffsets.isEmpty())
+    if (event->button() == Qt::LeftButton && lineCount() > 0)
     {
         setFocus();
         m_anchor = m_cursor = positionAt(event->position().toPoint());
+        m_currentPatternLine = -1;
         m_selecting = true;
         emit currentLineChanged(m_cursor.line + 1);
         viewport()->update();
@@ -591,10 +575,10 @@ void RbtLogTextView::copySelection() const
 
 void RbtLogTextView::selectAllText()
 {
-    if (m_lineOffsets.isEmpty())
+    if (lineCount() <= 0)
         return;
     m_anchor = {0, 0};
-    const qsizetype last = m_lineOffsets.size() - 1;
+    const qsizetype last = lineCount() - 1;
     m_cursor = {last, lineText(last).size()};
     viewport()->update();
 }
@@ -659,16 +643,17 @@ void RbtLogTextView::contextMenuEvent(QContextMenuEvent* event)
     menu.exec(event->globalPos());
 }
 
-void RbtLogTextView::jumpToLine(qsizetype zeroBasedLine)
+void RbtLogTextView::jumpToLine(qsizetype zeroBasedLine, bool selectLine)
 {
-    if (m_lineOffsets.isEmpty())
+    if (lineCount() <= 0)
         return;
     const qsizetype line = std::clamp<qsizetype>(
-        zeroBasedLine, 0, m_lineOffsets.size() - 1);
+        zeroBasedLine, 0, lineCount() - 1);
     m_anchor = {line, 0};
-    m_cursor = {line, lineText(line).size()};
+    m_cursor = {line, selectLine ? lineText(line).size() : 0};
     m_searchByteOffset = -1;
     m_searchByteLength = 0;
+    m_currentPatternLine = selectLine ? -1 : line;
     verticalScrollBar()->setValue(static_cast<int>(std::max<qsizetype>(
         0, line - verticalScrollBar()->pageStep() / 3)));
     emit currentLineChanged(line + 1);
@@ -688,26 +673,30 @@ quint64 RbtLogTextView::searchStartOffset(bool backward) const
 
 void RbtLogTextView::setSearchMatch(quint64 byteOffset, qsizetype byteLength)
 {
-    if (m_lineOffsets.isEmpty() || byteOffset > static_cast<quint64>(m_fileSize))
+    if (!m_document)
         return;
-    const auto found = std::upper_bound(
-        m_lineOffsets.cbegin(), m_lineOffsets.cend(), byteOffset);
-    const qsizetype line = std::max<qsizetype>(0,
-        static_cast<qsizetype>(found - m_lineOffsets.cbegin()) - 1);
-    const quint64 start = lineStart(line);
-    const qsizetype column = QString::fromUtf8(
-        reinterpret_cast<const char*>(m_mapped + start),
-        static_cast<qsizetype>(byteOffset - start)).size();
-    const qsizetype matchCharacters = QString::fromUtf8(
-        reinterpret_cast<const char*>(m_mapped + byteOffset), byteLength).size();
+    qsizetype line = 0;
+    qsizetype column = 0;
+    qsizetype matchCharacters = 0;
+    if (!m_document->textPositionForByteOffset(
+            byteOffset, byteLength, &line, &column, &matchCharacters))
+        return;
     m_anchor = {line, column};
     m_cursor = {line, column + std::max<qsizetype>(1, matchCharacters)};
     m_searchByteOffset = static_cast<qint64>(byteOffset);
     m_searchByteLength = byteLength;
+    m_currentPatternLine = -1;
     verticalScrollBar()->setValue(static_cast<int>(std::max<qsizetype>(
         0, line - verticalScrollBar()->pageStep() / 3)));
     emit currentLineChanged(line + 1);
     viewport()->update();
+}
+
+qsizetype RbtLogTextView::navigationAnchorLine() const noexcept
+{
+    if (m_currentPatternLine >= 0)
+        return m_currentPatternLine;
+    return m_document ? m_cursor.line : -1;
 }
 
 RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
@@ -731,24 +720,88 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     fileRow->addWidget(openDirectory);
     layout->addLayout(fileRow);
 
+    m_tabs = new QTabWidget(central);
+    m_logTab = new QWidget(m_tabs);
+    auto* logLayout = new QVBoxLayout(m_logTab);
     auto* findRow = new QHBoxLayout();
-    findRow->addWidget(new QLabel(QString::fromUtf8(u8"查找："), central));
-    m_findText = new QLineEdit(central);
+    findRow->addWidget(new QLabel(QString::fromUtf8(u8"查找："), m_logTab));
+    m_findText = new QLineEdit(m_logTab);
     m_findText->setClearButtonEnabled(true);
     findRow->addWidget(m_findText, 1);
-    m_caseSensitive = new QCheckBox(QString::fromUtf8(u8"区分大小写"), central);
+    m_caseSensitive = new QCheckBox(QString::fromUtf8(u8"区分大小写"), m_logTab);
     findRow->addWidget(m_caseSensitive);
-    m_findPrevious = new QPushButton(QString::fromUtf8(u8"上一个"), central);
-    m_findNext = new QPushButton(QString::fromUtf8(u8"下一个"), central);
+    m_findPrevious = new QPushButton(QString::fromUtf8(u8"上一个"), m_logTab);
+    m_findNext = new QPushButton(QString::fromUtf8(u8"下一个"), m_logTab);
     findRow->addWidget(m_findPrevious);
     findRow->addWidget(m_findNext);
-    layout->addLayout(findRow);
+    logLayout->addLayout(findRow);
 
-    m_textView = new RbtLogTextView(central);
-    layout->addWidget(m_textView, 1);
-    m_status = new QLabel(central);
-    layout->addWidget(m_status);
+    m_textView = new RbtLogTextView(m_logTab);
+    logLayout->addWidget(m_textView, 1);
+
+    auto* navigationRow = new QHBoxLayout();
+    navigationRow->addWidget(new QLabel(QString::fromUtf8(u8"导航："), m_logTab));
+    m_navigationPattern = new QComboBox(m_logTab);
+    m_navigationPattern->setMinimumContentsLength(18);
+    navigationRow->addWidget(m_navigationPattern, 1);
+    m_firstMatch = new QPushButton(QString::fromUtf8(u8"第一条"), m_logTab);
+    m_previousMatch = new QPushButton(QString::fromUtf8(u8"上一条"), m_logTab);
+    m_nextMatch = new QPushButton(QString::fromUtf8(u8"下一条"), m_logTab);
+    m_lastMatch = new QPushButton(QString::fromUtf8(u8"最后一条"), m_logTab);
+    navigationRow->addWidget(m_firstMatch);
+    navigationRow->addWidget(m_previousMatch);
+    navigationRow->addWidget(m_nextMatch);
+    navigationRow->addWidget(m_lastMatch);
+    m_matchPosition = new QLabel(m_logTab);
+    m_matchPosition->setMinimumWidth(130);
+    navigationRow->addWidget(m_matchPosition);
+    logLayout->addLayout(navigationRow);
+
+    m_status = new QLabel(m_logTab);
+    logLayout->addWidget(m_status);
+    m_tabs->addTab(m_logTab, QString::fromUtf8(u8"日志"));
+
+    m_patternTab = new QWidget(m_tabs);
+    auto* patternLayout = new QVBoxLayout(m_patternTab);
+    m_patternModel = new RbtPatternTableModel(this);
+    m_patternTable = new QTableView(m_patternTab);
+    m_patternTable->setModel(m_patternModel);
+    m_patternTable->setItemDelegateForColumn(
+        2, new PatternColorDelegate(m_patternTable));
+    m_patternTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+    m_patternTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
+    m_patternTable->horizontalHeader()->setStretchLastSection(false);
+    m_patternTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
+    m_patternTable->horizontalHeader()->resizeSection(0, 180);
+    m_patternTable->horizontalHeader()->resizeSection(1, 720);
+    m_patternTable->horizontalHeader()->resizeSection(2, 140);
+    patternLayout->addWidget(m_patternTable, 1);
+
+    auto* patternButtons = new QHBoxLayout();
+    m_addPattern = new QPushButton(QString::fromUtf8(u8"新增"), m_patternTab);
+    m_removePattern = new QPushButton(QString::fromUtf8(u8"删除"), m_patternTab);
+    m_updatePatterns = new QPushButton(QString::fromUtf8(u8"更新"), m_patternTab);
+    patternButtons->addWidget(m_addPattern);
+    patternButtons->addWidget(m_removePattern);
+    patternButtons->addStretch(1);
+    patternButtons->addWidget(m_updatePatterns);
+    patternLayout->addLayout(patternButtons);
+    m_patternStatus = new QLabel(m_patternTab);
+    patternLayout->addWidget(m_patternStatus);
+    m_tabs->addTab(m_patternTab, QString::fromUtf8(u8"模式匹配"));
+    layout->addWidget(m_tabs, 1);
     setCentralWidget(central);
+
+    m_textManager = new viewer::RbtTextManager(this);
+    QString loadError;
+    if (!m_textManager->loadPatterns(patternFilePath(), &loadError))
+        m_patternStatus->setText(QString::fromUtf8(u8"载入模式失败：%1").arg(loadError));
+    m_patternModel->setRules(m_textManager->patterns());
+    setPatternDirty(false);
+
+    m_findPrevious->setEnabled(false);
+    m_findNext->setEnabled(false);
+    updateNavigationControls();
 
     connect(m_files, &QComboBox::currentIndexChanged, this, [this](int index)
     {
@@ -775,6 +828,164 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
             this, &RbtLogViewerWindow::updateStatus);
     connect(m_textView, &RbtLogTextView::markRequested,
             this, &RbtLogViewerWindow::markRequested);
+
+    connect(m_patternModel, &QAbstractItemModel::dataChanged,
+            this, [this]() { setPatternDirty(true); });
+    connect(m_patternModel, &QAbstractItemModel::rowsInserted,
+            this, [this]() { setPatternDirty(true); });
+    connect(m_patternModel, &QAbstractItemModel::rowsRemoved,
+            this, [this]() { setPatternDirty(true); });
+    connect(m_addPattern, &QPushButton::clicked, this, [this]()
+    {
+        m_patternModel->addRule();
+        const int row = m_patternModel->rowCount() - 1;
+        if (row >= 0)
+        {
+            m_patternTable->setCurrentIndex(m_patternModel->index(row, 0));
+            m_patternTable->edit(m_patternModel->index(row, 0));
+        }
+    });
+    connect(m_removePattern, &QPushButton::clicked, this, [this]()
+    {
+        QModelIndexList rows = m_patternTable->selectionModel()->selectedRows();
+        std::sort(rows.begin(), rows.end(), [](const QModelIndex& lhs, const QModelIndex& rhs)
+        {
+            return lhs.row() > rhs.row();
+        });
+        for (const QModelIndex& row : rows)
+            m_patternModel->removeRow(row.row());
+    });
+    connect(m_updatePatterns, &QPushButton::clicked,
+            this, &RbtLogViewerWindow::applyPatternChanges);
+    connect(m_patternTable, &QTableView::doubleClicked, this,
+        [this](const QModelIndex& index)
+        {
+            if (index.column() != 2)
+                return;
+            QColor color = index.data(Qt::EditRole).value<QColor>();
+            color = QColorDialog::getColor(color, this,
+                QString::fromUtf8(u8"选择行高亮颜色"), QColorDialog::ShowAlphaChannel);
+            if (color.isValid())
+                m_patternModel->setData(index, color, Qt::EditRole);
+        });
+
+    connect(m_firstMatch, &QPushButton::clicked, this,
+        [this]() { navigatePattern(viewer::RbtNavigateAction::First); });
+    connect(m_previousMatch, &QPushButton::clicked, this,
+        [this]() { navigatePattern(viewer::RbtNavigateAction::Previous); });
+    connect(m_nextMatch, &QPushButton::clicked, this,
+        [this]() { navigatePattern(viewer::RbtNavigateAction::Next); });
+    connect(m_lastMatch, &QPushButton::clicked, this,
+        [this]() { navigatePattern(viewer::RbtNavigateAction::Last); });
+    connect(m_navigationPattern, &QComboBox::currentIndexChanged,
+            this, [this](int) { updateNavigationControls(); });
+
+    connect(m_textManager, &viewer::RbtTextManager::documentOpening,
+        this, [this](const QString& path)
+        {
+            m_textView->clearFile();
+            m_findPrevious->setEnabled(false);
+            m_findNext->setEnabled(false);
+            m_status->setText(QString::fromUtf8(u8"正在建立行索引：%1").arg(path));
+            updateNavigationControls();
+        });
+    connect(m_textManager, &viewer::RbtTextManager::documentReady,
+        this, [this](const QString& path)
+        {
+            m_textView->setDocument(m_textManager->document());
+            m_findPrevious->setEnabled(true);
+            m_findNext->setEnabled(true);
+            if (!m_pendingJumpPath.isEmpty()
+                && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
+                && m_pendingJumpLine >= 0)
+            {
+                const qsizetype line = m_pendingJumpLine;
+                m_pendingJumpPath.clear();
+                m_pendingJumpLine = -1;
+                if (line >= m_textView->lineCount())
+                {
+                    const QString reason = QString::fromUtf8(
+                        u8"目标行 %1 超出 RBT 日志总行数 %2。")
+                                               .arg(line + 1)
+                                               .arg(m_textView->lineCount());
+                    m_status->setText(reason);
+                    emit jumpResult(path, line, false, reason);
+                    return;
+                }
+                m_textView->jumpToLine(line);
+                emit jumpResult(path, line, true, {});
+            }
+            updateStatus();
+            m_textView->setFocus();
+        });
+    connect(m_textManager, &viewer::RbtTextManager::documentFailed,
+        this, [this](const QString& path, const QString& error)
+        {
+            const QString reason = QString::fromUtf8(u8"无法打开日志：%1").arg(error);
+            m_status->setText(reason);
+            if (!m_pendingJumpPath.isEmpty()
+                && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
+                && m_pendingJumpLine >= 0)
+            {
+                const qsizetype line = m_pendingJumpLine;
+                m_pendingJumpPath.clear();
+                m_pendingJumpLine = -1;
+                emit jumpResult(path, line, false, reason);
+            }
+        });
+    connect(m_textManager, &viewer::RbtTextManager::findStarted, this, [this]()
+    {
+        m_findPrevious->setEnabled(false);
+        m_findNext->setEnabled(false);
+        m_status->setText(QString::fromUtf8(u8"正在搜索…"));
+    });
+    connect(m_textManager, &viewer::RbtTextManager::findFinished,
+        this, [this](qint64 offset, qsizetype length, bool wrapped,
+                     const QString& error)
+        {
+            m_findPrevious->setEnabled(true);
+            m_findNext->setEnabled(true);
+            if (!error.isEmpty())
+            {
+                m_status->setText(QString::fromUtf8(u8"搜索失败：%1").arg(error));
+                return;
+            }
+            if (offset < 0)
+            {
+                m_status->setText(QString::fromUtf8(u8"未找到“%1”。").arg(m_findText->text()));
+                return;
+            }
+            m_textView->setSearchMatch(static_cast<quint64>(offset), length);
+            updateStatus(m_textView->navigationAnchorLine() + 1);
+            if (wrapped)
+                m_status->setText(m_status->text() + QString::fromUtf8(u8"（已循环查找）"));
+        });
+    connect(m_textManager, &viewer::RbtTextManager::patternScanStarted,
+        this, [this]()
+        {
+            m_textView->setMatchIndex({});
+            m_patternStatus->setText(QString::fromUtf8(u8"正在匹配当前日志：0%"));
+            updateNavigationControls();
+        });
+    connect(m_textManager, &viewer::RbtTextManager::patternScanProgress,
+        this, [this](int percent)
+        {
+            m_patternStatus->setText(
+                QString::fromUtf8(u8"正在匹配当前日志：%1%").arg(percent));
+        });
+    connect(m_textManager, &viewer::RbtTextManager::patternScanFailed,
+        this, [this](const QString& error)
+        {
+            m_patternStatus->setText(QString::fromUtf8(u8"模式匹配失败：%1").arg(error));
+            updateNavigationControls();
+        });
+    connect(m_textManager, &viewer::RbtTextManager::patternIndexReady,
+        this, [this]()
+        {
+            m_textView->setMatchIndex(m_textManager->matchIndex());
+            m_patternStatus->setText(QString::fromUtf8(u8"模式匹配已更新。"));
+            updateNavigationControls();
+        });
 }
 
 void RbtLogViewerWindow::openFiles(const QStringList& paths)
@@ -811,21 +1022,23 @@ void RbtLogViewerWindow::openFiles(const QStringList& paths)
         beginOpenFile(m_files->currentData().toString());
     else
     {
+        m_textManager->clear();
         m_textView->clearFile();
         m_status->setText(QString::fromUtf8(u8"临时目录中没有已解析的 RBT 日志。"));
+        updateNavigationControls();
     }
     presentWindow();
 }
 
 void RbtLogViewerWindow::releaseFiles()
 {
-    ++m_openGeneration;
-    ++m_findGeneration;
+    m_textManager->clear();
     m_files->blockSignals(true);
     m_files->clear();
     m_files->blockSignals(false);
     m_textView->clearFile();
     m_status->clear();
+    updateNavigationControls();
     m_pendingJumpPath.clear();
     m_pendingJumpLine = -1;
     hide();
@@ -859,6 +1072,7 @@ bool RbtLogViewerWindow::openFileAtLine(
             }
             return false;
         }
+        m_tabs->setCurrentWidget(m_logTab);
         m_textView->jumpToLine(zeroBasedLine);
         presentWindow();
         if (error)
@@ -889,6 +1103,7 @@ bool RbtLogViewerWindow::openFileAtLine(
     m_files->setCurrentIndex(index);
     m_files->blockSignals(false);
     beginOpenFile(m_files->itemData(index).toString());
+    m_tabs->setCurrentWidget(m_logTab);
     presentWindow();
     if (error)
         error->clear();
@@ -907,130 +1122,131 @@ void RbtLogViewerWindow::presentWindow()
 
 void RbtLogViewerWindow::beginOpenFile(const QString& path)
 {
-    const quint64 generation = ++m_openGeneration;
-    ++m_findGeneration;
-    m_textView->clearFile();
-    m_status->setText(QString::fromUtf8(u8"正在建立行索引：%1").arg(path));
-    m_findPrevious->setEnabled(false);
-    m_findNext->setEnabled(false);
-
-    auto* watcher = new QFutureWatcher<LineIndexResult>(this);
-    connect(watcher, &QFutureWatcher<LineIndexResult>::finished, this,
-        [this, watcher, generation, path]()
-        {
-            LineIndexResult result = watcher->future().takeResult();
-            watcher->deleteLater();
-            if (generation != m_openGeneration)
-                return;
-            if (!result.error.isEmpty())
-            {
-                const QString reason = QString::fromUtf8(u8"无法打开日志：%1").arg(result.error);
-                m_status->setText(reason);
-                if (!m_pendingJumpPath.isEmpty()
-                    && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
-                    && m_pendingJumpLine >= 0)
-                {
-                    const qsizetype line = m_pendingJumpLine;
-                    m_pendingJumpPath.clear();
-                    m_pendingJumpLine = -1;
-                    emit jumpResult(path, line, false, reason);
-                }
-                return;
-            }
-            QString mapError;
-            if (!m_textView->setIndexedFile(path, std::move(result.offsets), &mapError))
-            {
-                const QString reason = QString::fromUtf8(u8"无法映射日志：%1").arg(mapError);
-                m_status->setText(reason);
-                if (!m_pendingJumpPath.isEmpty()
-                    && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
-                    && m_pendingJumpLine >= 0)
-                {
-                    const qsizetype line = m_pendingJumpLine;
-                    m_pendingJumpPath.clear();
-                    m_pendingJumpLine = -1;
-                    emit jumpResult(path, line, false, reason);
-                }
-                return;
-            }
-            m_findPrevious->setEnabled(true);
-            m_findNext->setEnabled(true);
-            if (!m_pendingJumpPath.isEmpty()
-                && QFileInfo(m_pendingJumpPath) == QFileInfo(path)
-                && m_pendingJumpLine >= 0)
-            {
-                const qsizetype line = m_pendingJumpLine;
-                if (line >= m_textView->lineCount())
-                {
-                    const QString reason = QString::fromUtf8(
-                        u8"目标行 %1 超出 RBT 日志总行数 %2。")
-                                               .arg(line + 1)
-                                               .arg(m_textView->lineCount());
-                    m_status->setText(reason);
-                    m_pendingJumpPath.clear();
-                    m_pendingJumpLine = -1;
-                    emit jumpResult(path, line, false, reason);
-                    return;
-                }
-                m_textView->jumpToLine(line);
-                m_pendingJumpPath.clear();
-                m_pendingJumpLine = -1;
-                emit jumpResult(path, line, true, {});
-            }
-            updateStatus();
-            m_textView->setFocus();
-        });
-    watcher->setFuture(QtConcurrent::run([path]() { return buildLineIndex(path); }));
+    if (path.isEmpty())
+        return;
+    m_textManager->openFile(path);
 }
 
 void RbtLogViewerWindow::beginFind(bool backward)
 {
     const QString query = m_findText->text();
-    const QString path = m_textView->filePath();
-    if (query.isEmpty() || path.isEmpty())
+    if (query.isEmpty() || m_textView->filePath().isEmpty())
     {
         m_findText->setFocus();
         return;
     }
-    const quint64 generation = ++m_findGeneration;
     const QByteArray needle = query.toUtf8();
     const qint64 start = static_cast<qint64>(m_textView->searchStartOffset(backward));
-    const bool caseSensitive = m_caseSensitive->isChecked();
-    m_findPrevious->setEnabled(false);
-    m_findNext->setEnabled(false);
-    m_status->setText(QString::fromUtf8(u8"正在搜索…"));
+    m_textManager->find(needle, start, backward, m_caseSensitive->isChecked());
+}
 
-    auto* watcher = new QFutureWatcher<FindResult>(this);
-    connect(watcher, &QFutureWatcher<FindResult>::finished, this,
-        [this, watcher, generation, needle]()
+void RbtLogViewerWindow::applyPatternChanges()
+{
+    int errorRow = -1;
+    QString error;
+    if (!m_textManager->applyPatterns(m_patternModel->rules(), &errorRow, &error))
+    {
+        m_patternStatus->setText(QString::fromUtf8(u8"无法更新：%1").arg(error));
+        if (errorRow >= 0)
         {
-            const FindResult result = watcher->future().takeResult();
-            watcher->deleteLater();
-            if (generation != m_findGeneration)
-                return;
-            m_findPrevious->setEnabled(true);
-            m_findNext->setEnabled(true);
-            if (!result.error.isEmpty())
-            {
-                m_status->setText(QString::fromUtf8(u8"搜索失败：%1").arg(result.error));
-                return;
-            }
-            if (result.offset < 0)
-            {
-                m_status->setText(QString::fromUtf8(u8"未找到“%1”。").arg(m_findText->text()));
-                return;
-            }
-            m_textView->setSearchMatch(
-                static_cast<quint64>(result.offset), needle.size());
-            updateStatus();
-            if (result.wrapped)
-                m_status->setText(m_status->text() + QString::fromUtf8(u8"（已循环查找）"));
-        });
-    watcher->setFuture(QtConcurrent::run(
-        [path, needle, start, backward, caseSensitive]()
+            m_patternTable->setCurrentIndex(m_patternModel->index(errorRow, 1));
+            m_patternTable->scrollTo(m_patternModel->index(errorRow, 1));
+        }
+        return;
+    }
+    m_patternModel->setRules(m_textManager->patterns());
+    if (!m_textManager->savePatterns(patternFilePath(), &error))
+    {
+        m_patternStatus->setText(QString::fromUtf8(u8"高亮已更新，但保存模式失败：%1").arg(error));
+        setPatternDirty(false);
+        return;
+    }
+    setPatternDirty(false);
+    m_patternStatus->setText(m_textView->filePath().isEmpty()
+        ? QString::fromUtf8(u8"模式已保存；打开日志后将自动匹配。")
+        : (m_textManager->matchIndex()
+            ? QString::fromUtf8(u8"模式匹配已更新。")
+            : QString::fromUtf8(u8"正在匹配当前日志…")));
+}
+
+void RbtLogViewerWindow::navigatePattern(viewer::RbtNavigateAction action)
+{
+    const QString ruleId = m_navigationPattern->currentData().toString();
+    const auto index = m_textManager->matchIndex();
+    if (!index || ruleId.isEmpty())
+        return;
+    const viewer::RbtMatchSet* matches = index->matchesForRule(ruleId);
+    if (!matches || matches->count() == 0)
+        return;
+    const qsizetype line = m_textManager->navigate(
+        ruleId, action, m_textView->navigationAnchorLine());
+    if (line < 0)
+    {
+        m_matchPosition->setText(action == viewer::RbtNavigateAction::Previous
+            ? QString::fromUtf8(u8"已到第一条")
+            : QString::fromUtf8(u8"已到最后一条"));
+        return;
+    }
+    m_textView->jumpToLine(line, false);
+    m_matchPosition->setText(QString::fromUtf8(u8"第 %1 行 / 共 %2 条")
+        .arg(line + 1).arg(matches->count()));
+}
+
+void RbtLogViewerWindow::updateNavigationControls()
+{
+    const QString selectedId = m_navigationPattern
+        ? m_navigationPattern->currentData().toString() : QString();
+    const auto index = m_textManager ? m_textManager->matchIndex() : nullptr;
+    if (m_navigationPattern)
+    {
+        m_navigationPattern->blockSignals(true);
+        m_navigationPattern->clear();
+        if (index)
         {
-            return findInFile(path, needle, start, backward, caseSensitive);
-        }));
+            for (const viewer::RbtPatternRule& rule : index->rules())
+            {
+                const viewer::RbtMatchSet* matches = index->matchesForRule(rule.id);
+                m_navigationPattern->addItem(
+                    QStringLiteral("%1 (%2)").arg(rule.name)
+                        .arg(matches ? matches->count() : 0), rule.id);
+            }
+        }
+        const int selected = m_navigationPattern->findData(selectedId);
+        if (selected >= 0)
+            m_navigationPattern->setCurrentIndex(selected);
+        m_navigationPattern->blockSignals(false);
+    }
+    const QString ruleId = m_navigationPattern
+        ? m_navigationPattern->currentData().toString() : QString();
+    const viewer::RbtMatchSet* matches = index
+        ? index->matchesForRule(ruleId) : nullptr;
+    const bool enabled = matches && matches->count() > 0;
+    if (m_firstMatch) m_firstMatch->setEnabled(enabled);
+    if (m_previousMatch) m_previousMatch->setEnabled(enabled);
+    if (m_nextMatch) m_nextMatch->setEnabled(enabled);
+    if (m_lastMatch) m_lastMatch->setEnabled(enabled);
+    if (m_navigationPattern) m_navigationPattern->setEnabled(index && !index->rules().isEmpty());
+    if (m_matchPosition)
+    {
+        m_matchPosition->setText(enabled
+            ? QString::fromUtf8(u8"共 %1 条").arg(matches->count())
+            : QString::fromUtf8(u8"无匹配"));
+    }
+}
+
+void RbtLogViewerWindow::setPatternDirty(bool dirty)
+{
+    m_patternDirty = dirty;
+    if (m_tabs && m_patternTab)
+    {
+        const int index = m_tabs->indexOf(m_patternTab);
+        if (index >= 0)
+            m_tabs->setTabText(index, dirty
+                ? QString::fromUtf8(u8"模式匹配 *")
+                : QString::fromUtf8(u8"模式匹配"));
+    }
+    if (m_updatePatterns)
+        m_updatePatterns->setEnabled(dirty);
 }
 
 void RbtLogViewerWindow::updateStatus(qsizetype oneBasedLine)

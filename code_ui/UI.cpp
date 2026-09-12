@@ -29,7 +29,7 @@
 #include "AliasDialog.h"
 #include "code_plugin/PluginHost.h"
 #include "code_plugin/PluginManager.h"
-#include "LogTimeMapper.h"
+#include "code_viewer/textmgr/rbt_time_mapper.h"
 #include "RbtLogViewer.h"
 #include <qdir.h>
 #include <qfile.h>
