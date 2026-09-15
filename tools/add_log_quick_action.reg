@@ -1,0 +1,11 @@
+Windows Registry Editor Version 5.00
+
+; Adds a per-user context-menu command for ZIP files.
+; The default value below encodes the four-character Chinese menu title as UTF-16LE.
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.zip\shell\LogQuickAction]
+@=hex(1):e3,89,90,67,e5,65,d7,5f,00,00
+"Icon"="C:\\Program Files\\LogQuickAction.exe"
+"MultiSelectModel"="Single"
+
+[HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.zip\shell\LogQuickAction\command]
+@="\"C:\\Program Files\\LogQuickAction.exe\" \"%1\""

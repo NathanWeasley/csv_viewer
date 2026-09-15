@@ -162,6 +162,11 @@ public:
     Status toJson(std::size_t recordIndex,
                   std::string& output,
                   const JsonOptions& options = JsonOptions{}) const;
+    // Serializes the complete parsed document without a Qt dependency.  The
+    // record array is emitted first, followed by table/header metadata and
+    // diagnostics, matching the document exposed by the Viewer plugin.
+    Status toDocumentJson(std::string& output,
+                          const JsonOptions& options = JsonOptions{}) const;
     Status writeJsonFile(const std::string& path,
                          std::size_t recordIndex = 0,
                          const JsonOptions& options = JsonOptions{}) const;

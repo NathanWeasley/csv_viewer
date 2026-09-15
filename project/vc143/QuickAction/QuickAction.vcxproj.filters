@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="application">
+      <UniqueIdentifier>{E59FA2DB-E802-495A-9B4A-A4C8579B509F}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="hiklog">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="rbt">
+      <UniqueIdentifier>{93995380-89BD-4B04-88EB-625FBE52EBFB}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="zip">
+      <UniqueIdentifier>{954D6805-923E-48F9-923A-F4FF4B94B0F0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="dat">
+      <UniqueIdentifier>{67DA6AB6-F800-4C08-8B7A-83BB121AAD01}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="entry.cpp"><Filter>application</Filter></ClCompile>
+    <ClCompile Include="quick_action.cpp"><Filter>application</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\binary_input.cpp"><Filter>hiklog</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp"><Filter>hiklog</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp"><Filter>hiklog</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\rbt_log_parser.cpp"><Filter>rbt</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp"><Filter>zip</Filter></ClCompile>
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp"><Filter>zip</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\dat_converter.cpp"><Filter>dat</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\json_writer.cpp"><Filter>dat</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\num.cpp"><Filter>dat</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\schema_document.cpp"><Filter>dat</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\tables.cpp"><Filter>dat</Filter></ClCompile>
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\wire.cpp"><Filter>dat</Filter></ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="quick_action.h"><Filter>application</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\binary_input.h"><Filter>hiklog</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\binary_log_parser.h"><Filter>hiklog</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\binary_log_types.h"><Filter>hiklog</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\binary_reader.h"><Filter>hiklog</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\rbt_log_parser.h"><Filter>rbt</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_archive.h"><Filter>zip</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.h"><Filter>zip</Filter></ClInclude>
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_info.h"><Filter>zip</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\crc.h"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\dat_converter.h"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\io.hpp"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\num.h"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\schema.h"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\schema_document.h"><Filter>dat</Filter></ClInclude>
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\wire.h"><Filter>dat</Filter></ClInclude>
+  </ItemGroup>
+</Project>

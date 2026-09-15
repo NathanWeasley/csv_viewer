@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <VCProjectVersion>17.0</VCProjectVersion>
+    <Keyword>Win32Proj</Keyword>
+    <ProjectGuid>{3824f74b-6d81-4af4-ac96-94f692a971cd}</ProjectGuid>
+    <RootNamespace>QuickAction</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>..\..\..\lib\</OutDir>
+    <IntDir>..\..\..\bin\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>QuickActiond</TargetName>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>..\..\..\lib\</OutDir>
+    <IntDir>..\..\..\bin\$(ProjectName)\$(Configuration)\</IntDir>
+    <TargetName>QuickAction</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..\..;..\..\..\extra\libzip\include;..\..\..\extra\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\..\extra\libzip\lib;..\..\..\extra\zlib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>zip.lib;z.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalIncludeDirectories>..\..\..;..\..\..\extra\libzip\include;..\..\..\extra\zlib\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>..\..\..\extra\libzip\lib;..\..\..\extra\zlib\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>zip.lib;z.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\..\code_logparse\binary_input.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\binary_log_parser.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\binary_reader.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\rbt_log_parser.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_archive.cpp" />
+    <ClCompile Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\dat_converter.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\json_writer.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\num.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\schema_document.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\tables.cpp" />
+    <ClCompile Include="..\..\..\plugins-dev\dat_decrypt\code\wire.cpp" />
+    <ClCompile Include="entry.cpp" />
+    <ClCompile Include="quick_action.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\..\code_logparse\binary_input.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_log_parser.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_log_types.h" />
+    <ClInclude Include="..\..\..\code_logparse\binary_reader.h" />
+    <ClInclude Include="..\..\..\code_logparse\rbt_log_parser.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_archive.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_binary_input.h" />
+    <ClInclude Include="..\..\..\code_logparse\ziplog\zip_entry_info.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\crc.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\dat_converter.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\io.hpp" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\num.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\schema.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\schema_document.h" />
+    <ClInclude Include="..\..\..\plugins-dev\dat_decrypt\code\wire.h" />
+    <ClInclude Include="quick_action.h" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyQuickActionRuntime" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)..\..\..\extra\libzip\bin\zip.dll;$(ProjectDir)..\..\..\extra\zlib\bin\z.dll"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

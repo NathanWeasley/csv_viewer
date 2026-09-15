@@ -1,0 +1,4 @@
+Windows Registry Editor Version 5.00
+
+; Removes only the LogQuickAction context-menu command added by the companion file.
+[-HKEY_CURRENT_USER\Software\Classes\SystemFileAssociations\.zip\shell\LogQuickAction]
