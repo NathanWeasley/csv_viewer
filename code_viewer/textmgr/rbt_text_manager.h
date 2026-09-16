@@ -98,7 +98,9 @@ private:
     QFile m_file;
     uchar* m_mapped = nullptr;
     qint64 m_fileSize = 0;
-    std::shared_ptr<const QVector<quint64>> m_lineOffsets;
+    // RBT parser output is capped at 2 GiB, so 32-bit byte offsets cover the
+    // supported range while halving the per-line index footprint.
+    std::shared_ptr<const QVector<quint32>> m_lineOffsets;
 };
 
 struct VIEWER_API RbtFindResult
@@ -181,13 +183,14 @@ Q_SIGNALS:
     void patternScanProgress(int percent);
     void patternIndexReady();
     void patternScanFailed(const QString& reason);
+    void patternScanDeferred(const QString& reason);
     void patternsChanged();
 
 private:
     void cancelOpen();
     void cancelFind();
     void cancelPatternScan();
-    void startPatternScan();
+    void startPatternScan(bool force = false);
 
     std::shared_ptr<const RbtTextDocument> m_document;
     std::shared_ptr<const RbtMatchIndex> m_matchIndex;

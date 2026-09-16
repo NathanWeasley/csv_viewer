@@ -18,6 +18,9 @@
 #include <QSet>
 
 #include <algorithm>
+#include <exception>
+#include <limits>
+#include <new>
 
 using namespace viewer::plugin;
 
@@ -551,86 +554,164 @@ void LogExpandPlugin::scheduleRecompute(const QString& reason)
     auto* progressUi = m_host->ui();
     const PluginProgressHandle progress = m_progress;
     const DerivedColumnBatchWriterPtr writer = created.writer;
-    log(LogLevel::Info, QStringLiteral("Recomputing %1 expansion item(s): %2")
-                            .arg(candidates.size()).arg(reason));
-    m_workerPool.start([this, generation, snapshot, scalars,
-                        excludedSnapshotColumns,
-                        candidates, initialResults = std::move(initialResults),
-                        expressionService, progressUi, progress, writer]() mutable
+    const quint64 rowCount = static_cast<quint64>(snapshot->rowCount());
+    const quint64 columnCount = static_cast<quint64>(candidates.size());
+    quint64 estimatedOutputBytes = std::numeric_limits<quint64>::max();
+    if (columnCount == 0)
     {
-        QList<ExpansionResult> results = std::move(initialResults);
-        QList<ExpressionColumn> temporaryColumns;
-        QSet<QString> completedNames;
-        qsizetype processedCount = 0;
-        const auto reportProgress = [&]()
+        estimatedOutputBytes = 0;
+    }
+    else if (rowCount <= std::numeric_limits<quint64>::max()
+                           / columnCount / sizeof(double))
+    {
+        estimatedOutputBytes = rowCount * columnCount * sizeof(double);
+    }
+    log(LogLevel::Info,
+        QStringLiteral("Recomputing %1 expansion item(s): %2; rows=%3 estimatedOutputBytes=%4")
+            .arg(candidates.size()).arg(reason).arg(rowCount).arg(estimatedOutputBytes));
+
+    auto worker = [this, generation, snapshot, scalars,
+                   excludedSnapshotColumns,
+                   candidates, initialResults = std::move(initialResults),
+                   expressionService, progressUi, progress, writer]() mutable
+    {
+        const auto reportFailure = [this, generation, progress](const QString& error)
         {
-            ++processedCount;
-            if (progress && progressUi)
-            {
-                // 计算只占前 90%，批量发布和界面刷新完成后才能显示 100%。
-                const float value = candidates.isEmpty() ? 0.9f
-                    : 0.9f * static_cast<float>(processedCount)
-                        / static_cast<float>(candidates.size());
-                progressUi->reportLoadProgress(
-                    progress, value,
-                    QString::fromUtf8(u8"已计算 %1/%2 项")
-                        .arg(processedCount).arg(candidates.size()));
-            }
+            QMetaObject::invokeMethod(this,
+                [this, generation, progress, error]()
+                {
+                    finishRecomputeFailure(generation, progress, error);
+                },
+                Qt::QueuedConnection);
         };
-        for (const ExpansionCandidate& candidate : candidates)
+
+        try
         {
+            QList<ExpansionResult> results = std::move(initialResults);
+            QList<ExpressionColumn> temporaryColumns;
+            QSet<QString> completedNames;
+            qsizetype processedCount = 0;
+            const auto reportProgress = [&](const QString& itemName)
+            {
+                ++processedCount;
+                if (progress && progressUi)
+                {
+                    // 计算只占前 90%，批量发布和界面刷新完成后才能显示 100%。
+                    const float value = candidates.isEmpty() ? 0.9f
+                        : 0.9f * static_cast<float>(processedCount)
+                            / static_cast<float>(candidates.size());
+                    progressUi->reportLoadProgress(
+                        progress, value,
+                        QString::fromUtf8(u8"已计算 %1/%2 项：%3")
+                            .arg(processedCount).arg(candidates.size()).arg(itemName));
+                }
+            };
+            for (const ExpansionCandidate& candidate : candidates)
+            {
+                if (m_generation.load() != generation)
+                    return;
+                const ExpansionDefinition& definition = candidate.definition;
+                if (progress && progressUi)
+                {
+                    progressUi->reportLoadProgress(
+                        progress,
+                        candidates.isEmpty() ? 0.0f
+                            : 0.9f * static_cast<float>(processedCount)
+                                / static_cast<float>(candidates.size()),
+                        QString::fromUtf8(u8"正在计算 %1/%2 项：%3")
+                            .arg(processedCount + 1)
+                            .arg(candidates.size())
+                            .arg(definition.name));
+                }
+
+                QStringList failedDependencies;
+                for (const QString& dependency : candidate.dependencies)
+                {
+                    if (!completedNames.contains(dependency))
+                        failedDependencies.push_back(dependency);
+                }
+                if (!failedDependencies.isEmpty())
+                {
+                    writer->discard(definition.name);
+                    results.push_back({definition.name, false,
+                        QStringLiteral("A referenced earlier expansion item failed to calculate."),
+                        failedDependencies});
+                    reportProgress(definition.name);
+                    continue;
+                }
+                double* output = writer->data(definition.name);
+                if (!output)
+                    throw std::bad_alloc();
+                const ExpressionEvaluationResult evaluated = expressionService->evaluate(
+                    snapshot, definition.expression, scalars, temporaryColumns,
+                    excludedSnapshotColumns,
+                    output, writer->rowCount());
+                if (!evaluated.success())
+                {
+                    writer->discard(definition.name);
+                    results.push_back({definition.name, false,
+                        evaluated.error, evaluated.missingSymbols});
+                }
+                else
+                {
+                    temporaryColumns.push_back(
+                        {definition.name, output, writer->rowCount()});
+                    completedNames.insert(definition.name);
+                    results.push_back({definition.name, true,
+                        QStringLiteral("OK"), {}});
+                }
+                reportProgress(definition.name);
+            }
+            if (candidates.isEmpty() && progress && progressUi)
+                progressUi->reportLoadProgress(
+                    progress, 0.9f, QString::fromUtf8(u8"表达式计算完成"));
             if (m_generation.load() != generation)
                 return;
-            const ExpansionDefinition& definition = candidate.definition;
-            QStringList failedDependencies;
-            for (const QString& dependency : candidate.dependencies)
-            {
-                if (!completedNames.contains(dependency))
-                    failedDependencies.push_back(dependency);
-            }
-            if (!failedDependencies.isEmpty())
-            {
-                writer->discard(definition.name);
-                results.push_back({definition.name, false,
-                    QStringLiteral("A referenced earlier expansion item failed to calculate."),
-                    failedDependencies});
-                reportProgress();
-                continue;
-            }
-            double* output = writer->data(definition.name);
-            const ExpressionEvaluationResult evaluated = expressionService->evaluate(
-                snapshot, definition.expression, scalars, temporaryColumns,
-                excludedSnapshotColumns,
-                output, writer->rowCount());
-            if (!evaluated.success())
-            {
-                writer->discard(definition.name);
-                results.push_back({definition.name, false,
-                    evaluated.error, evaluated.missingSymbols});
-            }
-            else
-            {
-                temporaryColumns.push_back(
-                    {definition.name, output, writer->rowCount()});
-                completedNames.insert(definition.name);
-                results.push_back({definition.name, true,
-                    QStringLiteral("OK"), {}});
-            }
-            reportProgress();
+            QMetaObject::invokeMethod(this,
+                [this, generation, progress, writer,
+                 results = std::move(results)]() mutable
+                {
+                    finishRecompute(generation, progress, writer, std::move(results));
+                },
+                Qt::QueuedConnection);
         }
-        if (candidates.isEmpty() && progress && progressUi)
-            progressUi->reportLoadProgress(
-                progress, 0.9f, QString::fromUtf8(u8"表达式计算完成"));
-        if (m_generation.load() != generation)
-            return;
-        QMetaObject::invokeMethod(this,
-            [this, generation, progress, writer,
-             results = std::move(results)]() mutable
-            {
-                finishRecompute(generation, progress, writer, std::move(results));
-            },
-            Qt::QueuedConnection);
-    });
+        catch (const std::bad_alloc&)
+        {
+            reportFailure(QStringLiteral(
+                "Not enough memory to calculate the expansion columns."));
+        }
+        catch (const std::exception& exception)
+        {
+            reportFailure(QStringLiteral("Expansion calculation failed: %1")
+                .arg(QString::fromUtf8(exception.what())));
+        }
+        catch (...)
+        {
+            reportFailure(QStringLiteral(
+                "Expansion calculation failed unexpectedly."));
+        }
+    };
+
+    try
+    {
+        m_workerPool.start(std::move(worker));
+    }
+    catch (const std::bad_alloc&)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Not enough memory to start the expansion worker."));
+    }
+    catch (const std::exception& exception)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Unable to start expansion worker: %1")
+                .arg(QString::fromUtf8(exception.what())));
+    }
+    catch (...)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Unable to start expansion worker."));
+    }
 }
 
 void LogExpandPlugin::finishRecompute(
@@ -652,7 +733,30 @@ void LogExpandPlugin::finishRecompute(
     }
     QElapsedTimer commitTimer;
     commitTimer.start();
-    const DerivedColumnBatchCommitResult committed = writer->commit();
+    DerivedColumnBatchCommitResult committed;
+    try
+    {
+        committed = writer->commit();
+    }
+    catch (const std::bad_alloc&)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Not enough memory to publish the expansion columns."));
+        return;
+    }
+    catch (const std::exception& exception)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Publishing expansion columns failed: %1")
+                .arg(QString::fromUtf8(exception.what())));
+        return;
+    }
+    catch (...)
+    {
+        finishRecomputeFailure(generation, progress,
+            QStringLiteral("Publishing expansion columns failed unexpectedly."));
+        return;
+    }
     const qint64 commitElapsedMs = commitTimer.elapsed();
     if (!committed.success())
     {
@@ -688,6 +792,27 @@ void LogExpandPlugin::finishRecompute(
         }
     }
     if (m_host && progress && m_progress == progress)
+    {
+        m_host->ui()->finishLoadProgress(progress);
+        m_progress = 0;
+    }
+    refreshMenuState();
+}
+
+void LogExpandPlugin::finishRecomputeFailure(
+    quint64 generation,
+    PluginProgressHandle progress,
+    const QString& error)
+{
+    if (m_shuttingDown || generation != m_generation.load() || !m_host)
+        return;
+
+    m_expansionResults = {
+        {QStringLiteral("<batch>"), false, error, {}}
+    };
+    log(LogLevel::Error,
+        QStringLiteral("Expansion batch stopped safely: %1").arg(error));
+    if (progress && m_progress == progress)
     {
         m_host->ui()->finishLoadProgress(progress);
         m_progress = 0;

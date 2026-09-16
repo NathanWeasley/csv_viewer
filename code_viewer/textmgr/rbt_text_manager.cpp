@@ -15,8 +15,10 @@
 #include <QtConcurrent/QtConcurrentRun>
 
 #include <algorithm>
+#include <exception>
 #include <functional>
 #include <limits>
+#include <new>
 
 namespace viewer
 {
@@ -25,11 +27,28 @@ namespace
 
 constexpr qint64 kIndexChunkSize = 8LL * 1024LL * 1024LL;
 constexpr qsizetype kMaximumIndexedLines = 25'000'000;
+constexpr qint64 kAutomaticPatternScanMaximumBytes = 128LL * 1024LL * 1024LL;
+constexpr qsizetype kMaximumPatternMatches = 10'000'000;
 constexpr int kPatternFileVersion = 1;
 
 bool isCancelled(const std::shared_ptr<std::atomic_bool>& cancelled)
 {
     return cancelled && cancelled->load(std::memory_order_relaxed);
+}
+
+QString taskFailure(const char* operation, const char* detail = nullptr)
+{
+    QString message = QStringLiteral("RBT background task failed: ")
+        + QString::fromLatin1(operation);
+    if (detail && *detail)
+        message += QStringLiteral(" (") + QString::fromUtf8(detail) + QLatin1Char(')');
+    return message;
+}
+
+QString taskOutOfMemory(const char* operation)
+{
+    return QStringLiteral("Insufficient memory while processing RBT log: ")
+        + QString::fromLatin1(operation);
 }
 
 QByteArray comparableBytes(QByteArray bytes, bool caseSensitive)
@@ -276,7 +295,14 @@ std::shared_ptr<RbtTextDocument> RbtTextDocument::open(
     }
 
     const qint64 fileSize = indexFile.size();
-    auto offsets = std::make_shared<QVector<quint64>>();
+    if (fileSize < 0
+        || static_cast<quint64>(fileSize) > std::numeric_limits<quint32>::max())
+    {
+        if (error)
+            *error = QStringLiteral("RBT viewer supports files up to 4 GiB.");
+        return {};
+    }
+    auto offsets = std::make_shared<QVector<quint32>>();
     offsets->reserve(static_cast<qsizetype>(
         std::min<qint64>(fileSize / 48 + 1, 4'000'000)));
     offsets->push_back(0);
@@ -303,7 +329,8 @@ std::shared_ptr<RbtTextDocument> RbtTextDocument::open(
                     *error = QString::fromUtf8(u8"日志行数超过查看器上限（2500 万行）。");
                 return {};
             }
-            offsets->push_back(absoluteOffset + static_cast<quint64>(index) + 1);
+            offsets->push_back(static_cast<quint32>(
+                absoluteOffset + static_cast<quint64>(index) + 1));
         }
         absoluteOffset += static_cast<quint64>(chunk.size());
     }
@@ -359,7 +386,8 @@ quint64 RbtTextDocument::lineStart(qsizetype line) const
 {
     if (!m_lineOffsets || m_lineOffsets->isEmpty())
         return 0;
-    return (*m_lineOffsets)[std::clamp<qsizetype>(line, 0, m_lineOffsets->size() - 1)];
+    return static_cast<quint64>(
+        (*m_lineOffsets)[std::clamp<qsizetype>(line, 0, m_lineOffsets->size() - 1)]);
 }
 
 bool RbtTextDocument::textPositionForByteOffset(
@@ -567,7 +595,23 @@ void RbtTextManager::openFile(const QString& path)
     connect(watcher, &QFutureWatcher<OpenResult>::finished, this,
         [this, watcher, generation, path]()
         {
-            const OpenResult result = watcher->future().takeResult();
+            OpenResult result;
+            try
+            {
+                result = watcher->future().takeResult();
+            }
+            catch (const std::bad_alloc&)
+            {
+                result.error = taskOutOfMemory("opening document");
+            }
+            catch (const std::exception& exception)
+            {
+                result.error = taskFailure("opening document", exception.what());
+            }
+            catch (...)
+            {
+                result.error = taskFailure("opening document");
+            }
             watcher->deleteLater();
             if (generation != m_documentGeneration || isCancelled(m_openCancelled))
                 return;
@@ -584,7 +628,22 @@ void RbtTextManager::openFile(const QString& path)
     watcher->setFuture(QtConcurrent::run([path, cancelled]()
     {
         OpenResult result;
-        result.document = RbtTextDocument::open(path, &result.error, cancelled);
+        try
+        {
+            result.document = RbtTextDocument::open(path, &result.error, cancelled);
+        }
+        catch (const std::bad_alloc&)
+        {
+            result.error = taskOutOfMemory("building line index");
+        }
+        catch (const std::exception& exception)
+        {
+            result.error = taskFailure("building line index", exception.what());
+        }
+        catch (...)
+        {
+            result.error = taskFailure("building line index");
+        }
         return result;
     }));
 }
@@ -615,7 +674,23 @@ void RbtTextManager::find(
     connect(watcher, &QFutureWatcher<RbtFindResult>::finished, this,
         [this, watcher, generation]()
         {
-            const RbtFindResult result = watcher->future().takeResult();
+            RbtFindResult result;
+            try
+            {
+                result = watcher->future().takeResult();
+            }
+            catch (const std::bad_alloc&)
+            {
+                result.error = taskOutOfMemory("searching document");
+            }
+            catch (const std::exception& exception)
+            {
+                result.error = taskFailure("searching document", exception.what());
+            }
+            catch (...)
+            {
+                result.error = taskFailure("searching document");
+            }
             watcher->deleteLater();
             if (generation != m_findGeneration || isCancelled(m_findCancelled))
                 return;
@@ -625,8 +700,25 @@ void RbtTextManager::find(
     watcher->setFuture(QtConcurrent::run(
         [path, needle, start, backward, caseSensitive, cancelled]()
         {
-            return RbtTextSearcher::find(
-                path, needle, start, backward, caseSensitive, cancelled);
+            RbtFindResult result;
+            try
+            {
+                result = RbtTextSearcher::find(
+                    path, needle, start, backward, caseSensitive, cancelled);
+            }
+            catch (const std::bad_alloc&)
+            {
+                result.error = taskOutOfMemory("searching document");
+            }
+            catch (const std::exception& exception)
+            {
+                result.error = taskFailure("searching document", exception.what());
+            }
+            catch (...)
+            {
+                result.error = taskFailure("searching document");
+            }
+            return result;
         }));
 }
 
@@ -701,7 +793,8 @@ bool RbtTextManager::applyPatterns(
     cancelPatternScan();
     m_matchIndex.reset();
     emit patternsChanged();
-    startPatternScan();
+    // This is an explicit user action, so allow scanning a large document.
+    startPatternScan(true);
     return true;
 }
 
@@ -731,7 +824,7 @@ bool RbtTextManager::savePatterns(const QString& path, QString* error) const
     return RbtPatternRepository::save(path, m_patterns, error);
 }
 
-void RbtTextManager::startPatternScan()
+void RbtTextManager::startPatternScan(bool force)
 {
     cancelPatternScan();
     m_patternCancelled = std::make_shared<std::atomic_bool>(false);
@@ -751,6 +844,13 @@ void RbtTextManager::startPatternScan()
         emit patternIndexReady();
         return;
     }
+    if (!force && document->fileSize() > kAutomaticPatternScanMaximumBytes)
+    {
+        emit patternScanDeferred(
+            QStringLiteral("Automatic pattern scan was deferred for this large RBT log. "
+                           "Use Update on the pattern tab to run it explicitly."));
+        return;
+    }
 
     emit patternScanStarted();
     QPointer<RbtTextManager> self(this);
@@ -758,7 +858,23 @@ void RbtTextManager::startPatternScan()
     connect(watcher, &QFutureWatcher<PatternScanResult>::finished, this,
         [this, watcher, documentGeneration, ruleRevision]()
         {
-            const PatternScanResult result = watcher->future().takeResult();
+            PatternScanResult result;
+            try
+            {
+                result = watcher->future().takeResult();
+            }
+            catch (const std::bad_alloc&)
+            {
+                result.error = taskOutOfMemory("building pattern index");
+            }
+            catch (const std::exception& exception)
+            {
+                result.error = taskFailure("building pattern index", exception.what());
+            }
+            catch (...)
+            {
+                result.error = taskFailure("building pattern index");
+            }
             watcher->deleteLater();
             if (documentGeneration != m_documentGeneration
                 || ruleRevision != m_ruleRevision
@@ -779,46 +895,74 @@ void RbtTextManager::startPatternScan()
         [document, patterns, documentGeneration, ruleRevision, cancelled, self]()
         {
             PatternScanResult result;
-            QVector<QRegularExpression> expressions;
-            expressions.reserve(patterns.size());
-            for (const RbtPatternRule& rule : patterns)
-                expressions.push_back(QRegularExpression(
-                    rule.expression, QRegularExpression::UseUnicodePropertiesOption));
-
-            QVector<QVector<quint32>> matchedLines(patterns.size());
-            const qsizetype lineCount = document->lineCount();
-            for (qsizetype line = 0; line < lineCount; ++line)
+            try
             {
-                if (isCancelled(cancelled))
-                {
-                    result.cancelled = true;
-                    return result;
-                }
-                const QString text = document->lineText(line);
-                for (qsizetype pattern = 0; pattern < expressions.size(); ++pattern)
-                {
-                    if (expressions[pattern].match(text).hasMatch())
-                        matchedLines[pattern].push_back(static_cast<quint32>(line));
-                }
-                if (self && lineCount > 0 && (line & 0x3fff) == 0)
-                {
-                    const int percent = static_cast<int>(line * 100 / lineCount);
-                    QMetaObject::invokeMethod(self, [self, documentGeneration, ruleRevision, percent]()
-                    {
-                        if (self && self->m_documentGeneration == documentGeneration
-                            && self->m_ruleRevision == ruleRevision)
-                            emit self->patternScanProgress(percent);
-                    }, Qt::QueuedConnection);
-                }
-            }
+                QVector<QRegularExpression> expressions;
+                expressions.reserve(patterns.size());
+                for (const RbtPatternRule& rule : patterns)
+                    expressions.push_back(QRegularExpression(
+                        rule.expression, QRegularExpression::UseUnicodePropertiesOption));
 
-            QVector<RbtMatchSet> matchSets;
-            matchSets.reserve(matchedLines.size());
-            for (QVector<quint32>& lines : matchedLines)
-                matchSets.push_back(RbtMatchSet(std::move(lines), lineCount));
-            result.index = std::make_shared<RbtMatchIndex>(
-                document->filePath(), documentGeneration, ruleRevision,
-                patterns, std::move(matchSets));
+                QVector<QVector<quint32>> matchedLines(patterns.size());
+                qsizetype totalMatches = 0;
+                const qsizetype lineCount = document->lineCount();
+                for (qsizetype line = 0; line < lineCount; ++line)
+                {
+                    if (isCancelled(cancelled))
+                    {
+                        result.cancelled = true;
+                        return result;
+                    }
+                    const QString text = document->lineText(line);
+                    if (!text.isEmpty())
+                    {
+                        for (qsizetype pattern = 0; pattern < expressions.size(); ++pattern)
+                        {
+                            if (!expressions[pattern].match(text).hasMatch())
+                                continue;
+                            if (totalMatches >= kMaximumPatternMatches)
+                            {
+                                result.error = QStringLiteral(
+                                    "RBT pattern index exceeds the 10 million match safety limit.");
+                                return result;
+                            }
+                            matchedLines[pattern].push_back(static_cast<quint32>(line));
+                            ++totalMatches;
+                        }
+                    }
+                    if (self && lineCount > 0 && (line & 0x3fff) == 0)
+                    {
+                        const int percent = static_cast<int>(line * 100 / lineCount);
+                        QMetaObject::invokeMethod(self,
+                            [self, documentGeneration, ruleRevision, percent]()
+                            {
+                                if (self && self->m_documentGeneration == documentGeneration
+                                    && self->m_ruleRevision == ruleRevision)
+                                    emit self->patternScanProgress(percent);
+                            }, Qt::QueuedConnection);
+                    }
+                }
+
+                QVector<RbtMatchSet> matchSets;
+                matchSets.reserve(matchedLines.size());
+                for (QVector<quint32>& lines : matchedLines)
+                    matchSets.push_back(RbtMatchSet(std::move(lines), lineCount));
+                result.index = std::make_shared<RbtMatchIndex>(
+                    document->filePath(), documentGeneration, ruleRevision,
+                    patterns, std::move(matchSets));
+            }
+            catch (const std::bad_alloc&)
+            {
+                result.error = taskOutOfMemory("building pattern index");
+            }
+            catch (const std::exception& exception)
+            {
+                result.error = taskFailure("building pattern index", exception.what());
+            }
+            catch (...)
+            {
+                result.error = taskFailure("building pattern index");
+            }
             return result;
         }));
 }

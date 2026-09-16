@@ -158,7 +158,6 @@ public:
         {
             m_indices.insert(m_names[static_cast<qsizetype>(index)],
                              static_cast<int>(index));
-            m_values[index].resize(static_cast<size_t>(rowCount));
         }
         m_rowCount = rowCount;
     }
@@ -188,7 +187,22 @@ public:
         {
             return nullptr;
         }
-        return m_values[static_cast<size_t>(index.value())].data();
+        auto& values = m_values[static_cast<size_t>(index.value())];
+        if (values.empty() && m_rowCount > 0)
+        {
+            try
+            {
+                // Allocate on first use. The caller evaluates expressions on
+                // its worker thread, so a large batch no longer zero-fills
+                // every result column while blocking the Viewer UI thread.
+                values.resize(static_cast<size_t>(m_rowCount));
+            }
+            catch (...)
+            {
+                return nullptr;
+            }
+        }
+        return values.data();
     }
     bool discard(const QString& columnName) noexcept override
     {

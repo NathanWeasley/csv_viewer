@@ -1,4 +1,5 @@
 #include "RbtLogViewer.h"
+#include "code_viewer/base/trace_logger.h"
 
 #include <QApplication>
 #include <QCheckBox>
@@ -69,6 +70,13 @@ QString patternFilePath()
 {
     return QDir(QCoreApplication::applicationDirPath())
         .filePath(QStringLiteral("user/rbt_match_patterns.json"));
+}
+
+void logRbtViewerTrace(const QString& message)
+{
+    viewer::trace::write(
+        viewer::trace::Category::FileIO,
+        QStringLiteral("RBT viewer | ") + message);
 }
 
 } // namespace
@@ -883,6 +891,9 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     connect(m_textManager, &viewer::RbtTextManager::documentOpening,
         this, [this](const QString& path)
         {
+            logRbtViewerTrace(QStringLiteral("document opening: path=%1 bytes=%2")
+                .arg(path)
+                .arg(QFileInfo(path).size()));
             m_textView->clearFile();
             m_findPrevious->setEnabled(false);
             m_findNext->setEnabled(false);
@@ -893,6 +904,10 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
         this, [this](const QString& path)
         {
             m_textView->setDocument(m_textManager->document());
+            logRbtViewerTrace(QStringLiteral("document ready: path=%1 bytes=%2 lines=%3")
+                .arg(path)
+                .arg(m_textManager->document()->fileSize())
+                .arg(m_textManager->document()->lineCount()));
             m_findPrevious->setEnabled(true);
             m_findNext->setEnabled(true);
             if (!m_pendingJumpPath.isEmpty()
@@ -921,6 +936,8 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     connect(m_textManager, &viewer::RbtTextManager::documentFailed,
         this, [this](const QString& path, const QString& error)
         {
+            logRbtViewerTrace(QStringLiteral("document failed: path=%1 error=%2")
+                .arg(path, error));
             const QString reason = QString::fromUtf8(u8"无法打开日志：%1").arg(error);
             m_status->setText(reason);
             if (!m_pendingJumpPath.isEmpty()
@@ -963,6 +980,7 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     connect(m_textManager, &viewer::RbtTextManager::patternScanStarted,
         this, [this]()
         {
+            logRbtViewerTrace(QStringLiteral("pattern scan started"));
             m_textView->setMatchIndex({});
             m_patternStatus->setText(QString::fromUtf8(u8"正在匹配当前日志：0%"));
             updateNavigationControls();
@@ -976,12 +994,23 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     connect(m_textManager, &viewer::RbtTextManager::patternScanFailed,
         this, [this](const QString& error)
         {
+            logRbtViewerTrace(QStringLiteral("pattern scan failed: %1").arg(error));
             m_patternStatus->setText(QString::fromUtf8(u8"模式匹配失败：%1").arg(error));
+            updateNavigationControls();
+        });
+    connect(m_textManager, &viewer::RbtTextManager::patternScanDeferred,
+        this, [this](const QString& reason)
+        {
+            logRbtViewerTrace(QStringLiteral("automatic pattern scan deferred: %1").arg(reason));
+            m_textView->setMatchIndex({});
+            m_patternStatus->setText(QString::fromUtf8(
+                u8"日志较大，已跳过自动规则匹配；如需匹配，请在“模式匹配”页点击“更新”。"));
             updateNavigationControls();
         });
     connect(m_textManager, &viewer::RbtTextManager::patternIndexReady,
         this, [this]()
         {
+            logRbtViewerTrace(QStringLiteral("pattern index ready"));
             m_textView->setMatchIndex(m_textManager->matchIndex());
             m_patternStatus->setText(QString::fromUtf8(u8"模式匹配已更新。"));
             updateNavigationControls();
@@ -996,6 +1025,13 @@ void RbtLogViewerWindow::openFiles(const QStringList& paths)
         if (QFileInfo::exists(path))
             validPaths.push_back(QFileInfo(path).absoluteFilePath());
     }
+    quint64 totalBytes = 0;
+    for (const QString& path : validPaths)
+        totalBytes += static_cast<quint64>(std::max<qint64>(0, QFileInfo(path).size()));
+    logRbtViewerTrace(QStringLiteral("open request: files=%1 totalBytes=%2")
+        .arg(validPaths.size())
+        .arg(totalBytes));
+
     QStringList installedPaths;
     for (int index = 0; index < m_files->count(); ++index)
         installedPaths.push_back(QFileInfo(
@@ -1032,6 +1068,7 @@ void RbtLogViewerWindow::openFiles(const QStringList& paths)
 
 void RbtLogViewerWindow::releaseFiles()
 {
+    logRbtViewerTrace(QStringLiteral("release files"));
     m_textManager->clear();
     m_files->blockSignals(true);
     m_files->clear();
@@ -1124,6 +1161,7 @@ void RbtLogViewerWindow::beginOpenFile(const QString& path)
 {
     if (path.isEmpty())
         return;
+    logRbtViewerTrace(QStringLiteral("begin open file: %1").arg(path));
     m_textManager->openFile(path);
 }
 

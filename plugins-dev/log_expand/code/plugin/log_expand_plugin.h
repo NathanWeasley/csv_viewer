@@ -46,6 +46,10 @@ private:
         viewer::plugin::PluginProgressHandle progress,
         const viewer::plugin::DerivedColumnBatchWriterPtr& writer,
         QList<ExpansionResult> results);
+    void finishRecomputeFailure(
+        quint64 generation,
+        viewer::plugin::PluginProgressHandle progress,
+        const QString& error);
 
     void showMappedVariables();
     void editExpansionDefinitions();
