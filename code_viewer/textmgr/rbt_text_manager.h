@@ -7,6 +7,7 @@
 #include <QColor>
 #include <QFile>
 #include <QObject>
+#include <QRegularExpression>
 #include <QString>
 #include <QVector>
 
@@ -16,11 +17,19 @@
 namespace viewer
 {
 
+enum class RbtPatternMatchType
+{
+    Exact,
+    RegularExpression,
+    Fuzzy
+};
+
 struct VIEWER_API RbtPatternRule
 {
     QString id;
     QString name;
     QString expression;
+    RbtPatternMatchType matchType = RbtPatternMatchType::RegularExpression;
     QColor color = QColor(255, 235, 59, 80);
 };
 
@@ -164,6 +173,7 @@ public:
     static bool validatePatterns(const QVector<RbtPatternRule>& rules,
                                  int* errorRow = nullptr,
                                  QString* error = nullptr);
+    static QRegularExpression compilePattern(const RbtPatternRule& rule);
 
     const QVector<RbtPatternRule>& patterns() const noexcept { return m_patterns; }
     std::shared_ptr<const RbtTextDocument> document() const noexcept { return m_document; }

@@ -84,6 +84,65 @@ void logRbtViewerTrace(const QString& message)
 namespace
 {
 
+QString patternMatchTypeText(viewer::RbtPatternMatchType type)
+{
+    switch (type)
+    {
+    case viewer::RbtPatternMatchType::Exact:
+        return QString::fromUtf8(u8"全字匹配");
+    case viewer::RbtPatternMatchType::RegularExpression:
+        return QString::fromUtf8(u8"正则匹配");
+    case viewer::RbtPatternMatchType::Fuzzy:
+        return QString::fromUtf8(u8"模糊匹配");
+    }
+    return QString::fromUtf8(u8"正则匹配");
+}
+
+class PatternMatchTypeDelegate final : public QStyledItemDelegate
+{
+public:
+    using QStyledItemDelegate::QStyledItemDelegate;
+
+    QWidget* createEditor(QWidget* parent, const QStyleOptionViewItem&,
+                          const QModelIndex&) const override
+    {
+        auto* combo = new QComboBox(parent);
+        combo->addItem(patternMatchTypeText(viewer::RbtPatternMatchType::Exact),
+                       static_cast<int>(viewer::RbtPatternMatchType::Exact));
+        combo->addItem(patternMatchTypeText(
+                           viewer::RbtPatternMatchType::RegularExpression),
+                       static_cast<int>(viewer::RbtPatternMatchType::RegularExpression));
+        combo->addItem(patternMatchTypeText(viewer::RbtPatternMatchType::Fuzzy),
+                       static_cast<int>(viewer::RbtPatternMatchType::Fuzzy));
+        combo->setFrame(false);
+        return combo;
+    }
+
+    void setEditorData(QWidget* editor, const QModelIndex& index) const override
+    {
+        auto* combo = qobject_cast<QComboBox*>(editor);
+        if (!combo)
+            return;
+        const int item = combo->findData(index.data(Qt::EditRole));
+        combo->setCurrentIndex(item >= 0 ? item : 0);
+    }
+
+    void setModelData(QWidget* editor, QAbstractItemModel* model,
+                      const QModelIndex& index) const override
+    {
+        auto* combo = qobject_cast<QComboBox*>(editor);
+        if (combo)
+            model->setData(index, combo->currentData(), Qt::EditRole);
+    }
+
+    void updateEditorGeometry(QWidget* editor,
+                              const QStyleOptionViewItem& option,
+                              const QModelIndex&) const override
+    {
+        editor->setGeometry(option.rect);
+    }
+};
+
 class PatternColorDelegate final : public QStyledItemDelegate
 {
 public:
@@ -95,18 +154,22 @@ public:
         QStyleOptionViewItem baseOption(option);
         initStyleOption(&baseOption, index);
         baseOption.text.clear();
-        QStyledItemDelegate::paint(painter, baseOption, index);
+        QStyle* style = baseOption.widget
+            ? baseOption.widget->style()
+            : QApplication::style();
+        style->drawControl(
+            QStyle::CE_ItemViewItem, &baseOption, painter, baseOption.widget);
 
         QColor color = index.data(Qt::EditRole).value<QColor>();
         if (!color.isValid())
             return;
         QColor swatch = color;
         swatch.setAlpha(255);
-        const QRect rect = option.rect.adjusted(8, 5, -8, -5);
+        const QRect swatchRect = option.rect.adjusted(8, 5, -8, -5);
         painter->save();
         painter->setPen(option.palette.mid().color());
         painter->setBrush(swatch);
-        painter->drawRoundedRect(rect, 3, 3);
+        painter->drawRoundedRect(swatchRect, 3, 3);
         painter->restore();
     }
 };
@@ -125,7 +188,7 @@ int RbtPatternTableModel::rowCount(const QModelIndex& parent) const
 
 int RbtPatternTableModel::columnCount(const QModelIndex& parent) const
 {
-    return parent.isValid() ? 0 : 3;
+    return parent.isValid() ? 0 : 4;
 }
 
 QVariant RbtPatternTableModel::data(const QModelIndex& index, int role) const
@@ -133,18 +196,45 @@ QVariant RbtPatternTableModel::data(const QModelIndex& index, int role) const
     if (!index.isValid() || index.row() < 0 || index.row() >= m_rules.size())
         return {};
     const viewer::RbtPatternRule& rule = m_rules[index.row()];
-    if (role == Qt::DisplayRole || role == Qt::EditRole)
+    if (role == Qt::DisplayRole)
     {
         switch (index.column())
         {
         case 0: return rule.name;
-        case 1: return rule.expression;
-        case 2: return rule.color;
+        case 1: return patternMatchTypeText(rule.matchType);
+        case 2: return rule.expression;
+        case 3: return rule.color;
         default: return {};
         }
     }
-    if (role == Qt::ToolTipRole && index.column() == 2)
-        return QString::fromUtf8(u8"双击选择高亮颜色");
+    if (role == Qt::EditRole)
+    {
+        switch (index.column())
+        {
+        case 0: return rule.name;
+        case 1: return static_cast<int>(rule.matchType);
+        case 2: return rule.expression;
+        case 3: return rule.color;
+        default: return {};
+        }
+    }
+    if (role == Qt::ToolTipRole)
+    {
+        if (index.column() == 1)
+        {
+            return QString::fromUtf8(
+                u8"全字匹配：整行完全一致；正则匹配：使用 Qt 正则；"
+                u8"模糊匹配：忽略大小写，空格可匹配任意非换行字符。");
+        }
+        if (index.column() == 2
+            && rule.matchType == viewer::RbtPatternMatchType::RegularExpression)
+        {
+            return QString::fromUtf8(
+                u8"直接填写 Qt 正则表达式，不要使用 /.../ 作为分隔符。");
+        }
+        if (index.column() == 3)
+            return QString::fromUtf8(u8"双击选择高亮颜色");
+    }
     return {};
 }
 
@@ -156,8 +246,9 @@ QVariant RbtPatternTableModel::headerData(
     switch (section)
     {
     case 0: return QString::fromUtf8(u8"模式名称");
-    case 1: return QString::fromUtf8(u8"模式正则表达式");
-    case 2: return QString::fromUtf8(u8"高亮颜色");
+    case 1: return QString::fromUtf8(u8"匹配类型");
+    case 2: return QString::fromUtf8(u8"匹配模式");
+    case 3: return QString::fromUtf8(u8"高亮颜色");
     default: return {};
     }
 }
@@ -167,7 +258,7 @@ Qt::ItemFlags RbtPatternTableModel::flags(const QModelIndex& index) const
     if (!index.isValid())
         return Qt::ItemIsEnabled;
     Qt::ItemFlags result = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
-    if (index.column() < 2)
+    if (index.column() < 3)
         result |= Qt::ItemIsEditable;
     return result;
 }
@@ -182,8 +273,19 @@ bool RbtPatternTableModel::setData(
     switch (index.column())
     {
     case 0: rule.name = value.toString(); break;
-    case 1: rule.expression = value.toString(); break;
-    case 2:
+    case 1:
+    {
+        const int rawType = value.toInt();
+        if (rawType < static_cast<int>(viewer::RbtPatternMatchType::Exact)
+            || rawType > static_cast<int>(viewer::RbtPatternMatchType::Fuzzy))
+        {
+            return false;
+        }
+        rule.matchType = static_cast<viewer::RbtPatternMatchType>(rawType);
+        break;
+    }
+    case 2: rule.expression = value.toString(); break;
+    case 3:
         if (!value.value<QColor>().isValid())
             return false;
         rule.color = value.value<QColor>();
@@ -775,14 +877,17 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     m_patternTable = new QTableView(m_patternTab);
     m_patternTable->setModel(m_patternModel);
     m_patternTable->setItemDelegateForColumn(
-        2, new PatternColorDelegate(m_patternTable));
+        1, new PatternMatchTypeDelegate(m_patternTable));
+    m_patternTable->setItemDelegateForColumn(
+        3, new PatternColorDelegate(m_patternTable));
     m_patternTable->setSelectionBehavior(QAbstractItemView::SelectRows);
     m_patternTable->setSelectionMode(QAbstractItemView::ExtendedSelection);
     m_patternTable->horizontalHeader()->setStretchLastSection(false);
     m_patternTable->horizontalHeader()->setSectionResizeMode(QHeaderView::Interactive);
     m_patternTable->horizontalHeader()->resizeSection(0, 180);
-    m_patternTable->horizontalHeader()->resizeSection(1, 720);
-    m_patternTable->horizontalHeader()->resizeSection(2, 140);
+    m_patternTable->horizontalHeader()->resizeSection(1, 120);
+    m_patternTable->horizontalHeader()->resizeSection(2, 600);
+    m_patternTable->horizontalHeader()->resizeSection(3, 140);
     patternLayout->addWidget(m_patternTable, 1);
 
     auto* patternButtons = new QHBoxLayout();
@@ -868,7 +973,7 @@ RbtLogViewerWindow::RbtLogViewerWindow(QWidget* parent)
     connect(m_patternTable, &QTableView::doubleClicked, this,
         [this](const QModelIndex& index)
         {
-            if (index.column() != 2)
+            if (index.column() != 3)
                 return;
             QColor color = index.data(Qt::EditRole).value<QColor>();
             color = QColorDialog::getColor(color, this,
@@ -1187,8 +1292,8 @@ void RbtLogViewerWindow::applyPatternChanges()
         m_patternStatus->setText(QString::fromUtf8(u8"无法更新：%1").arg(error));
         if (errorRow >= 0)
         {
-            m_patternTable->setCurrentIndex(m_patternModel->index(errorRow, 1));
-            m_patternTable->scrollTo(m_patternModel->index(errorRow, 1));
+            m_patternTable->setCurrentIndex(m_patternModel->index(errorRow, 2));
+            m_patternTable->scrollTo(m_patternModel->index(errorRow, 2));
         }
         return;
     }

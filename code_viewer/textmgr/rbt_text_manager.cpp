@@ -51,6 +51,64 @@ QString taskOutOfMemory(const char* operation)
         + QString::fromLatin1(operation);
 }
 
+QString matchTypeKey(RbtPatternMatchType type)
+{
+    switch (type)
+    {
+    case RbtPatternMatchType::Exact: return QStringLiteral("exact");
+    case RbtPatternMatchType::RegularExpression: return QStringLiteral("regex");
+    case RbtPatternMatchType::Fuzzy: return QStringLiteral("fuzzy");
+    }
+    return QStringLiteral("regex");
+}
+
+RbtPatternMatchType matchTypeFromKey(const QString& key)
+{
+    if (key.compare(QStringLiteral("exact"), Qt::CaseInsensitive) == 0)
+        return RbtPatternMatchType::Exact;
+    if (key.compare(QStringLiteral("fuzzy"), Qt::CaseInsensitive) == 0)
+        return RbtPatternMatchType::Fuzzy;
+    // Missing matchType is the legacy version-1 format and must retain the
+    // previous direct regular-expression behavior.
+    return RbtPatternMatchType::RegularExpression;
+}
+
+QString fuzzyRegularExpression(const QString& pattern)
+{
+    QString result;
+    QString literal;
+    bool gapPending = false;
+    const auto flushLiteral = [&]()
+    {
+        if (literal.isEmpty())
+            return;
+        result += QRegularExpression::escape(literal);
+        literal.clear();
+    };
+
+    for (const QChar character : pattern)
+    {
+        if (character.isSpace())
+        {
+            flushLiteral();
+            gapPending = true;
+            continue;
+        }
+        if (gapPending)
+        {
+            // Explicitly exclude line breaks even if this expression is ever
+            // reused against multi-line text in the future.
+            result += QStringLiteral("[^\\r\\n]*");
+            gapPending = false;
+        }
+        literal += character;
+    }
+    flushLiteral();
+    if (gapPending)
+        result += QStringLiteral("[^\\r\\n]*");
+    return result;
+}
+
 QByteArray comparableBytes(QByteArray bytes, bool caseSensitive)
 {
     return caseSensitive ? bytes : bytes.toLower();
@@ -497,6 +555,8 @@ bool RbtPatternRepository::load(
             rule.id = QUuid::createUuid().toString(QUuid::WithoutBraces);
         rule.name = object.value(QStringLiteral("name")).toString();
         rule.expression = object.value(QStringLiteral("expression")).toString();
+        rule.matchType = matchTypeFromKey(
+            object.value(QStringLiteral("matchType")).toString());
         rule.color = QColor(object.value(QStringLiteral("color")).toString());
         if (!rule.color.isValid())
             rule.color = QColor(255, 235, 59, 80);
@@ -523,6 +583,7 @@ bool RbtPatternRepository::save(
         object[QStringLiteral("id")] = rule.id;
         object[QStringLiteral("name")] = rule.name;
         object[QStringLiteral("expression")] = rule.expression;
+        object[QStringLiteral("matchType")] = matchTypeKey(rule.matchType);
         object[QStringLiteral("color")] = rule.color.name(QColor::HexArgb);
         array.push_back(object);
     }
@@ -737,7 +798,7 @@ bool RbtTextManager::validatePatterns(
         if (rule.expression.isEmpty())
         {
             if (errorRow) *errorRow = static_cast<int>(row);
-            if (error) *error = QString::fromUtf8(u8"正则表达式不能为空。");
+            if (error) *error = QString::fromUtf8(u8"匹配模式不能为空。");
             return false;
         }
         for (qsizetype previous = 0; previous < row; ++previous)
@@ -750,14 +811,13 @@ bool RbtTextManager::validatePatterns(
                 return false;
             }
         }
-        QRegularExpression expression(
-            rule.expression, QRegularExpression::UseUnicodePropertiesOption);
+        const QRegularExpression expression = compilePattern(rule);
         if (!expression.isValid())
         {
             if (errorRow) *errorRow = static_cast<int>(row);
             if (error)
             {
-                *error = QString::fromUtf8(u8"正则表达式错误（位置 %1）：%2")
+                *error = QString::fromUtf8(u8"匹配模式转换后的正则表达式错误（位置 %1）：%2")
                     .arg(expression.patternErrorOffset())
                     .arg(expression.errorString());
             }
@@ -773,6 +833,28 @@ bool RbtTextManager::validatePatterns(
     if (errorRow) *errorRow = -1;
     if (error) error->clear();
     return true;
+}
+
+QRegularExpression RbtTextManager::compilePattern(const RbtPatternRule& rule)
+{
+    QRegularExpression::PatternOptions options =
+        QRegularExpression::UseUnicodePropertiesOption;
+    QString expression;
+    switch (rule.matchType)
+    {
+    case RbtPatternMatchType::Exact:
+        expression = QStringLiteral("\\A(?:%1)\\z")
+            .arg(QRegularExpression::escape(rule.expression));
+        break;
+    case RbtPatternMatchType::RegularExpression:
+        expression = rule.expression;
+        break;
+    case RbtPatternMatchType::Fuzzy:
+        expression = fuzzyRegularExpression(rule.expression);
+        options |= QRegularExpression::CaseInsensitiveOption;
+        break;
+    }
+    return QRegularExpression(expression, options);
 }
 
 bool RbtTextManager::applyPatterns(
@@ -900,8 +982,7 @@ void RbtTextManager::startPatternScan(bool force)
                 QVector<QRegularExpression> expressions;
                 expressions.reserve(patterns.size());
                 for (const RbtPatternRule& rule : patterns)
-                    expressions.push_back(QRegularExpression(
-                        rule.expression, QRegularExpression::UseUnicodePropertiesOption));
+                    expressions.push_back(RbtTextManager::compilePattern(rule));
 
                 QVector<QVector<quint32>> matchedLines(patterns.size());
                 qsizetype totalMatches = 0;

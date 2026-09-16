@@ -2,7 +2,7 @@
     "patterns": [
         {
             "color": "#50ffeb3b",
-            "expression": "call",
+            "expression": "/call system func/",
             "id": "03fc2c8e-d556-4112-9e3f-b858a477ecbb",
             "name": "RMP_CALL"
         }
